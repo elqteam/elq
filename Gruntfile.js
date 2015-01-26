@@ -4,6 +4,12 @@ module.exports = function(grunt) {
     require("load-grunt-tasks")(grunt);
 
     var config = {
+        pkg: grunt.file.readJSON("package.json"),
+        banner: "/*!\n" +
+                " * bookie.js <%= pkg.version %> (<%= grunt.template.today('yyyy-mm-dd, HH:MM') %>)\n" +
+                " * <%= pkg.homepage %>\n" +
+                " * Licensed under <%= pkg.license %>\n" +
+                " */\n",
         jshint: {
             src: {
                 src: ["src/**/*.js", "*.js"]
@@ -23,7 +29,7 @@ module.exports = function(grunt) {
         },
         browserify: {
             dev: {
-                src: ["src/elq.js"],
+                src: ["src/index.js"],
                 dest: "build/elq.js",
                 options: {
                     browserifyOptions: {
@@ -32,8 +38,18 @@ module.exports = function(grunt) {
                     }
                 }
             },
+            grid: {
+                src: "src/extensions/elq-grid-index.js",
+                dest: "build/elq-grid.js",
+                options: {
+                    browserifyOptions: {
+                        standalone: "elqGrid",
+                        debug: false
+                    }
+                }
+            },
             dist: {
-                src: ["src/elq.js"],
+                src: ["src/index.js"],
                 dest: "build/elq.js",
                 options: {
                     browserifyOptions: {
@@ -49,7 +65,7 @@ module.exports = function(grunt) {
     grunt.registerTask("build:dev", ["browserify:dev"]);
     grunt.registerTask("build:dist", ["browserify:dist"]);
 
-    grunt.registerTask("build", ["browserify"]);
+    grunt.registerTask("build", ["build:dev", "browserify:grid"]);
     grunt.registerTask("dist", ["build:dist"]);
 
     grunt.registerTask("test:style", ["jshint", "jscs"]);
