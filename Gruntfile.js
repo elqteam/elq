@@ -26,15 +26,19 @@ module.exports = function(grunt) {
                 src: ["src/elq.js"],
                 dest: "build/elq.js",
                 options: {
-                    standalone: "elq",
-                    debug: true
+                    browserifyOptions: {
+                        standalone: "elq",
+                        debug: true
+                    }
                 }
             },
             dist: {
                 src: ["src/elq.js"],
                 dest: "build/elq.js",
                 options: {
-                    standalone: "elq"
+                    browserifyOptions: {
+                        standalone: "elq"
+                    }
                 }
             }
         }
