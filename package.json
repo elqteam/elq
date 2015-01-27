@@ -18,7 +18,8 @@
     "lodash.filter": "^2.4.1",
     "lodash.isfunction": "^2.4.1",
     "lodash.isobject": "^2.4.1",
-    "lodash.isstring": "^2.4.1"
+    "lodash.isstring": "^2.4.1",
+    "lodash.partialright": "^2.4.1"
   },
   "scripts": {
     "build": "grunt build",

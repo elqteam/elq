@@ -1,8 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <style>
+        #test {
+            background-color: #FF9800;
+            height: 300px;
+            width: 500px;
+            position: relative;
+        }
+
+        body {
+            position: relative;
+        }
+
+        object {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding: 0;
+            margin: 0;
+            opacity: 0;
+            z-index: -1000;
+            pointer-events: none;
+        }
+    </style>
 </head>
 <body>
+    <div id="test" class="elq">
+        hej hej
+    </div>
+
+    <script src="../../node_modules/jquery/dist/jquery.min.js"></script>
     <script src="../../build/elq.js"></script>
     <script src="../../build/elq-grid.js"></script>
 </body>
