@@ -14,6 +14,7 @@
     "load-grunt-tasks": "^3.0.0"
   },
   "dependencies": {
+    "element-resize-detector": "^0.1.1",
     "lodash": "^2.4.1",
     "lodash.filter": "^2.4.1",
     "lodash.isfunction": "^2.4.1",

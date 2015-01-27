@@ -1,7 +1,7 @@
 "use strict";
 
 var ExtensionHandler = require("./extension/extension-handler");
-var elementResizeDetectorMaker = require("./element-resize-detector");
+var elementResizeDetectorMaker = require("element-resize-detector");
 
 module.exports = function() {
     var elq = {};
