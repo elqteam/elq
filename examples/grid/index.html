@@ -2,20 +2,128 @@
 <html>
 <head>
     <style>
-        #test {
-            background-color: #FF9800;
-            height: 300px;
-            width: 500px;
+        html, body {
+            height: 100%;
+        }
+
+        #aligner {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #container {
+            width: 50%;
+            height: 50%;
+            background: #FF9800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        #dimensions {
+            font-size: 3em;
+            color: #FFF;
+            text-align: center;
+        }
+
+        #dim-x, #dim-y {
+            color: #263248;
+        }
+
+        #classes div {
+            display: inline-block;
+            margin: 5px;
+        }
+
+        #classes div span {
+            display: block;
+            font-family: monospace;
         }
     </style>
 </head>
 <body>
-    <div id="test" class="elq">
-        hej hej
+    <div id="aligner">
+        <div id="container" elq elq-breakpoints elq-width-min="100" elq-width-max="1000" elq-width-step="50">
+            <div id="test">
+                <div id="dimensions">
+                    <span id="dim-x"></span>x<span id="dim-y"></span>
+                </div>
+                <div id="classes">
+                    <div>
+                        <span id="width-above">elq-width-above-300</span>
+                        <span id="width-under">elq-width-under-400</span>
+                    </div>
+                    <div>
+                        <span id="height-above">elq-height-above-500</span>
+                        <span id="height-under">elq-height-above-1000</span>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="../../node_modules/jquery/dist/jquery.min.js"></script>
     <script src="../../build/elq.js"></script>
     <script src="../../build/elq-grid.js"></script>
+    <script>
+        $(function() {
+            function updateElement(element) {
+                updateDimensions(element);
+                updateClasses(element);
+            }
+
+            function updateDimensions(element) {
+                var width = $(element).width();
+                var height = $(element).height();
+                $("#dim-x").html(width);
+                $("#dim-y").html(height);
+            }
+
+            function updateClasses(element) {
+                var classes = element.className;
+
+                var matches = classes.match(/elq-(width|height)-[a-z]+-[0-9]+/g);
+
+                $("#classes span").html("");
+
+                matches.forEach(function(match) {
+                    if(/^elq-width-above/.test(match)) {
+                        $("#width-above").html(match);
+                    } else if(/^elq-width-under/.test(match)) {
+                        $("#width-under").html(match);
+                    } else if(/^elq-height-above/.test(match)) {
+                        $("#height-above").html(match);
+                    } else if(/^elq-height-under/.test(match)) {
+                        $("#height-under").html(match);
+                    }
+                });
+            }
+
+            var container = $("#container");
+
+            elq.use(elqGrid);
+            elq.start(container);
+
+            elq.listenTo(container[0], updateElement);
+            updateElement(container[0]);
+
+            container.click(function() {
+                function rand(min, max) {
+                    return Math.floor(Math.random() * (max - min + 1)) + min;
+                }
+
+                var width = rand(30, 90);
+                var height = rand(30, 90);
+
+                $(this).css({
+                    width: width + "%",
+                    height: height + "%"
+                });
+            });
+        });
+    </script>
 </body>
 </html>

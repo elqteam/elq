@@ -8,6 +8,8 @@ var _ = {};
 _.isFunction = require("lodash.isfunction");
 _.isObject = require("lodash.isobject");
 _.isString = require("lodash.isString");
+_.filter = require("lodash.filter");
+_.map = require("lodash.map");
 
 module.exports = ExtensionHandler;
 
@@ -75,11 +77,15 @@ ExtensionHandler.prototype.get = function(name) {
  * @returns {function[]} A list of all extension methods that matched the given method name.
  */
 ExtensionHandler.prototype.getMethods = function(method) {
-    return this.extensions.filter(function(extension) {
+    function filterer(extension) {
         return _.isFunction(extension[method]);
-    }).map(function(extension) {
+    }
+
+    function mapper(extension) {
         return extension[method];
-    }) || [];
+    }
+
+    return _.map(_.filter(this.extensions, filterer), mapper) || [];
 };
 
 /**

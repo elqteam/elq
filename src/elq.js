@@ -8,17 +8,16 @@ module.exports = function() {
     var extensionHandler = new ExtensionHandler();
     var elementResizeDetector = elementResizeDetectorMaker();
 
-    function scan() {
-        elementResizeDetector.listenTo(document.getElementsByClassName("elq"), function(element) {
-            console.log("resized " + $(element).width() + "x" + $(element).height());
-        });
+    function start(elements) {
+        extensionHandler.callMethods("start", [elq, elements]);
     }
 
     elq.version = version;
     elq.use = extensionHandler.register.bind(extensionHandler, elq);
     elq.using = extensionHandler.isRegistered.bind(extensionHandler);
     elq.getExtension = extensionHandler.get.bind(extensionHandler);
-    elq.scan = scan;
+    elq.start = start;
+    elq.listenTo = elementResizeDetector.listenTo;
 
     return elq;
 };
