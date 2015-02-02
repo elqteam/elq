@@ -6,7 +6,7 @@ var elementResizeDetectorMaker = require("element-resize-detector");
 module.exports = function() {
     var elq = {};
     var extensionHandler = new ExtensionHandler();
-    var elementResizeDetector = elementResizeDetectorMaker(window, $);
+    var elementResizeDetector = elementResizeDetectorMaker();
 
     function scan() {
         elementResizeDetector.listenTo(document.getElementsByClassName("elq"), function(element) {
