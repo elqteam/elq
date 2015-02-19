@@ -38,12 +38,12 @@ module.exports = function(grunt) {
                     }
                 }
             },
-            grid: {
-                src: "src/extensions/elq-grid-index.js",
-                dest: "build/elq-grid.js",
+            breakpoints: {
+                src: "src/extensions/elq-breakpoints-index.js",
+                dest: "build/elq-breakpoints.js",
                 options: {
                     browserifyOptions: {
-                        standalone: "elqGrid",
+                        standalone: "elqBreakpoints",
                         debug: true
                     }
                 }
@@ -57,12 +57,12 @@ module.exports = function(grunt) {
                     }
                 }
             },
-            distGrid: {
-                src: "src/extensions/elq-grid-index.js",
-                dest: "dist/elq-grid.js",
+            distBreakpoints: {
+                src: "src/extensions/elq-breakpoints-index.js",
+                dest: "dist/elq-breakpoints.js",
                 options: {
                     browserifyOptions: {
-                        standalone: "elqGrid"
+                        standalone: "elqBreakpoints"
                     }
                 }
             }
@@ -72,9 +72,9 @@ module.exports = function(grunt) {
     grunt.initConfig(config);
 
     grunt.registerTask("build:dev", ["browserify:dev"]);
-    grunt.registerTask("build:dist", ["browserify:dist", "browserify:distGrid"]);
+    grunt.registerTask("build:dist", ["browserify:dist", "browserify:distBreakpoints"]);
 
-    grunt.registerTask("build", ["build:dev", "browserify:grid"]);
+    grunt.registerTask("build", ["build:dev", "browserify:breakpoints"]);
     grunt.registerTask("dist", ["build:dist"]);
 
     grunt.registerTask("test:style", ["jshint", "jscs"]);

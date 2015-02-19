@@ -67,7 +67,7 @@
 
     <script src="../../node_modules/jquery/dist/jquery.min.js"></script>
     <script src="../../build/elq.js"></script>
-    <script src="../../build/elq-grid.js"></script>
+    <script src="../../build/elq-breakpoints.js"></script>
     <script>
         $(function() {
             function updateElement(element) {
@@ -104,7 +104,7 @@
 
             var container = $("#container");
 
-            elq.use(elqGrid);
+            elq.use(elqBreakpoints);
             elq.start(container);
 
             elq.listenTo(container[0], updateElement);

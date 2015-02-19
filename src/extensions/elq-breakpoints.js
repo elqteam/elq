@@ -3,19 +3,19 @@
 var Extension = require("../extension/extension");
 var forEach = require("lodash.foreach");
 
-module.exports = GridExtension;
+module.exports = BreakpointsExtension;
 
-function GridExtension() {
-    Extension.call(this, "elq-grid");
+function BreakpointsExtension() {
+    Extension.call(this, "elq-breakpoints");
 }
 
-GridExtension.prototype.start = function(elq, elements) {
+BreakpointsExtension.prototype.start = function(elq, elements) {
     function onElementResize(element) {
         function getAttributeOrDefault(attr, defaultValue) {
             return element.hasAttribute(attr) ? parseInt(element.getAttribute(attr)) : defaultValue;
         }
 
-        function calculateBreakpoints(value, min, max, step, msg) {
+        function calculateBreakpoints(value, min, max, step) {
             var lowerBreakpoint = false;
             var higherBreakpoint = false;
 

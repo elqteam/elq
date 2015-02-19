@@ -1,7 +1,6 @@
 //TODO: Borrowed from bookie.js. Should be removed and used as a dependency instead.
 //https://github.com/backslashforward/bookie.js/tree/master/src/extension
 
-
 "use strict";
 
 module.exports = Extension;
