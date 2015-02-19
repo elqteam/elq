@@ -22,7 +22,8 @@
     "lodash.isobject": "^2.4.1",
     "lodash.isstring": "^2.4.1",
     "lodash.map": "^3.0.0",
-    "lodash.partialright": "^2.4.1"
+    "lodash.partialright": "^2.4.1",
+    "lodash.uniq": "^3.0.0"
   },
   "scripts": {
     "build": "grunt build",

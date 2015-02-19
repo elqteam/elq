@@ -2,6 +2,7 @@
 
 var Extension = require("../extension/extension");
 var forEach = require("lodash.foreach");
+var unique = require("lodash.uniq");
 
 module.exports = BreakpointsExtension;
 
@@ -15,57 +16,98 @@ BreakpointsExtension.prototype.start = function(elq, elements) {
             return element.hasAttribute(attr) ? parseInt(element.getAttribute(attr)) : defaultValue;
         }
 
-        function calculateBreakpoints(value, min, max, step) {
-            var lowerBreakpoint = false;
-            var higherBreakpoint = false;
+        //can either be in the attribute elq-breakpoints-width="300 500 ..." or in the elq-width-min, elq-width-max, elq-width-step or both.
+        function getBreakpoints(element, dimension) {
+            function getFromMainAttr(element, dimension) {
+                var breakpoints = element.getAttribute("elq-breakpoints-" + dimension);
 
-            if(value >= min && value < max) {
-                //In breakpoint range.
-                lowerBreakpoint = ((value / step) | 0) * step;
-                higherBreakpoint = lowerBreakpoint + step;
+                if(!breakpoints) {
+                    return [];
+                }
+
+                breakpoints = breakpoints.replace(/\s+/g, " ").trim();
+                breakpoints = breakpoints.split(" ");
+                return breakpoints.map(function(value) {
+                    return parseInt(value, 10);
+                });
             }
 
-            return {
-                lower: lowerBreakpoint,
-                higher: higherBreakpoint
-            };
+            function getFromMinMaxStep(element, dimension) {
+                var min = getAttributeOrDefault("elq-" + dimension + "-min", null);
+                var max = getAttributeOrDefault("elq-" + dimension + "-max", null);
+                var step = getAttributeOrDefault("elq-" + dimension + "-step", 50);
+
+                var breakpoints = [];
+
+                if(!min) {
+                    return breakpoints;
+                }
+
+                if(!max) {
+                    throw new Error("Max needs to be defined.");
+                }
+
+                if(!step) {
+                    throw new Error("Step needs to be defined.");
+                }
+
+                for(var i = min; i <= max; i += step) {
+                    breakpoints.push(i);
+                }
+
+                return breakpoints;
+            }
+
+            var breakpoints = [];
+            breakpoints = breakpoints.concat(getFromMainAttr(element, dimension));
+            breakpoints = breakpoints.concat(getFromMinMaxStep(element, dimension));
+            breakpoints = unique(breakpoints);
+            breakpoints = breakpoints.sort(function(a, b) {
+                return a - b;
+            });
+            return breakpoints;
         }
 
-        var minWidth = getAttributeOrDefault("elq-width-min", 0);
-        var maxWidth = getAttributeOrDefault("elq-width-max", Infinity);
-        var stepWidth = getAttributeOrDefault("elq-width-step", 50);
+        function getClasses(breakpoints, dimension, value) {
+            var classes = [];
 
-        var minHeight = getAttributeOrDefault("elq-height-min", 0);
-        var maxHeight = getAttributeOrDefault("elq-height-max", Infinity);
-        var stepHeight = getAttributeOrDefault("elq-height-step", 50);
+            if(!breakpoints.length) {
+                return classes;
+            }
+
+            breakpoints.forEach(function(breakpoint) {
+                var dir = "under";
+
+                if(value >= breakpoint) {
+                    dir = "above";
+                }
+
+                classes.push("elq-" + dimension + "-" + dir + "-" + breakpoint);
+            });
+
+            return classes;
+        }
+
+        var widthBreakpoints = getBreakpoints(element, "width");
+        var heightBreakpoints = getBreakpoints(element, "height");
 
         var width = element.offsetWidth;
         var height = element.offsetHeight;
 
-        var widthBreakpoints = calculateBreakpoints(width, minWidth, maxWidth, stepWidth, "width");
-        var heightBreakpoints = calculateBreakpoints(height, minHeight, maxHeight, stepHeight, "height");
+        var widthClasses = getClasses(widthBreakpoints, "width", width);
+        var heightClasses = getClasses(heightBreakpoints, "height", height);
+        var classesString = widthClasses.join(" ") + " " + heightClasses.join(" ");
 
         var classes = element.className;
 
         //Remove all old breakpoints.
         classes = classes.replace(/elq-(width|height)-[a-z]+-[0-9]+/g, "");
 
-        //Add current breakpoints.
-        if(widthBreakpoints.lower) {
-            classes += " elq-width-above-" + widthBreakpoints.lower;
-        }
+        //Add new classes
+        classes += " " + classesString;
 
-        if(widthBreakpoints.higher) {
-            classes += " elq-width-under-" + widthBreakpoints.higher;
-        }
-
-        if(heightBreakpoints.lower) {
-            classes += " elq-height-above-" + heightBreakpoints.lower;
-        }
-
-        if(heightBreakpoints.higher) {
-            classes += " elq-height-under-" + heightBreakpoints.higher;
-        }
+        //Format classes before putting it in.
+        classes = classes.replace(/\s+/g, " ").trim();
 
         element.className = classes;
     }
