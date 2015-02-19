@@ -44,16 +44,25 @@ module.exports = function(grunt) {
                 options: {
                     browserifyOptions: {
                         standalone: "elqGrid",
-                        debug: false
+                        debug: true
                     }
                 }
             },
             dist: {
                 src: ["src/index.js"],
-                dest: "build/elq.js",
+                dest: "dist/elq.js",
                 options: {
                     browserifyOptions: {
                         standalone: "elq"
+                    }
+                }
+            },
+            distGrid: {
+                src: "src/extensions/elq-grid-index.js",
+                dest: "dist/elq-grid.js",
+                options: {
+                    browserifyOptions: {
+                        standalone: "elqGrid"
                     }
                 }
             }
@@ -63,7 +72,7 @@ module.exports = function(grunt) {
     grunt.initConfig(config);
 
     grunt.registerTask("build:dev", ["browserify:dev"]);
-    grunt.registerTask("build:dist", ["browserify:dist"]);
+    grunt.registerTask("build:dist", ["browserify:dist", "browserify:distGrid"]);
 
     grunt.registerTask("build", ["build:dev", "browserify:grid"]);
     grunt.registerTask("dist", ["build:dist"]);
