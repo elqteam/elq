@@ -42,6 +42,14 @@
             display: block;
             font-family: monospace;
         }
+
+        #mirror.elq-width-under-500px {
+            color: blue;
+        }
+
+        #mirror.elq-width-above-500px {
+            color: red;
+        }
     </style>
 </head>
 <body>
@@ -51,16 +59,9 @@
                 <div id="dimensions">
                     <span id="dim-x"></span>x<span id="dim-y"></span>
                 </div>
-                <div id="classes">
-                    <div>
-                        <span id="width-above">elq-width-above-300</span>
-                        <span id="width-under">elq-width-under-400</span>
-                    </div>
-                    <div>
-                        <span id="height-above">elq-height-above-500</span>
-                        <span id="height-under">elq-height-above-1000</span>
-                    </div>
-                </div>
+                <span id="mirror" elq elq-mirror>
+                    I'm an ELQ element.
+                </span>
             </div>
         </div>
     </div>
@@ -68,6 +69,7 @@
     <script src="../../node_modules/jquery/dist/jquery.min.js"></script>
     <script src="../../build/elq.js"></script>
     <script src="../../build/elq-breakpoints.js"></script>
+    <script src="../../build/elq-mirror.js"></script>
     <script>
         $(function() {
             function updateElement(element) {
@@ -109,7 +111,8 @@
                 postfix: "px"
             });
             elq.use(elqBreakpoints);
-            elq.start(container);
+            elq.use(elqMirror);
+            elq.start($("[elq]"));
 
             elq.listenTo(container[0], updateElement);
             updateElement(container[0]);

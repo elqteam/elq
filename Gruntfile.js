@@ -48,6 +48,16 @@ module.exports = function(grunt) {
                     }
                 }
             },
+            mirror: {
+                src: "src/extensions/elq-mirror-index.js",
+                dest: "build/elq-mirror.js",
+                options: {
+                    browserifyOptions: {
+                        standalone: "elqMirror",
+                        debug: true
+                    }
+                }
+            },
             dist: {
                 src: ["src/index.js"],
                 dest: "dist/elq.js",
@@ -65,6 +75,15 @@ module.exports = function(grunt) {
                         standalone: "elqBreakpoints"
                     }
                 }
+            },
+            distMirror: {
+                src: "src/extensions/elq-mirror-index.js",
+                dest: "dist/elq-mirror.js",
+                options: {
+                    browserifyOptions: {
+                        standalone: "elqMirror"
+                    }
+                }
             }
         }
     };
@@ -72,9 +91,9 @@ module.exports = function(grunt) {
     grunt.initConfig(config);
 
     grunt.registerTask("build:dev", ["browserify:dev"]);
-    grunt.registerTask("build:dist", ["browserify:dist", "browserify:distBreakpoints"]);
+    grunt.registerTask("build:dist", ["browserify:dist", "browserify:distBreakpoints", "browserify:distMirror"]);
 
-    grunt.registerTask("build", ["build:dev", "browserify:breakpoints"]);
+    grunt.registerTask("build", ["build:dev", "browserify:breakpoints", "browserify:mirror"]);
     grunt.registerTask("dist", ["build:dist"]);
 
     grunt.registerTask("test:style", ["jshint", "jscs"]);

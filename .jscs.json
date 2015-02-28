@@ -60,7 +60,7 @@
     "disallowKeywordsOnNewLine": ["else"],
     "requireLineFeedAtFileEnd": true,
     "requireCapitalizedConstructors": true,
-    "safeContextKeyword": ["that"],
+    "safeContextKeyword": ["self"],
     "requireDotNotation": true,
     "disallowYodaConditions": true,
     "validateJSDoc": {
