@@ -3941,7 +3941,7 @@ ExtensionHandler.prototype.get = function(name) {
  * Gets all extension methods that exists for the given method name.
  * @public
  * @param {string} method The name of the methods that should be extracted from the extensions.
- * @returns {function[]} A list of all extension methods that matched the given method name.
+ * @returns {function[]} A list of all extension methods that matched the given method name. The methods will have the context bound to the extension object.
  */
 ExtensionHandler.prototype.getMethods = function(method) {
     function filterer(extension) {
@@ -3949,7 +3949,8 @@ ExtensionHandler.prototype.getMethods = function(method) {
     }
 
     function mapper(extension) {
-        return extension[method];
+        var f = extension[method];
+        return f ? f.bind(extension) : null;
     }
 
     return _.map(_.filter(this.extensions, filterer), mapper) || [];

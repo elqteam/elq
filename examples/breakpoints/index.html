@@ -105,6 +105,9 @@
 
             var container = $("#container");
 
+            elqBreakpoints.setConfig({
+                postfix: "px"
+            });
             elq.use(elqBreakpoints);
             elq.start(container);
 
