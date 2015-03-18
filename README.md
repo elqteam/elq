@@ -1,2 +1,2 @@
 # elq
-Element media queries framework. Solution to modular responsive components.
+Element queries framework. Solution to modular responsive components.
