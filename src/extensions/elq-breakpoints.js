@@ -15,9 +15,14 @@ function BreakpointsExtension() {
 
     this.elementBreakpointsListeners = {};
     this.previousElementBreakpointClasses = {};
+    this.idHandler;
 }
 
 BreakpointsExtension.prototype.start = function(elq, elements) {
+    //TODO: DI this one in the constructor instead? Then signature of use can be elq.use(plugin, options), instead of elq.use(plugin(options)).
+    //Save the idHandler of elq.
+    this.idHandler = elq.idHandler;
+
     var self = this;
 
     function onElementResize(element) {
@@ -107,10 +112,11 @@ BreakpointsExtension.prototype.start = function(elq, elements) {
         var heightClasses = getClasses(heightBreakpoints, "height", height);
         var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
 
-        if(self.previousElementBreakpointClasses[getId(element)] !== breakpointClasses) {
+        var id = self.idHandler.get(element);
+        if(self.previousElementBreakpointClasses[id] !== breakpointClasses) {
             self.updateBreakpointClasses(element, breakpointClasses);
-            self.previousElementBreakpointClasses[getId(element)] = breakpointClasses;
-            forEach(self.elementBreakpointsListeners[getId(element)], function(listener) {
+            self.previousElementBreakpointClasses[id] = breakpointClasses;
+            forEach(self.elementBreakpointsListeners[id], function(listener) {
                 listener(element);
             });
         }
@@ -125,7 +131,7 @@ BreakpointsExtension.prototype.start = function(elq, elements) {
 };
 
 BreakpointsExtension.prototype.listenToElementBreakpoints = function(element, callback) {
-    var id = getId(element);
+    var id = this.idHandler.get(element);
 
     this.elementBreakpointsListeners[id] = this.elementBreakpointsListeners[id] || [];
     this.elementBreakpointsListeners[id].push(callback);
@@ -161,13 +167,3 @@ BreakpointsExtension.prototype.updateBreakpointClasses = function updateElementC
 
     element.className = classes;
 };
-
-function getId(element, noThrow) {
-    var id = element.getAttribute("elq-target-id");
-
-    if(!noThrow && !id) {
-        throw new Error("Element must be an ELQ element.");
-    }
-
-    return id;
-}

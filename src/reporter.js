@@ -2,7 +2,12 @@
 
 /* global console: false */
 
-module.exports = function() {
+/**
+ * Reporter that handles the reporting of logs, warnings and errors.
+ * @public
+ * @param {boolean} quiet Tells if the reporter should be quiet or not.
+ */
+module.exports = function(quiet) {
     var noop = function () {
         //Does nothing.
     };
@@ -13,10 +18,16 @@ module.exports = function() {
         error: noop
     };
 
-    if(window.console) {
-        reporter.log = console.log;
-        reporter.warn = console.warn;
-        reporter.error = console.error;
+    if(!quiet && window.console) {
+        var attachFunction = function(reporter, name) {
+            reporter[name] = function() {
+                console[name].apply(console, arguments);
+            };
+        };
+
+        attachFunction(reporter, "log");
+        attachFunction(reporter, "warn");
+        attachFunction(reporter, "error");
     }
 
     return reporter;
