@@ -22,6 +22,14 @@ module.exports = function(options) {
     });
 
     function start(elements) {
+        if(!elements) {
+            throw new Error("Elements are required to start.");
+        }
+
+        if(elements.length === undefined) {
+            elements = [elements];
+        }
+
         extensionHandler.callMethods("start", [elq, elements]);
     }
 

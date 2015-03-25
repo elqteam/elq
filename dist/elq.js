@@ -132,7 +132,7 @@ module.exports = function(options) {
         function onResizeCallback(element) {
             var listeners = eventListenerHandler.get(element);
 
-            forEach(listeners, function(listener) {
+            forEach(listeners, function callListenerProxy(listener) {
                 listener(element);
             });
         }
@@ -166,7 +166,7 @@ module.exports = function(options) {
 
         var callOnAdd = getOption(options, "callOnAdd", globalOptions.callOnAdd);
 
-        forEach(elements, function(element) {
+        forEach(elements, function attachListenerToElement(element) {
             //The element may change size directly after the call to listenTo, which would be unable to detect it because
             //the async adding of the object. By checking the size before and after, the size change can still be detected
             //and the listener can be called accordingly.
@@ -175,7 +175,7 @@ module.exports = function(options) {
 
             if(!elementUtils.isDetectable(element)) {
                 //The element is not prepared to be detectable, so do prepare it and add a listener to it.
-                return elementUtils.makeDetectable(reporter, element, function(element) {
+                return elementUtils.makeDetectable(reporter, element, function onElementDetectable(element) {
                     elementUtils.addListener(element, onResizeCallback);
                     onElementReadyToAddListener(callOnAdd, element, listener);
 
@@ -270,23 +270,39 @@ module.exports = function(idHandler) {
             var OBJECT_STYLE = "display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; opacity: 0; z-index: -1000; pointer-events: none;";
 
             function onObjectLoad() {
-                /*jshint validthis:true */
+                /*jshint validthis: true */
+
+                function getDocument(element, callback) {
+                    //Opera 12 seem to call the object.onload before the actual document has been created.
+                    //So if it is not present, poll it with an timeout until it is present.
+                    //TODO: Could maybe be handled better with object.onreadystatechange or similar.
+                    if(!element.contentDocument) {
+                        setTimeout(function checkForObjectDocument() {
+                            getDocument(element, callback);
+                        }, 100);
+
+                        return;
+                    }
+
+                    callback(element.contentDocument);
+                }
 
                 //Create the style element to be added to the object.
-                var objectDocument = this.contentDocument;
-                var style = objectDocument.createElement("style");
-                style.innerHTML = "html, body { margin: 0; padding: 0 } div { -webkit-transition: opacity 0.01s; -ms-transition: opacity 0.01s; -o-transition: opacity 0.01s; transition: opacity 0.01s; opacity: 0; }";
+                getDocument(this, function onObjectDocumentReady(objectDocument) {
+                    var style = objectDocument.createElement("style");
+                    style.innerHTML = "html, body { margin: 0; padding: 0 } div { -webkit-transition: opacity 0.01s; -ms-transition: opacity 0.01s; -o-transition: opacity 0.01s; transition: opacity 0.01s; opacity: 0; }";
 
-                //TODO: Remove any styles that has been set on the object. Only the style above should be styling the object.
+                    //TODO: Remove any styles that has been set on the object. Only the style above should be styling the object.
 
-                //Append the style to the object.
-                objectDocument.head.appendChild(style);
+                    //Append the style to the object.
+                    objectDocument.head.appendChild(style);
 
-                //TODO: Is this needed here?
-                //this.style.cssText = OBJECT_STYLE;
+                    //TODO: Is this needed here?
+                    //this.style.cssText = OBJECT_STYLE;
 
-                //Notify that the element is ready to be listened to.
-                callback(element);
+                    //Notify that the element is ready to be listened to.
+                    callback(element);
+                });
             }
 
             //The target element needs to be positioned (everything except static) so the absolute positioned object will be positioned relative to the target element.
@@ -356,7 +372,7 @@ module.exports = function(idHandler) {
      * @returns The object element of the target.
      */
     function getObject(element) {
-        return forEach(element.children, function(child) {
+        return forEach(element.children, function isObject(child) {
             if(child._erdObjectId !== undefined && child._erdObjectId !== null) {
                 return child;
             }
@@ -479,9 +495,9 @@ module.exports = function(idHandler) {
  * @param {boolean} quiet Tells if the reporter should be quiet or not.
  */
 module.exports = function(quiet) {
-    var noop = function () {
+    function noop() {
         //Does nothing.
-    };
+    }
 
     var reporter = {
         log: noop,
@@ -491,7 +507,9 @@ module.exports = function(quiet) {
 
     if(!quiet && window.console) {
         var attachFunction = function(reporter, name) {
-            reporter[name] = function() {
+            //The proxy is needed to be able to call the method with the console context,
+            //since we cannot use bind.
+            reporter[name] = function reporterProxy() {
                 console[name].apply(console, arguments);
             };
         };
@@ -3601,6 +3619,14 @@ module.exports = function(options) {
     });
 
     function start(elements) {
+        if(!elements) {
+            throw new Error("Elements are required to start.");
+        }
+
+        if(elements.length === undefined) {
+            elements = [elements];
+        }
+
         extensionHandler.callMethods("start", [elq, elements]);
     }
 
@@ -3795,6 +3821,39 @@ var elqMaker = require("./elq");
 module.exports = elqMaker();
 
 },{"./elq":84}],89:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"dup":8}]},{},[88])(88)
+"use strict";
+
+/* global console: false */
+
+/**
+ * Reporter that handles the reporting of logs, warnings and errors.
+ * @public
+ * @param {boolean} quiet Tells if the reporter should be quiet or not.
+ */
+module.exports = function(quiet) {
+    var noop = function () {
+        //Does nothing.
+    };
+
+    var reporter = {
+        log: noop,
+        warn: noop,
+        error: noop
+    };
+
+    if(!quiet && window.console) {
+        var attachFunction = function(reporter, name) {
+            reporter[name] = function() {
+                console[name].apply(console, arguments);
+            };
+        };
+
+        attachFunction(reporter, "log");
+        attachFunction(reporter, "warn");
+        attachFunction(reporter, "error");
+    }
+
+    return reporter;
+};
+},{}]},{},[88])(88)
 });
