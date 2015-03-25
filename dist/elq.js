@@ -1,4 +1,41 @@
-!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.elq=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.elq = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+"use strict";
+
+var detector = module.exports = {};
+
+detector.isIE = function(version) {
+    function isAnyIeVersion() {
+        var agent = navigator.userAgent.toLowerCase();
+        return agent.indexOf("msie") !== -1 || agent.indexOf("trident") !== -1;
+    }
+
+    if(!isAnyIeVersion()) {
+        return false;
+    }
+
+    if(!version) {
+        return true;
+    }
+
+    //Shamelessly stolen from https://gist.github.com/padolsey/527683
+    var ieVersion = (function(){
+        var undef,
+            v = 3,
+            div = document.createElement("div"),
+            all = div.getElementsByTagName("i");
+
+        do {
+            div.innerHTML = "<!--[if gt IE " + (++v) + "]><i></i><![endif]-->";
+        }
+        while (all[0]);
+
+        return v > 4 ? v : undef;
+    }());
+
+    return version === ieVersion;
+};
+
+},{}],2:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -19,61 +56,144 @@ utils.forEach = function(collection, callback) {
     }
 };
 
-},{}],2:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 //Heavily inspired by http://www.backalleycoder.com/2013/03/18/cross-browser-event-based-element-resize-detection/
 
 "use strict";
 
 var forEach = require("./collection-utils").forEach;
-var elementUtils = require("./element-utils");
-var idGeneratorMaker = require("./id-generator");
+var elementUtilsMaker = require("./element-utils");
 var listenerHandlerMaker = require("./listener-handler");
+var idGeneratorMaker = require("./id-generator");
+var idHandlerMaker = require("./id-handler");
+var reporterMaker = require("./reporter");
 
+/**
+ * @typedef idHandler
+ * @type {object}
+ * @property {function} get Gets the resize detector id of the element.
+ * @property {function} set Generate and sets the resize detector id of the element.
+ */
+
+/**
+ * @typedef Options
+ * @type {object}
+ * @property {boolean} callOnAdd    Determines if listeners should be called when they are getting added. 
+                                    Default is true. If true, the listener is guaranteed to be called when it has been added. 
+                                    If false, the listener will not be guarenteed to be called when it has been added (does not prevent it from being called).
+ * @property {idHandler} idHandler  A custom id handler that is responsible for generating, setting and retrieving id's for elements.
+                                    If not provided, a default id handler will be used.
+ * @property {reporter} reporter    A custom reporter that handles reporting logs, warnings and errors. 
+                                    If not provided, a default id handler will be used.
+                                    If set to false, then nothing will be reported.
+ */
+
+/**
+ * Creates an element resize detector instance.
+ * @public
+ * @param {Options?} options Optional global options object that will decide how this instance will work.
+ */
 module.exports = function(options) {
     options = options || {};
-    var allowMultipleListeners = options.allowMultipleListeners === undefined ? true : false;
 
-    var eventListenerHandler = listenerHandlerMaker();
-    var idGenerator = idGeneratorMaker();
+    //Options to be used as default for the listenTo function.
+    var globalOptions = {};
+    globalOptions.callOnAdd = !!getOption(options, "callOnAdd", true);
+
+    //idHandler is currently not an option to the listenTo function, so it should not be added to globalOptions.
+    var idHandler = options.idHandler;
+
+    if(!idHandler) {
+        var idGenerator = idGeneratorMaker();
+        var defaultIdHandler = idHandlerMaker(idGenerator);
+        idHandler = defaultIdHandler;
+    }
+
+    //reporter is currently not an option to the listenTo function, so it should not be added to globalOptions.
+    var reporter = options.reporter;
+
+    if(!reporter) {
+        //If options.reporter is false, then the reporter should be quiet.
+        var quiet = reporter === false;
+        reporter = reporterMaker(quiet);
+    }
+
+    var eventListenerHandler = listenerHandlerMaker(idHandler);
+    var elementUtils = elementUtilsMaker(idHandler);
 
     /**
      * Makes the given elements resize-detectable and starts listening to resize events on the elements. Calls the event callback for each event for each element.
      * @public
+     * @param {Options?} options Optional options object. These options will override the global options. Some options may not be overriden, such as idHandler.
      * @param {element[]|element} elements The given array of elements to detect resize events of. Single element is also valid.
      * @param {function} listener The callback to be executed for each resize event for each element.
      */
-    function listenTo(elements, listener) {
-        function isListenedTo(element) {
-            return elementUtils.isDetectable(element) && eventListenerHandler.get(element).length;
+    function listenTo(options, elements, listener) {
+        function onResizeCallback(element) {
+            var listeners = eventListenerHandler.get(element);
+
+            forEach(listeners, function(listener) {
+                listener(element);
+            });
         }
 
-        function addListener(element, listener) {
-            elementUtils.addListener(element, listener);
+        function onElementReadyToAddListener(callOnAdd, element, listener) {
             eventListenerHandler.add(element, listener);
+            
+            if(callOnAdd) {
+                listener(element);
+            }
+        }
+
+        //Options object may be omitted.
+        if(!listener) {
+            listener = elements;
+            elements = options;
+            options = {};
+        }
+
+        if(!elements) {
+            throw new Error("At least one element required.");
+        }
+
+        if(!listener) {
+            throw new Error("Listener required.");
         }
 
         if(elements.length === undefined) {
             elements = [elements];
         }
 
+        var callOnAdd = getOption(options, "callOnAdd", globalOptions.callOnAdd);
+
         forEach(elements, function(element) {
+            //The element may change size directly after the call to listenTo, which would be unable to detect it because
+            //the async adding of the object. By checking the size before and after, the size change can still be detected
+            //and the listener can be called accordingly.
+            var preWidth = element.offsetWidth;
+            var preHeight = element.offsetHeight;
+
             if(!elementUtils.isDetectable(element)) {
                 //The element is not prepared to be detectable, so do prepare it and add a listener to it.
-                var id = idGenerator.newId();
-                return elementUtils.makeDetectable(element, id, function(element) {
-                    addListener(element, listener);
+                return elementUtils.makeDetectable(reporter, element, function(element) {
+                    elementUtils.addListener(element, onResizeCallback);
+                    onElementReadyToAddListener(callOnAdd, element, listener);
+
+                    //Only here the uncaught resize may occur (since this code is async).
+                    //Check if the size is the same as when adding the listener.
+                    var postWidth = element.offsetWidth;
+                    var postHeight = element.offsetHeight;
+
+                    //If callOnAdd is true, then the listener will have been called either way, so no need to call the listener manually then.
+                    if(!callOnAdd && (preWidth !== postWidth || preHeight !== postHeight)) {
+                        //The element was changed while the object was being added. Call the listener.
+                        listener(element);
+                    }
                 });
             }
             
             //The element has been prepared to be detectable and is ready to be listened to.
-            
-            if(isListenedTo(element) && !allowMultipleListeners) {
-                //Since there is a listener and we disallow multiple listeners no listener should be added.
-                return;
-            }
-
-            //Since multiple listeners is allowed, another listener is added to the element.
-            return addListener(element, listener);
+            onElementReadyToAddListener(callOnAdd, element, listener);
         });
     }
 
@@ -82,109 +202,175 @@ module.exports = function(options) {
     };
 };
 
-},{"./collection-utils":1,"./element-utils":3,"./id-generator":4,"./listener-handler":5}],3:[function(require,module,exports){
+function getOption(options, name, defaultValue) {
+    var value = options[name];
+
+    if((value === undefined || value === null) && defaultValue !== undefined) {
+        return defaultValue;
+    }
+
+    return value;
+}
+
+},{"./collection-utils":2,"./element-utils":4,"./id-generator":5,"./id-handler":6,"./listener-handler":7,"./reporter":8}],4:[function(require,module,exports){
 "use strict";
 
 var forEach = require("./collection-utils").forEach;
+var browserDetector = require("./browser-detector");
 
-var utils = module.exports = {};
-
-/**
- * Gets the elq id of the element.
- * @public
- * @param {element} The target element to get the id of.
- * @returns {string} The id of the element.
- */
-utils.getId = function(element) {
-    return element.getAttribute("elq-target-id");
-};
-
-/**
- * Tells if the element has been made detectable and ready to be listened for resize events.
- * @public
- * @param {element} The element to check.
- * @returns {boolean} True or false depending on if the element is detectable or not.
- */
-utils.isDetectable = function(element) {
-    return getObject(element);
-};
-
-/**
- * Adds a resize event listener to the element.
- * @public
- * @param {element} element The element that should have the listener added.
- * @param {function} listener The listener callback to be called for each resize event of the element. The element will be given as a parameter to the listener callback.
- */
-utils.addListener = function(element, listener) {
-    if(!utils.isDetectable(element)) {
-        throw new Error("Element is not detectable.");
-    }
-
-    var object = getObject(element);
-    object.contentDocument.defaultView.addEventListener("resize", function() {
-        listener(element);
-    });
-};
-
-/**
- * Makes an element detectable and ready to be listened for resize events. Will call the callback when the element is ready to be listened for resize changes.
- * @private
- * @param {element} element The element to make detectable
- * @param {*} id An unique id in the context of all detectable elements.
- * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
- */
-utils.makeDetectable = function(element, id, callback) {
-    function onObjectLoad() {
-        /*jshint validthis:true */
-
-        //Create the style element to be added to the object.
-        var objectDocument = this.contentDocument;
-        var style = objectDocument.createElement("style");
-        style.innerHTML = "html, body { margin: 0; padding: 0 } div { -webkit-transition: opacity 0.01s; -ms-transition: opacity 0.01s; -o-transition: opacity 0.01s; transition: opacity 0.01s; opacity: 0; }";
-
-        //TODO: Remove any styles that has been set on the object. Only the style above should be styling the object.
-
-        //Append the style to the object.
-        objectDocument.head.appendChild(style);
-
-        this.style.cssText = "display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; opacity: 0; z-index: -1000; pointer-events: none;";
-
-        //Notify that the element is ready to be listened to.
-        callback(element);
-    }
-
-    //Create an unique elq-target-id for the target element, so that event listeners can be identified to this element.
-    element.setAttribute("elq-target-id", id);
-
-    //The target element needs to be positioned (everything except static) so the absolute positioned object will be positioned relative to the target element.
-    if(getComputedStyle(element).position === "static") {
-        element.style.position = "relative";
-    }
-
-    //Add an object element as a child to the target element that will be listened to for resize events.
-    var object = document.createElement("object");
-    object.type = "text/html";
-    object.data = "about:blank";
-    object.onload = onObjectLoad;
-    object.setAttribute("elq-object-id", id);
-    element.appendChild(object);
-};
-
-/**
- * Returns the child object of the target element.
- * @private
- * @param {element} element The target element.
- * @returns The object element of the target.
- */
-function getObject(element) {
-    return forEach(element.children, function(child) {
-        if(child.hasAttribute("elq-object-id")) {
-            return child;
+module.exports = function(idHandler) {
+    /**
+     * Tells if the element has been made detectable and ready to be listened for resize events.
+     * @public
+     * @param {element} The element to check.
+     * @returns {boolean} True or false depending on if the element is detectable or not.
+     */
+    function isDetectable(element) {
+        if(browserDetector.isIE(8)) {
+            //IE 8 does not use the object method.
+            //Check only if the element has been given an id.
+            return !!idHandler.get(element);
         }
-    });
-}
 
-},{"./collection-utils":1}],4:[function(require,module,exports){
+        return !!getObject(element);
+    }
+
+    /**
+     * Adds a resize event listener to the element.
+     * @public
+     * @param {element} element The element that should have the listener added.
+     * @param {function} listener The listener callback to be called for each resize event of the element. The element will be given as a parameter to the listener callback.
+     */
+    function addListener(element, listener) {
+        if(!isDetectable(element)) {
+            throw new Error("Element is not detectable.");
+        }
+
+        function listenerProxy() {
+            listener(element);
+        }
+
+        if(browserDetector.isIE(8)) {
+            //IE 8 does not support object, but supports the resize event directly on elements.
+            element.attachEvent("onresize", listenerProxy);
+        } else {
+            var object = getObject(element);
+            object.contentDocument.defaultView.addEventListener("resize", listenerProxy);
+        }
+    }
+
+    /**
+     * Makes an element detectable and ready to be listened for resize events. Will call the callback when the element is ready to be listened for resize changes.
+     * @private
+     * @param {element} element The element to make detectable
+     * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
+     */
+    function makeDetectable(reporter, element, callback) {
+        function injectObject(id, element, callback) {
+            var OBJECT_STYLE = "display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; opacity: 0; z-index: -1000; pointer-events: none;";
+
+            function onObjectLoad() {
+                /*jshint validthis:true */
+
+                //Create the style element to be added to the object.
+                var objectDocument = this.contentDocument;
+                var style = objectDocument.createElement("style");
+                style.innerHTML = "html, body { margin: 0; padding: 0 } div { -webkit-transition: opacity 0.01s; -ms-transition: opacity 0.01s; -o-transition: opacity 0.01s; transition: opacity 0.01s; opacity: 0; }";
+
+                //TODO: Remove any styles that has been set on the object. Only the style above should be styling the object.
+
+                //Append the style to the object.
+                objectDocument.head.appendChild(style);
+
+                //TODO: Is this needed here?
+                //this.style.cssText = OBJECT_STYLE;
+
+                //Notify that the element is ready to be listened to.
+                callback(element);
+            }
+
+            //The target element needs to be positioned (everything except static) so the absolute positioned object will be positioned relative to the target element.
+            var style = getComputedStyle(element);
+            if(style.position === "static") {
+                element.style.position = "relative";
+
+                var removeRelativeStyles = function(reporter, element, style, property) {
+                    function getNumericalValue(value) {
+                        return value.replace(/[^-\d\.]/g, "");
+                    }
+
+                    var value = style[property];
+
+                    if(value !== "auto" && getNumericalValue(value) !== "0") {
+                        reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
+                        element.style[property] = 0;
+                    }
+                };
+
+                //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
+                //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
+                removeRelativeStyles(reporter, element, style, "top");
+                removeRelativeStyles(reporter, element, style, "right");
+                removeRelativeStyles(reporter, element, style, "bottom");
+                removeRelativeStyles(reporter, element, style, "left");
+            }
+
+            //Add an object element as a child to the target element that will be listened to for resize events.
+            var object = document.createElement("object");
+            object.type = "text/html";
+            object.style.cssText = OBJECT_STYLE;
+            object.onload = onObjectLoad;
+            object._erdObjectId = id;
+
+            //Safari: This must occur before adding the object to the DOM.
+            //IE: Does not like that this happens before, even if it is also added after.
+            if(!browserDetector.isIE()) {
+                object.data = "about:blank";
+            }
+
+            element.appendChild(object);
+
+            //IE: This must occur after adding the object to the DOM.
+            if(browserDetector.isIE()) {
+                object.data = "about:blank";
+            }
+        }
+
+        //Create an unique erd-target-id for the target element, so that event listeners can be identified to this element.
+        var id = idHandler.set(element);
+
+        if(browserDetector.isIE(8)) {
+            //IE 8 does not support objects properly. Luckily they do support the resize event.
+            //So do not inject the object and notify that the element is already ready to be listened to.
+            //The event handler for the resize event is attached in the utils.addListener instead.
+            callback(element);
+        } else {
+            injectObject(id, element, callback);
+        }
+    }
+
+    /**
+     * Returns the child object of the target element.
+     * @private
+     * @param {element} element The target element.
+     * @returns The object element of the target.
+     */
+    function getObject(element) {
+        return forEach(element.children, function(child) {
+            if(child._erdObjectId !== undefined && child._erdObjectId !== null) {
+                return child;
+            }
+        });
+    }
+
+    return {
+        isDetectable: isDetectable,
+        makeDetectable: makeDetectable,
+        addListener: addListener,
+    };
+};
+
+},{"./browser-detector":1,"./collection-utils":2}],5:[function(require,module,exports){
 "use strict";
 
 module.exports = function() {
@@ -195,21 +381,59 @@ module.exports = function() {
      * @public
      * @returns {number} A unique id in the context.
      */
-    function newId() {
+    function generate() {
         return idCount++;
     }
 
     return {
-        newId: newId
+        generate: generate
     };
 };
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 "use strict";
 
-var elementUtils = require("./element-utils");
+module.exports = function(idGenerator) {
+    var ID_PROP_NAME = "_erdTargetId";
 
-module.exports = function() {
+    /**
+     * Gets the resize detector id of the element.
+     * @public
+     * @param {element} The target element to get the id of.
+     * @returns {string|number} The id of the element.
+     */
+    function getId(element) {
+        return element[ID_PROP_NAME];
+    }
+
+    /**
+     * Sets the resize detector id of the element.
+     * @public
+     * @param {element} The target element to set the id to.
+     * @param {string?} An optional id to set to the element. If not specified, an id will be generated. All id's must be unique.
+     * @returns {string|number} The id of the element.
+     */
+    function setId(element, id) {
+        if(!id && id !== 0) {
+            //Number should be generated.
+            id = idGenerator.generate();
+        }
+
+        element[ID_PROP_NAME] = id;
+
+        return id;
+    }
+
+    return {
+        get: getId,
+        set: setId
+    };
+};
+
+},{}],7:[function(require,module,exports){
+"use strict";
+
+module.exports = function(idHandler) {
     var eventListeners = {};
 
     /**
@@ -219,7 +443,7 @@ module.exports = function() {
      * @returns All listeners for the given element.
      */
     function getListeners(element) {
-        return eventListeners[elementUtils.getId(element)];
+        return eventListeners[idHandler.get(element)];
     }
 
     /**
@@ -229,7 +453,7 @@ module.exports = function() {
      * @param {function} listener The callback that the element has added.
      */
     function addListener(element, listener) {
-        var id = elementUtils.getId(element);
+        var id = idHandler.get(element);
 
         if(!eventListeners[id]) {
             eventListeners[id] = [];
@@ -244,7 +468,42 @@ module.exports = function() {
     };
 };
 
-},{"./element-utils":3}],6:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
+"use strict";
+
+/* global console: false */
+
+/**
+ * Reporter that handles the reporting of logs, warnings and errors.
+ * @public
+ * @param {boolean} quiet Tells if the reporter should be quiet or not.
+ */
+module.exports = function(quiet) {
+    var noop = function () {
+        //Does nothing.
+    };
+
+    var reporter = {
+        log: noop,
+        warn: noop,
+        error: noop
+    };
+
+    if(!quiet && window.console) {
+        var attachFunction = function(reporter, name) {
+            reporter[name] = function() {
+                console[name].apply(console, arguments);
+            };
+        };
+
+        attachFunction(reporter, "log");
+        attachFunction(reporter, "warn");
+        attachFunction(reporter, "error");
+    }
+
+    return reporter;
+};
+},{}],9:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -322,7 +581,7 @@ function filter(collection, callback, thisArg) {
 
 module.exports = filter;
 
-},{"lodash.createcallback":7,"lodash.forown":39}],7:[function(require,module,exports){
+},{"lodash.createcallback":10,"lodash.forown":42}],10:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -405,7 +664,7 @@ function createCallback(func, thisArg, argCount) {
 
 module.exports = createCallback;
 
-},{"lodash._basecreatecallback":8,"lodash._baseisequal":26,"lodash.isobject":64,"lodash.keys":34,"lodash.property":38}],8:[function(require,module,exports){
+},{"lodash._basecreatecallback":11,"lodash._baseisequal":29,"lodash.isobject":67,"lodash.keys":37,"lodash.property":41}],11:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -487,7 +746,7 @@ function baseCreateCallback(func, thisArg, argCount) {
 
 module.exports = baseCreateCallback;
 
-},{"lodash._setbinddata":9,"lodash.bind":12,"lodash.identity":23,"lodash.support":24}],9:[function(require,module,exports){
+},{"lodash._setbinddata":12,"lodash.bind":15,"lodash.identity":26,"lodash.support":27}],12:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -532,7 +791,7 @@ var setBindData = !defineProperty ? noop : function(func, value) {
 
 module.exports = setBindData;
 
-},{"lodash._isnative":10,"lodash.noop":11}],10:[function(require,module,exports){
+},{"lodash._isnative":13,"lodash.noop":14}],13:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -568,7 +827,7 @@ function isNative(value) {
 
 module.exports = isNative;
 
-},{}],11:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -596,7 +855,7 @@ function noop() {
 
 module.exports = noop;
 
-},{}],12:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -638,7 +897,7 @@ function bind(func, thisArg) {
 
 module.exports = bind;
 
-},{"lodash._createwrapper":13,"lodash._slice":22}],13:[function(require,module,exports){
+},{"lodash._createwrapper":16,"lodash._slice":25}],16:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -746,7 +1005,7 @@ function createWrapper(func, bitmask, partialArgs, partialRightArgs, thisArg, ar
 
 module.exports = createWrapper;
 
-},{"lodash._basebind":14,"lodash._basecreatewrapper":18,"lodash._slice":22,"lodash.isfunction":63}],14:[function(require,module,exports){
+},{"lodash._basebind":17,"lodash._basecreatewrapper":21,"lodash._slice":25,"lodash.isfunction":66}],17:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -810,7 +1069,7 @@ function baseBind(bindData) {
 
 module.exports = baseBind;
 
-},{"lodash._basecreate":15,"lodash._setbinddata":9,"lodash._slice":22,"lodash.isobject":64}],15:[function(require,module,exports){
+},{"lodash._basecreate":18,"lodash._setbinddata":12,"lodash._slice":25,"lodash.isobject":67}],18:[function(require,module,exports){
 (function (global){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
@@ -856,11 +1115,11 @@ if (!nativeCreate) {
 module.exports = baseCreate;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._isnative":16,"lodash.isobject":64,"lodash.noop":17}],16:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],17:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],18:[function(require,module,exports){
+},{"lodash._isnative":19,"lodash.isobject":67,"lodash.noop":20}],19:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],20:[function(require,module,exports){
+arguments[4][14][0].apply(exports,arguments)
+},{"dup":14}],21:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -940,13 +1199,13 @@ function baseCreateWrapper(bindData) {
 
 module.exports = baseCreateWrapper;
 
-},{"lodash._basecreate":19,"lodash._setbinddata":9,"lodash._slice":22,"lodash.isobject":64}],19:[function(require,module,exports){
-arguments[4][15][0].apply(exports,arguments)
-},{"dup":15,"lodash._isnative":20,"lodash.isobject":64,"lodash.noop":21}],20:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],21:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],22:[function(require,module,exports){
+},{"lodash._basecreate":22,"lodash._setbinddata":12,"lodash._slice":25,"lodash.isobject":67}],22:[function(require,module,exports){
+arguments[4][18][0].apply(exports,arguments)
+},{"dup":18,"lodash._isnative":23,"lodash.isobject":67,"lodash.noop":24}],23:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],24:[function(require,module,exports){
+arguments[4][14][0].apply(exports,arguments)
+},{"dup":14}],25:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -986,7 +1245,7 @@ function slice(array, start, end) {
 
 module.exports = slice;
 
-},{}],23:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1016,7 +1275,7 @@ function identity(value) {
 
 module.exports = identity;
 
-},{}],24:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 (function (global){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
@@ -1060,9 +1319,9 @@ support.funcNames = typeof Function.name == 'string';
 module.exports = support;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._isnative":25}],25:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],26:[function(require,module,exports){
+},{"lodash._isnative":28}],28:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],29:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1273,7 +1532,7 @@ function baseIsEqual(a, b, callback, isWhere, stackA, stackB) {
 
 module.exports = baseIsEqual;
 
-},{"lodash._getarray":27,"lodash._objecttypes":29,"lodash._releasearray":30,"lodash.forin":33,"lodash.isfunction":63}],27:[function(require,module,exports){
+},{"lodash._getarray":30,"lodash._objecttypes":32,"lodash._releasearray":33,"lodash.forin":36,"lodash.isfunction":66}],30:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1296,7 +1555,7 @@ function getArray() {
 
 module.exports = getArray;
 
-},{"lodash._arraypool":28}],28:[function(require,module,exports){
+},{"lodash._arraypool":31}],31:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1311,7 +1570,7 @@ var arrayPool = [];
 
 module.exports = arrayPool;
 
-},{}],29:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1333,7 +1592,7 @@ var objectTypes = {
 
 module.exports = objectTypes;
 
-},{}],30:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1360,9 +1619,9 @@ function releaseArray(array) {
 
 module.exports = releaseArray;
 
-},{"lodash._arraypool":31,"lodash._maxpoolsize":32}],31:[function(require,module,exports){
-arguments[4][28][0].apply(exports,arguments)
-},{"dup":28}],32:[function(require,module,exports){
+},{"lodash._arraypool":34,"lodash._maxpoolsize":35}],34:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"dup":31}],35:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1377,7 +1636,7 @@ var maxPoolSize = 40;
 
 module.exports = maxPoolSize;
 
-},{}],33:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1433,7 +1692,7 @@ var forIn = function(collection, callback, thisArg) {
 
 module.exports = forIn;
 
-},{"lodash._basecreatecallback":8,"lodash._objecttypes":29}],34:[function(require,module,exports){
+},{"lodash._basecreatecallback":11,"lodash._objecttypes":32}],37:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1471,9 +1730,9 @@ var keys = !nativeKeys ? shimKeys : function(object) {
 
 module.exports = keys;
 
-},{"lodash._isnative":35,"lodash._shimkeys":36,"lodash.isobject":64}],35:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],36:[function(require,module,exports){
+},{"lodash._isnative":38,"lodash._shimkeys":39,"lodash.isobject":67}],38:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],39:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1513,9 +1772,9 @@ var shimKeys = function(object) {
 
 module.exports = shimKeys;
 
-},{"lodash._objecttypes":37}],37:[function(require,module,exports){
-arguments[4][29][0].apply(exports,arguments)
-},{"dup":29}],38:[function(require,module,exports){
+},{"lodash._objecttypes":40}],40:[function(require,module,exports){
+arguments[4][32][0].apply(exports,arguments)
+},{"dup":32}],41:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1557,7 +1816,7 @@ function property(key) {
 
 module.exports = property;
 
-},{}],39:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1609,51 +1868,51 @@ var forOwn = function(collection, callback, thisArg) {
 
 module.exports = forOwn;
 
-},{"lodash._basecreatecallback":40,"lodash._objecttypes":58,"lodash.keys":59}],40:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"lodash._setbinddata":41,"lodash.bind":44,"lodash.identity":55,"lodash.support":56}],41:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"dup":9,"lodash._isnative":42,"lodash.noop":43}],42:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],43:[function(require,module,exports){
+},{"lodash._basecreatecallback":43,"lodash._objecttypes":61,"lodash.keys":62}],43:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],44:[function(require,module,exports){
+},{"dup":11,"lodash._setbinddata":44,"lodash.bind":47,"lodash.identity":58,"lodash.support":59}],44:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"lodash._createwrapper":45,"lodash._slice":54}],45:[function(require,module,exports){
+},{"dup":12,"lodash._isnative":45,"lodash.noop":46}],45:[function(require,module,exports){
 arguments[4][13][0].apply(exports,arguments)
-},{"dup":13,"lodash._basebind":46,"lodash._basecreatewrapper":50,"lodash._slice":54,"lodash.isfunction":63}],46:[function(require,module,exports){
+},{"dup":13}],46:[function(require,module,exports){
 arguments[4][14][0].apply(exports,arguments)
-},{"dup":14,"lodash._basecreate":47,"lodash._setbinddata":41,"lodash._slice":54,"lodash.isobject":64}],47:[function(require,module,exports){
+},{"dup":14}],47:[function(require,module,exports){
 arguments[4][15][0].apply(exports,arguments)
-},{"dup":15,"lodash._isnative":48,"lodash.isobject":64,"lodash.noop":49}],48:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],49:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],50:[function(require,module,exports){
+},{"dup":15,"lodash._createwrapper":48,"lodash._slice":57}],48:[function(require,module,exports){
+arguments[4][16][0].apply(exports,arguments)
+},{"dup":16,"lodash._basebind":49,"lodash._basecreatewrapper":53,"lodash._slice":57,"lodash.isfunction":66}],49:[function(require,module,exports){
+arguments[4][17][0].apply(exports,arguments)
+},{"dup":17,"lodash._basecreate":50,"lodash._setbinddata":44,"lodash._slice":57,"lodash.isobject":67}],50:[function(require,module,exports){
 arguments[4][18][0].apply(exports,arguments)
-},{"dup":18,"lodash._basecreate":51,"lodash._setbinddata":41,"lodash._slice":54,"lodash.isobject":64}],51:[function(require,module,exports){
-arguments[4][15][0].apply(exports,arguments)
-},{"dup":15,"lodash._isnative":52,"lodash.isobject":64,"lodash.noop":53}],52:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],53:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],54:[function(require,module,exports){
-arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],55:[function(require,module,exports){
-arguments[4][23][0].apply(exports,arguments)
-},{"dup":23}],56:[function(require,module,exports){
-arguments[4][24][0].apply(exports,arguments)
-},{"dup":24,"lodash._isnative":57}],57:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],58:[function(require,module,exports){
-arguments[4][29][0].apply(exports,arguments)
-},{"dup":29}],59:[function(require,module,exports){
-arguments[4][34][0].apply(exports,arguments)
-},{"dup":34,"lodash._isnative":60,"lodash._shimkeys":61,"lodash.isobject":64}],60:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],61:[function(require,module,exports){
-arguments[4][36][0].apply(exports,arguments)
-},{"dup":36,"lodash._objecttypes":58}],62:[function(require,module,exports){
+},{"dup":18,"lodash._isnative":51,"lodash.isobject":67,"lodash.noop":52}],51:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],52:[function(require,module,exports){
+arguments[4][14][0].apply(exports,arguments)
+},{"dup":14}],53:[function(require,module,exports){
+arguments[4][21][0].apply(exports,arguments)
+},{"dup":21,"lodash._basecreate":54,"lodash._setbinddata":44,"lodash._slice":57,"lodash.isobject":67}],54:[function(require,module,exports){
+arguments[4][18][0].apply(exports,arguments)
+},{"dup":18,"lodash._isnative":55,"lodash.isobject":67,"lodash.noop":56}],55:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],56:[function(require,module,exports){
+arguments[4][14][0].apply(exports,arguments)
+},{"dup":14}],57:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],58:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],59:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"dup":27,"lodash._isnative":60}],60:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],61:[function(require,module,exports){
+arguments[4][32][0].apply(exports,arguments)
+},{"dup":32}],62:[function(require,module,exports){
+arguments[4][37][0].apply(exports,arguments)
+},{"dup":37,"lodash._isnative":63,"lodash._shimkeys":64,"lodash.isobject":67}],63:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],64:[function(require,module,exports){
+arguments[4][39][0].apply(exports,arguments)
+},{"dup":39,"lodash._objecttypes":61}],65:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1692,7 +1951,7 @@ function isString(value) {
 
 module.exports = isString;
 
-},{}],63:[function(require,module,exports){
+},{}],66:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1721,7 +1980,7 @@ function isFunction(value) {
 
 module.exports = isFunction;
 
-},{}],64:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1762,9 +2021,9 @@ function isObject(value) {
 
 module.exports = isObject;
 
-},{"lodash._objecttypes":65}],65:[function(require,module,exports){
-arguments[4][29][0].apply(exports,arguments)
-},{"dup":29}],66:[function(require,module,exports){
+},{"lodash._objecttypes":68}],68:[function(require,module,exports){
+arguments[4][32][0].apply(exports,arguments)
+},{"dup":32}],69:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -1842,7 +2101,7 @@ function map(collection, iteratee, thisArg) {
 
 module.exports = map;
 
-},{"lodash._arraymap":67,"lodash._basecallback":68,"lodash._baseeach":82,"lodash.isarray":86}],67:[function(require,module,exports){
+},{"lodash._arraymap":70,"lodash._basecallback":71,"lodash._baseeach":78,"lodash.isarray":83}],70:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -1874,18 +2133,16 @@ function arrayMap(array, iteratee) {
 
 module.exports = arrayMap;
 
-},{}],68:[function(require,module,exports){
+},{}],71:[function(require,module,exports){
 /**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
+ * lodash 3.2.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
  * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
  * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
  * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
  * Available under MIT license <https://lodash.com/license>
  */
-var baseClone = require('lodash._baseclone'),
-    baseIsEqual = require('lodash._baseisequal'),
-    baseProperty = require('lodash._baseproperty'),
+var baseIsEqual = require('lodash._baseisequal'),
     bindCallback = require('lodash._bindcallback'),
     keys = require('lodash.keys');
 
@@ -1915,10 +2172,12 @@ function baseCallback(func, thisArg, argCount) {
   if (func == null) {
     return identity;
   }
-  // Handle "_.property" and "_.matches" style callback shorthands.
-  return type == 'object'
-    ? baseMatches(func, !argCount)
-    : baseProperty(func + '');
+  if (type == 'object') {
+    return baseMatches(func);
+  }
+  return typeof thisArg == 'undefined'
+    ? baseProperty(func + '')
+    : baseMatchesProperty(func + '', thisArg);
 }
 
 /**
@@ -1926,7 +2185,7 @@ function baseCallback(func, thisArg, argCount) {
  * shorthands or `this` binding.
  *
  * @private
- * @param {Object} source The object to inspect.
+ * @param {Object} object The object to inspect.
  * @param {Array} props The source property names to match.
  * @param {Array} values The source values to match.
  * @param {Array} strictCompareFlags Strict comparison flags for source values.
@@ -1971,15 +2230,13 @@ function baseIsMatch(object, props, values, strictCompareFlags, customizer) {
 }
 
 /**
- * The base implementation of `_.matches` which supports specifying whether
- * `source` should be cloned.
+ * The base implementation of `_.matches` which does not clone `source`.
  *
  * @private
  * @param {Object} source The object of property values to match.
- * @param {boolean} [isCloned] Specify cloning the source object.
  * @returns {Function} Returns the new function.
  */
-function baseMatches(source, isCloned) {
+function baseMatches(source) {
   var props = keys(source),
       length = props.length;
 
@@ -1993,9 +2250,6 @@ function baseMatches(source, isCloned) {
       };
     }
   }
-  if (isCloned) {
-    source = baseClone(source, true);
-  }
   var values = Array(length),
       strictCompareFlags = Array(length);
 
@@ -2006,6 +2260,39 @@ function baseMatches(source, isCloned) {
   }
   return function(object) {
     return baseIsMatch(object, props, values, strictCompareFlags);
+  };
+}
+
+/**
+ * The base implementation of `_.matchesProperty` which does not coerce `key`
+ * to a string.
+ *
+ * @private
+ * @param {string} key The key of the property to get.
+ * @param {*} value The value to compare.
+ * @returns {Function} Returns the new function.
+ */
+function baseMatchesProperty(key, value) {
+  if (isStrictComparable(value)) {
+    return function(object) {
+      return object != null && object[key] === value;
+    };
+  }
+  return function(object) {
+    return object != null && baseIsEqual(value, object[key], null, true);
+  };
+}
+
+/**
+ * The base implementation of `_.property` which does not coerce `key` to a string.
+ *
+ * @private
+ * @param {string} key The key of the property to get.
+ * @returns {Function} Returns the new function.
+ */
+function baseProperty(key) {
+  return function(object) {
+    return object == null ? undefined : object[key];
   };
 }
 
@@ -2070,642 +2357,12 @@ function identity(value) {
 
 module.exports = baseCallback;
 
-},{"lodash._baseclone":69,"lodash._baseisequal":75,"lodash._baseproperty":77,"lodash._bindcallback":78,"lodash.keys":79}],69:[function(require,module,exports){
-(function (global){
+},{"lodash._baseisequal":72,"lodash._bindcallback":74,"lodash.keys":75}],72:[function(require,module,exports){
 /**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
+ * lodash 3.0.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
  * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var arrayCopy = require('lodash._arraycopy'),
-    arrayEach = require('lodash._arrayeach'),
-    baseCopy = require('lodash._basecopy'),
-    baseFor = require('lodash._basefor'),
-    isArray = require('lodash.isarray'),
-    isNative = require('lodash.isnative'),
-    keys = require('lodash.keys');
-
-/** `Object#toString` result references. */
-var argsTag = '[object Arguments]',
-    arrayTag = '[object Array]',
-    boolTag = '[object Boolean]',
-    dateTag = '[object Date]',
-    errorTag = '[object Error]',
-    funcTag = '[object Function]',
-    mapTag = '[object Map]',
-    numberTag = '[object Number]',
-    objectTag = '[object Object]',
-    regexpTag = '[object RegExp]',
-    setTag = '[object Set]',
-    stringTag = '[object String]',
-    weakMapTag = '[object WeakMap]';
-
-var arrayBufferTag = '[object ArrayBuffer]',
-    float32Tag = '[object Float32Array]',
-    float64Tag = '[object Float64Array]',
-    int8Tag = '[object Int8Array]',
-    int16Tag = '[object Int16Array]',
-    int32Tag = '[object Int32Array]',
-    uint8Tag = '[object Uint8Array]',
-    uint8ClampedTag = '[object Uint8ClampedArray]',
-    uint16Tag = '[object Uint16Array]',
-    uint32Tag = '[object Uint32Array]';
-
-/** Used to match `RegExp` flags from their coerced string values. */
-var reFlags = /\w*$/;
-
-/** Used to identify `toStringTag` values supported by `_.clone`. */
-var cloneableTags = {};
-cloneableTags[argsTag] = cloneableTags[arrayTag] =
-cloneableTags[arrayBufferTag] = cloneableTags[boolTag] =
-cloneableTags[dateTag] = cloneableTags[float32Tag] =
-cloneableTags[float64Tag] = cloneableTags[int8Tag] =
-cloneableTags[int16Tag] = cloneableTags[int32Tag] =
-cloneableTags[numberTag] = cloneableTags[objectTag] =
-cloneableTags[regexpTag] = cloneableTags[stringTag] =
-cloneableTags[uint8Tag] = cloneableTags[uint8ClampedTag] =
-cloneableTags[uint16Tag] = cloneableTags[uint32Tag] = true;
-cloneableTags[errorTag] = cloneableTags[funcTag] =
-cloneableTags[mapTag] = cloneableTags[setTag] =
-cloneableTags[weakMapTag] = false;
-
-/** Used for native method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Used to resolve the `toStringTag` of values.
- * See the [ES spec](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring)
- * for more details.
- */
-var objToString = objectProto.toString;
-
-/** Native method references. */
-var ArrayBuffer = isNative(ArrayBuffer = global.ArrayBuffer) && ArrayBuffer,
-    bufferSlice = isNative(bufferSlice = ArrayBuffer && new ArrayBuffer(0).slice) && bufferSlice,
-    floor = Math.floor,
-    Uint8Array = isNative(Uint8Array = global.Uint8Array) && Uint8Array;
-
-/** Used to clone array buffers. */
-var Float64Array = (function() {
-  // Safari 5 errors when using an array buffer to initialize a typed array
-  // where the array buffer's `byteLength` is not a multiple of the typed
-  // array's `BYTES_PER_ELEMENT`.
-  try {
-    var func = isNative(func = global.Float64Array) && func,
-        result = new func(new ArrayBuffer(10), 0, 1) && func;
-  } catch(e) {}
-  return result;
-}());
-
-/** Used as the size, in bytes, of each `Float64Array` element. */
-var FLOAT64_BYTES_PER_ELEMENT = Float64Array ? Float64Array.BYTES_PER_ELEMENT : 0;
-
-/**
- * The base implementation of `_.clone` without support for argument juggling
- * and `this` binding `customizer` functions.
- *
- * @private
- * @param {*} value The value to clone.
- * @param {boolean} [isDeep] Specify a deep clone.
- * @param {Function} [customizer] The function to customize cloning values.
- * @param {string} [key] The key of `value`.
- * @param {Object} [object] The object `value` belongs to.
- * @param {Array} [stackA=[]] Tracks traversed source objects.
- * @param {Array} [stackB=[]] Associates clones with source counterparts.
- * @returns {*} Returns the cloned value.
- */
-function baseClone(value, isDeep, customizer, key, object, stackA, stackB) {
-  var result;
-  if (customizer) {
-    result = object ? customizer(value, key, object) : customizer(value);
-  }
-  if (typeof result != 'undefined') {
-    return result;
-  }
-  if (!isObject(value)) {
-    return value;
-  }
-  var isArr = isArray(value);
-  if (isArr) {
-    result = initCloneArray(value);
-    if (!isDeep) {
-      return arrayCopy(value, result);
-    }
-  } else {
-    var tag = objToString.call(value),
-        isFunc = tag == funcTag;
-
-    if (tag == objectTag || tag == argsTag || (isFunc && !object)) {
-      result = initCloneObject(isFunc ? {} : value);
-      if (!isDeep) {
-        return baseCopy(value, result, keys(value));
-      }
-    } else {
-      return cloneableTags[tag]
-        ? initCloneByTag(value, tag, isDeep)
-        : (object ? value : {});
-    }
-  }
-  // Check for circular references and return corresponding clone.
-  stackA || (stackA = []);
-  stackB || (stackB = []);
-
-  var length = stackA.length;
-  while (length--) {
-    if (stackA[length] == value) {
-      return stackB[length];
-    }
-  }
-  // Add the source value to the stack of traversed objects and associate it with its clone.
-  stackA.push(value);
-  stackB.push(result);
-
-  // Recursively populate clone (susceptible to call stack limits).
-  (isArr ? arrayEach : baseForOwn)(value, function(subValue, key) {
-    result[key] = baseClone(subValue, isDeep, customizer, key, value, stackA, stackB);
-  });
-  return result;
-}
-
-/**
- * The base implementation of `_.forOwn` without support for callback
- * shorthands and `this` binding.
- *
- * @private
- * @param {Object} object The object to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Object} Returns `object`.
- */
-function baseForOwn(object, iteratee) {
-  return baseFor(object, iteratee, keys);
-}
-
-/**
- * Creates a clone of the given array buffer.
- *
- * @private
- * @param {ArrayBuffer} buffer The array buffer to clone.
- * @returns {ArrayBuffer} Returns the cloned array buffer.
- */
-function bufferClone(buffer) {
-  return bufferSlice.call(buffer, 0);
-}
-if (!bufferSlice) {
-  // PhantomJS has `ArrayBuffer` and `Uint8Array` but not `Float64Array`.
-  bufferClone = !(ArrayBuffer && Uint8Array) ? constant(null) : function(buffer) {
-    var byteLength = buffer.byteLength,
-        floatLength = Float64Array ? floor(byteLength / FLOAT64_BYTES_PER_ELEMENT) : 0,
-        offset = floatLength * FLOAT64_BYTES_PER_ELEMENT,
-        result = new ArrayBuffer(byteLength);
-
-    if (floatLength) {
-      var view = new Float64Array(result, 0, floatLength);
-      view.set(new Float64Array(buffer, 0, floatLength));
-    }
-    if (byteLength != offset) {
-      view = new Uint8Array(result, offset);
-      view.set(new Uint8Array(buffer, offset));
-    }
-    return result;
-  };
-}
-
-/**
- * Initializes an array clone.
- *
- * @private
- * @param {Array} array The array to clone.
- * @returns {Array} Returns the initialized clone.
- */
-function initCloneArray(array) {
-  var length = array.length,
-      result = new array.constructor(length);
-
-  // Add array properties assigned by `RegExp#exec`.
-  if (length && typeof array[0] == 'string' && hasOwnProperty.call(array, 'index')) {
-    result.index = array.index;
-    result.input = array.input;
-  }
-  return result;
-}
-
-/**
- * Initializes an object clone.
- *
- * @private
- * @param {Object} object The object to clone.
- * @returns {Object} Returns the initialized clone.
- */
-function initCloneObject(object) {
-  var Ctor = object.constructor;
-  if (!(typeof Ctor == 'function' && Ctor instanceof Ctor)) {
-    Ctor = Object;
-  }
-  return new Ctor;
-}
-
-/**
- * Initializes an object clone based on its `toStringTag`.
- *
- * **Note:** This function only supports cloning values with tags of
- * `Boolean`, `Date`, `Error`, `Number`, `RegExp`, or `String`.
- *
- *
- * @private
- * @param {Object} object The object to clone.
- * @param {string} tag The `toStringTag` of the object to clone.
- * @param {boolean} [isDeep] Specify a deep clone.
- * @returns {Object} Returns the initialized clone.
- */
-function initCloneByTag(object, tag, isDeep) {
-  var Ctor = object.constructor;
-  switch (tag) {
-    case arrayBufferTag:
-      return bufferClone(object);
-
-    case boolTag:
-    case dateTag:
-      return new Ctor(+object);
-
-    case float32Tag: case float64Tag:
-    case int8Tag: case int16Tag: case int32Tag:
-    case uint8Tag: case uint8ClampedTag: case uint16Tag: case uint32Tag:
-      var buffer = object.buffer;
-      return new Ctor(isDeep ? bufferClone(buffer) : buffer, object.byteOffset, object.length);
-
-    case numberTag:
-    case stringTag:
-      return new Ctor(object);
-
-    case regexpTag:
-      var result = new Ctor(object.source, reFlags.exec(object));
-      result.lastIndex = object.lastIndex;
-  }
-  return result;
-}
-
-/**
- * Checks if `value` is the language type of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * **Note:** See the [ES5 spec](https://es5.github.io/#x8) for more details.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return type == 'function' || (value && type == 'object') || false;
-}
-
-/**
- * Creates a function that returns `value`.
- *
- * @static
- * @memberOf _
- * @category Utility
- * @param {*} value The value to return from the new function.
- * @returns {Function} Returns the new function.
- * @example
- *
- * var object = { 'user': 'fred' };
- * var getter = _.constant(object);
- * getter() === object;
- * // => true
- */
-function constant(value) {
-  return function() {
-    return value;
-  };
-}
-
-module.exports = baseClone;
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._arraycopy":70,"lodash._arrayeach":71,"lodash._basecopy":72,"lodash._basefor":73,"lodash.isarray":86,"lodash.isnative":74,"lodash.keys":79}],70:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * Copies the values of `source` to `array`.
- *
- * @private
- * @param {Array} source The array to copy values from.
- * @param {Array} [array=[]] The array to copy values to.
- * @returns {Array} Returns `array`.
- */
-function arrayCopy(source, array) {
-  var index = -1,
-      length = source.length;
-
-  array || (array = Array(length));
-  while (++index < length) {
-    array[index] = source[index];
-  }
-  return array;
-}
-
-module.exports = arrayCopy;
-
-},{}],71:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * A specialized version of `_.forEach` for arrays without support for callback
- * shorthands or `this` binding.
- *
- * @private
- * @param {Array} array The array to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Array} Returns `array`.
- */
-function arrayEach(array, iteratee) {
-  var index = -1,
-      length = array.length;
-
-  while (++index < length) {
-    if (iteratee(array[index], index, array) === false) {
-      break;
-    }
-  }
-  return array;
-}
-
-module.exports = arrayEach;
-
-},{}],72:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * Copies the properties of `source` to `object`.
- *
- * @private
- * @param {Object} source The object to copy properties from.
- * @param {Object} [object={}] The object to copy properties to.
- * @param {Array} props The property names to copy.
- * @returns {Object} Returns `object`.
- */
-function baseCopy(source, object, props) {
-  if (!props) {
-    props = object;
-    object = {};
-  }
-  var index = -1,
-      length = props.length;
-
-  while (++index < length) {
-    var key = props[index];
-    object[key] = source[key];
-  }
-  return object;
-}
-
-module.exports = baseCopy;
-
-},{}],73:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * The base implementation of `baseForIn` and `baseForOwn` which iterates
- * over `object` properties returned by `keysFunc` invoking `iteratee` for
- * each property. Iterator functions may exit iteration early by explicitly
- * returning `false`.
- *
- * @private
- * @param {Object} object The object to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @param {Function} keysFunc The function to get the keys of `object`.
- * @returns {Object} Returns `object`.
- */
-function baseFor(object, iteratee, keysFunc) {
-  var index = -1,
-      iterable = toObject(object),
-      props = keysFunc(object),
-      length = props.length;
-
-  while (++index < length) {
-    var key = props[index];
-    if (iteratee(iterable[key], key, iterable) === false) {
-      break;
-    }
-  }
-  return object;
-}
-
-/**
- * Converts `value` to an object if it is not one.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {Object} Returns the object.
- */
-function toObject(value) {
-  return isObject(value) ? value : Object(value);
-}
-
-/**
- * Checks if `value` is the language type of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * **Note:** See the [ES5 spec](https://es5.github.io/#x8) for more details.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return type == 'function' || (value && type == 'object') || false;
-}
-
-module.exports = baseFor;
-
-},{}],74:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/** `Object#toString` result references. */
-var funcTag = '[object Function]';
-
-/** Used to detect host constructors (Safari > 5). */
-var reHostCtor = /^\[object .+?Constructor\]$/;
-
-/**
- * Used to match `RegExp` special characters.
- * See this [article on `RegExp` characters](http://www.regular-expressions.info/characters.html#special)
- * for more details.
- */
-var reRegExpChars = /[.*+?^${}()|[\]\/\\]/g,
-    reHasRegExpChars = RegExp(reRegExpChars.source);
-
-/**
- * Converts `value` to a string if it is not one. An empty string is returned
- * for `null` or `undefined` values.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {string} Returns the string.
- */
-function baseToString(value) {
-  if (typeof value == 'string') {
-    return value;
-  }
-  return value == null ? '' : (value + '');
-}
-
-/**
- * Checks if `value` is object-like.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
- */
-function isObjectLike(value) {
-  return (value && typeof value == 'object') || false;
-}
-
-/** Used for native method references. */
-var objectProto = Object.prototype;
-
-/** Used to resolve the decompiled source of functions. */
-var fnToString = Function.prototype.toString;
-
-/**
- * Used to resolve the `toStringTag` of values.
- * See the [ES spec](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring)
- * for more details.
- */
-var objToString = objectProto.toString;
-
-/** Used to detect if a method is native. */
-var reNative = RegExp('^' +
-  escapeRegExp(objToString)
-  .replace(/toString|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
-);
-
-/**
- * Checks if `value` is a native function.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a native function, else `false`.
- * @example
- *
- * _.isNative(Array.prototype.push);
- * // => true
- *
- * _.isNative(_);
- * // => false
- */
-function isNative(value) {
-  if (value == null) {
-    return false;
-  }
-  if (objToString.call(value) == funcTag) {
-    return reNative.test(fnToString.call(value));
-  }
-  return (isObjectLike(value) && reHostCtor.test(value)) || false;
-}
-
-/**
- * Escapes the `RegExp` special characters "\", "^", "$", ".", "|", "?", "*",
- * "+", "(", ")", "[", "]", "{" and "}" in `string`.
- *
- * @static
- * @memberOf _
- * @category String
- * @param {string} [string=''] The string to escape.
- * @returns {string} Returns the escaped string.
- * @example
- *
- * _.escapeRegExp('[lodash](https://lodash.com/)');
- * // => '\[lodash\]\(https://lodash\.com/\)'
- */
-function escapeRegExp(string) {
-  string = baseToString(string);
-  return (string && reHasRegExpChars.test(string))
-    ? string.replace(reRegExpChars, '\\$&')
-    : string;
-}
-
-module.exports = isNative;
-
-},{}],75:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
+ * Based on Underscore.js 1.8.2 <http://underscorejs.org/LICENSE>
  * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
  * Available under MIT license <https://lodash.com/license>
  */
@@ -2992,8 +2649,10 @@ function equalObjects(object, other, equalFunc, customizer, isWhere, stackA, sta
         othCtor = other.constructor;
 
     // Non `Object` object instances with different constructors are not equal.
-    if (objCtor != othCtor && ('constructor' in object && 'constructor' in other) &&
-        !(typeof objCtor == 'function' && objCtor instanceof objCtor && typeof othCtor == 'function' && othCtor instanceof othCtor)) {
+    if (objCtor != othCtor &&
+        ('constructor' in object && 'constructor' in other) &&
+        !(typeof objCtor == 'function' && objCtor instanceof objCtor &&
+          typeof othCtor == 'function' && othCtor instanceof othCtor)) {
       return false;
     }
   }
@@ -3002,7 +2661,7 @@ function equalObjects(object, other, equalFunc, customizer, isWhere, stackA, sta
 
 module.exports = baseIsEqual;
 
-},{"lodash.isarray":86,"lodash.istypedarray":76,"lodash.keys":79}],76:[function(require,module,exports){
+},{"lodash.isarray":83,"lodash.istypedarray":73,"lodash.keys":75}],73:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3114,32 +2773,7 @@ function isTypedArray(value) {
 
 module.exports = isTypedArray;
 
-},{}],77:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * The base implementation of `_.property` which does not coerce `key` to a string.
- *
- * @private
- * @param {string} key The key of the property to get.
- * @returns {Function} Returns the new function.
- */
-function baseProperty(key) {
-  return function(object) {
-    return object == null ? undefined : object[key];
-  };
-}
-
-module.exports = baseProperty;
-
-},{}],78:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3205,13 +2839,12 @@ function identity(value) {
 
 module.exports = bindCallback;
 
-},{}],79:[function(require,module,exports){
-(function (global){
+},{}],75:[function(require,module,exports){
 /**
- * lodash 3.0.1 (Custom Build) <https://lodash.com/>
+ * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
  * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
+ * Based on Underscore.js 1.8.2 <http://underscorejs.org/LICENSE>
  * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
  * Available under MIT license <https://lodash.com/license>
  */
@@ -3221,9 +2854,6 @@ var isArguments = require('lodash.isarguments'),
 
 /** Used for native method references. */
 var objectProto = Object.prototype;
-
-/** Used to detect DOM support. */
-var document = (document = global.window) && document.document;
 
 /** Used to check objects for own properties. */
 var hasOwnProperty = objectProto.hasOwnProperty;
@@ -3236,7 +2866,7 @@ var nativeKeys = isNative(nativeKeys = Object.keys) && nativeKeys;
 
 /**
  * Used as the maximum length of an array-like value.
- * See the [ES spec](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength)
+ * See the [ES spec](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.max_safe_integer)
  * for more details.
  */
 var MAX_SAFE_INTEGER = Math.pow(2, 53) - 1;
@@ -3251,18 +2881,6 @@ var MAX_SAFE_INTEGER = Math.pow(2, 53) - 1;
 var support = {};
 
 (function(x) {
-
-  /**
-   * Detect if the DOM is supported.
-   *
-   * @memberOf _.support
-   * @type boolean
-   */
-  try {
-    support.dom = document.createDocumentFragment().nodeType === 11;
-  } catch(e) {
-    support.dom = false;
-  }
 
   /**
    * Detect if `arguments` object indexes are non-enumerable.
@@ -3299,6 +2917,10 @@ function isIndex(value, length) {
 
 /**
  * Checks if `value` is a valid array-like length.
+ *
+ * **Note:** This function is based on ES `ToLength`. See the
+ * [ES spec](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength)
+ * for more details.
  *
  * @private
  * @param {*} value The value to check.
@@ -3398,7 +3020,7 @@ var keys = !nativeKeys ? shimKeys : function(object) {
         length = object.length;
   }
   if ((typeof Ctor == 'function' && Ctor.prototype === object) ||
-     (typeof object != 'function' && (length && isLength(length)))) {
+      (typeof object != 'function' && (length && isLength(length)))) {
     return shimKeys(object);
   }
   return isObject(object) ? nativeKeys(object) : [];
@@ -3439,7 +3061,7 @@ function keysIn(object) {
 
   var Ctor = object.constructor,
       index = -1,
-      isProto = typeof Ctor == 'function' && Ctor.prototype == object,
+      isProto = typeof Ctor == 'function' && Ctor.prototype === object,
       result = Array(length),
       skipIndexes = length > 0;
 
@@ -3457,8 +3079,7 @@ function keysIn(object) {
 
 module.exports = keys;
 
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash.isarguments":80,"lodash.isarray":86,"lodash.isnative":81}],80:[function(require,module,exports){
+},{"lodash.isarguments":76,"lodash.isarray":83,"lodash.isnative":77}],76:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3533,9 +3154,125 @@ function isArguments(value) {
 
 module.exports = isArguments;
 
-},{}],81:[function(require,module,exports){
-arguments[4][74][0].apply(exports,arguments)
-},{"dup":74}],82:[function(require,module,exports){
+},{}],77:[function(require,module,exports){
+/**
+ * lodash 3.0.0 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/** `Object#toString` result references. */
+var funcTag = '[object Function]';
+
+/** Used to detect host constructors (Safari > 5). */
+var reHostCtor = /^\[object .+?Constructor\]$/;
+
+/**
+ * Used to match `RegExp` special characters.
+ * See this [article on `RegExp` characters](http://www.regular-expressions.info/characters.html#special)
+ * for more details.
+ */
+var reRegExpChars = /[.*+?^${}()|[\]\/\\]/g,
+    reHasRegExpChars = RegExp(reRegExpChars.source);
+
+/**
+ * Converts `value` to a string if it is not one. An empty string is returned
+ * for `null` or `undefined` values.
+ *
+ * @private
+ * @param {*} value The value to process.
+ * @returns {string} Returns the string.
+ */
+function baseToString(value) {
+  if (typeof value == 'string') {
+    return value;
+  }
+  return value == null ? '' : (value + '');
+}
+
+/**
+ * Checks if `value` is object-like.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+ */
+function isObjectLike(value) {
+  return (value && typeof value == 'object') || false;
+}
+
+/** Used for native method references. */
+var objectProto = Object.prototype;
+
+/** Used to resolve the decompiled source of functions. */
+var fnToString = Function.prototype.toString;
+
+/**
+ * Used to resolve the `toStringTag` of values.
+ * See the [ES spec](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring)
+ * for more details.
+ */
+var objToString = objectProto.toString;
+
+/** Used to detect if a method is native. */
+var reNative = RegExp('^' +
+  escapeRegExp(objToString)
+  .replace(/toString|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+);
+
+/**
+ * Checks if `value` is a native function.
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a native function, else `false`.
+ * @example
+ *
+ * _.isNative(Array.prototype.push);
+ * // => true
+ *
+ * _.isNative(_);
+ * // => false
+ */
+function isNative(value) {
+  if (value == null) {
+    return false;
+  }
+  if (objToString.call(value) == funcTag) {
+    return reNative.test(fnToString.call(value));
+  }
+  return (isObjectLike(value) && reHostCtor.test(value)) || false;
+}
+
+/**
+ * Escapes the `RegExp` special characters "\", "^", "$", ".", "|", "?", "*",
+ * "+", "(", ")", "[", "]", "{" and "}" in `string`.
+ *
+ * @static
+ * @memberOf _
+ * @category String
+ * @param {string} [string=''] The string to escape.
+ * @returns {string} Returns the escaped string.
+ * @example
+ *
+ * _.escapeRegExp('[lodash](https://lodash.com/)');
+ * // => '\[lodash\]\(https://lodash\.com/\)'
+ */
+function escapeRegExp(string) {
+  string = baseToString(string);
+  return (string && reHasRegExpChars.test(string))
+    ? string.replace(reRegExpChars, '\\$&')
+    : string;
+}
+
+module.exports = isNative;
+
+},{}],78:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3671,13 +3408,11 @@ function isObject(value) {
 
 module.exports = baseEach;
 
-},{"lodash.keys":83}],83:[function(require,module,exports){
-arguments[4][79][0].apply(exports,arguments)
-},{"dup":79,"lodash.isarguments":84,"lodash.isarray":86,"lodash.isnative":85}],84:[function(require,module,exports){
-arguments[4][80][0].apply(exports,arguments)
-},{"dup":80}],85:[function(require,module,exports){
-arguments[4][74][0].apply(exports,arguments)
-},{"dup":74}],86:[function(require,module,exports){
+},{"lodash.keys":79}],79:[function(require,module,exports){
+arguments[4][75][0].apply(exports,arguments)
+},{"dup":75,"lodash.isarguments":80,"lodash.isarray":81,"lodash.isnative":82}],80:[function(require,module,exports){
+arguments[4][76][0].apply(exports,arguments)
+},{"dup":76}],81:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3837,20 +3572,47 @@ function escapeRegExp(string) {
 
 module.exports = isArray;
 
-},{}],87:[function(require,module,exports){
+},{}],82:[function(require,module,exports){
+arguments[4][77][0].apply(exports,arguments)
+},{"dup":77}],83:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"dup":81}],84:[function(require,module,exports){
 "use strict";
 
 var ExtensionHandler = require("./extension/extension-handler");
 var elementResizeDetectorMaker = require("element-resize-detector");
+var reporterMaker = require("./reporter");
+var idGeneratorMaker = require("./id-generator");
+var idHandlerMaker = require("./id-handler");
 
-module.exports = function() {
+module.exports = function(options) {
+    options = options || {};
+
+    var reporter = options.reporter || reporterMaker();
+
+    var idGenerator = idGeneratorMaker();
+    var idHandler = idHandlerMaker(idGenerator);
+
     var elq = {};
     var extensionHandler = new ExtensionHandler();
-    var elementResizeDetector = elementResizeDetectorMaker();
+    var elementResizeDetector = elementResizeDetectorMaker({
+        idHandler: idHandler,
+        reporter: reporter
+    });
 
     function start(elements) {
         extensionHandler.callMethods("start", [elq, elements]);
     }
+
+    //The public functions is a subset of all functions on the elq object.
+    var publicFunctions = [
+        "version",
+        "use",
+        "using",
+        "getExtension",
+        "start",
+        "listenTo"
+    ];
 
     elq.version = version;
     elq.use = extensionHandler.register.bind(extensionHandler, elq);
@@ -3859,12 +3621,27 @@ module.exports = function() {
     elq.start = start;
     elq.listenTo = elementResizeDetector.listenTo;
 
-    return elq;
+    //Functions only accesible by plugins.
+    elq.idHandler = idHandler;
+
+    return createPublicApi(elq, publicFunctions);
 };
 
 var version = "v0.0.0";
 
-},{"./extension/extension-handler":88,"element-resize-detector":2}],88:[function(require,module,exports){
+function createPublicApi(elq, publicFunctions) {
+    var publicElq = {};
+
+    for(var i = 0; i < publicFunctions.length; i++) {
+        var property = publicFunctions[i];
+
+        publicElq[property] = elq[property];
+    }
+
+    return publicElq;
+}
+
+},{"./extension/extension-handler":85,"./id-generator":86,"./id-handler":87,"./reporter":89,"element-resize-detector":3}],85:[function(require,module,exports){
 //TODO: Borrowed from bookie.js. Should be removed and used as a dependency instead.
 //https://github.com/backslashforward/bookie.js/tree/master/src/extension
 
@@ -3968,12 +3745,56 @@ ExtensionHandler.prototype.callMethods = function(method, args) {
     });
 };
 
-},{"lodash.filter":6,"lodash.isString":62,"lodash.isfunction":63,"lodash.isobject":64,"lodash.map":66}],89:[function(require,module,exports){
+},{"lodash.filter":9,"lodash.isString":65,"lodash.isfunction":66,"lodash.isobject":67,"lodash.map":69}],86:[function(require,module,exports){
+arguments[4][5][0].apply(exports,arguments)
+},{"dup":5}],87:[function(require,module,exports){
+"use strict";
+
+module.exports = function(idGenerator) {
+    var ID_PROP_NAME = "_elqId";
+
+    /**
+     * Gets the elq id of the element.
+     * @public
+     * @param {element} The element to get the id of.
+     * @returns {string|number} The id of the element.
+     */
+    function getId(element) {
+        return element[ID_PROP_NAME];
+    }
+
+    /**
+     * Sets the elq id of the element.
+     * @public
+     * @param {element} The element to set the id to.
+     * @param {string?} An optional id to set to the element. If not specified, an id will be generated. All id's must be unique.
+     * @returns {string|number} The id of the element.
+     */
+    function setId(element, id) {
+        if(!id && id !== 0) {
+            //Number should be generated.
+            id = idGenerator.generate();
+        }
+
+        element[ID_PROP_NAME] = id;
+
+        return id;
+    }
+
+    return {
+        get: getId,
+        set: setId
+    };
+};
+
+},{}],88:[function(require,module,exports){
 "use strict";
 
 var elqMaker = require("./elq");
 
 module.exports = elqMaker();
 
-},{"./elq":87}]},{},[89])(89)
+},{"./elq":84}],89:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8}]},{},[88])(88)
 });

@@ -1,6 +1,7 @@
 "use strict";
 
 module.exports = function(idGenerator) {
+    var ID_PROP_NAME = "_elqId";
 
     /**
      * Gets the elq id of the element.
@@ -9,7 +10,7 @@ module.exports = function(idGenerator) {
      * @returns {string|number} The id of the element.
      */
     function getId(element) {
-        return element.getAttribute("elq-id");
+        return element[ID_PROP_NAME];
     }
 
     /**
@@ -25,7 +26,7 @@ module.exports = function(idGenerator) {
             id = idGenerator.generate();
         }
 
-        element.setAttribute("elq-id", id);
+        element[ID_PROP_NAME] = id;
 
         return id;
     }
