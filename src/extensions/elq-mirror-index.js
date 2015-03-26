@@ -1,5 +1,3 @@
 "use strict";
 
-var MirrorExtension = require("./elq-mirror");
-
-module.exports = new MirrorExtension();
+module.exports = require("./elq-mirror");

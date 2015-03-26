@@ -1,10 +1,12 @@
 "use strict";
 
-var ExtensionHandler = require("./extension/extension-handler");
+var extensionHandlerMaker = require("./extension-handler");
 var elementResizeDetectorMaker = require("element-resize-detector");
 var reporterMaker = require("./reporter");
 var idGeneratorMaker = require("./id-generator");
 var idHandlerMaker = require("./id-handler");
+
+var version = "v0.0.0";
 
 module.exports = function(options) {
     options = options || {};
@@ -15,7 +17,7 @@ module.exports = function(options) {
     var idHandler = idHandlerMaker(idGenerator);
 
     var elq = {};
-    var extensionHandler = new ExtensionHandler();
+    var extensionHandler = extensionHandlerMaker(reporter);
     var elementResizeDetector = elementResizeDetectorMaker({
         idHandler: idHandler,
         reporter: reporter
@@ -30,7 +32,7 @@ module.exports = function(options) {
             elements = [elements];
         }
 
-        extensionHandler.callMethods("start", [elq, elements]);
+        extensionHandler.callMethods("start", [elements]);
     }
 
     //The public functions is a subset of all functions on the elq object.
@@ -43,10 +45,16 @@ module.exports = function(options) {
         "listenTo"
     ];
 
-    elq.version = version;
-    elq.use = extensionHandler.register.bind(extensionHandler, elq);
-    elq.using = extensionHandler.isRegistered.bind(extensionHandler);
-    elq.getExtension = extensionHandler.get.bind(extensionHandler);
+    elq.getVersion = function() {
+        return version;
+    };
+    elq.getName = function() {
+        return "ELQ";
+    };
+
+    elq.use = extensionHandler.register.bind(null, elq);
+    elq.using = extensionHandler.isRegistered;
+    elq.getExtension = extensionHandler.get;
     elq.start = start;
     elq.listenTo = elementResizeDetector.listenTo;
 
@@ -56,8 +64,6 @@ module.exports = function(options) {
 
     return createPublicApi(elq, publicFunctions);
 };
-
-var version = "v0.0.0";
 
 function createPublicApi(elq, publicFunctions) {
     var publicElq = {};
