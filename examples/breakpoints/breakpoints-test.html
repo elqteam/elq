@@ -1,0 +1,140 @@
+<html>
+    <head>
+        <style>
+            body {
+                background: black;
+                padding: 0;
+                margin: 0;
+            }
+
+            #target > .test {
+                width: 100%;
+                background: inherit;
+            }
+
+            .test {
+                position: relative;
+                display: inline-block;
+                height: 100px;
+            }
+
+            .test.elq-width-under-50 {
+                background: #F2522E;
+                opacity: 0.4;
+            }
+
+            .test.elq-width-above-50 {
+                background: #F2522E;
+                opacity: 0.5;
+            }
+
+            .test.elq-width-above-100 {
+                background: #F2522E;
+                opacity: 0.6;
+            }
+
+            .test.elq-width-above-150 {
+                background: #F2522E;
+                opacity: 0.7;
+            }
+
+            .test.elq-width-above-200 {
+                background: #F2522E;
+                opacity: 0.8;
+            }
+
+            .test.elq-width-above-250 {
+                background: #F2522E;
+                opacity: 0.9;
+            }
+
+            .test.elq-width-above-300 {
+                background: #F2522E;
+                opacity: 1;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="target"></div>
+
+        <script src="../../node_modules/jquery/dist/jquery.min.js"></script>
+        <script src="../../build/elq.js"></script>
+        <script src="../../build/elq-breakpoints.js"></script>
+        <script src="../../build/elq-mirror.js"></script>
+        
+        <script>
+            function rand(min, max) {
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            }
+
+            function createRandomPercentageDistribution(num) {
+                var rands = [];
+                var total = 0;
+
+                for(var i = 0; i < num; i++) {
+                    var value = rand(0, 100);
+                    rands.push(value);
+                    total += value;
+                }
+
+                rands = rands.map(function(value) {
+                    return Math.round(100 * value / total);
+                });
+
+                var normalizedTotal = rands.reduce(function(sum, value) {
+                    return sum + value;
+                }, 0);
+
+                var diff = 100 - normalizedTotal;
+
+                if(diff === 0) {
+                    return rands;
+                }
+
+                rands[0] += diff;
+
+                return rands;
+            }
+
+            function createDiv(width) {
+                var d = document.createElement("div");
+                d.setAttribute("elq", "");
+                d.setAttribute("elq-breakpoints", "");
+                d.setAttribute("elq-breakpoints-width", "50 100 150 200 250 300");
+                d.className = "test";
+                d.style.width = width;
+                return d;
+            }
+
+            function loopCreateAndAppend(numNested, create, target) {
+                for(var i = 0; i < numNested; i++) {
+                    var d = create();
+                    target.appendChild(d);
+                }
+
+                return target;
+            }
+
+            function createDivContainer(numNested) {
+                var percentages = createRandomPercentageDistribution(numNested);
+                
+                var i = 0;
+
+                return loopCreateAndAppend(numNested, function() {
+                    return createDiv(percentages[i++] + "%");
+                }, createDiv("100%"));
+            }
+
+            loopCreateAndAppend(10, createDivContainer.bind(null, 10), document.getElementById("target"));
+
+            $(function onDomReady() {
+                elqBreakpoints.setConfig({
+                    postfix: ""
+                });
+                elq.use(elqBreakpoints);
+                elq.use(elqMirror);
+                elq.start($("[elq]"));
+            });
+        </script>
+    </body>
+</html>
