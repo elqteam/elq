@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        html, body {
+            height: 100%;
+        }
+
+        #aligner {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #container {
+            width:200px;
+            height: 50%;
+            background: #FF9800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        #dimensions {
+            font-size: 3em;
+            color: #FFF;
+            text-align: center;
+        }
+
+        #dim-x, #dim-y {
+            color: #263248;
+        }
+
+        #classes div {
+            display: inline-block;
+            margin: 5px;
+        }
+
+        #classes div span {
+            display: block;
+            font-family: monospace;
+        }
+
+        #mirror.elq-width-under-500px {
+            color: blue;
+        }
+
+        #mirror.elq-width-above-500px {
+            color: red;
+        }
+
+        /* Cyclic rules */
+        #container.elq-width-under-300px {
+            width: 550px;
+        }
+
+        #container.elq-width-above-500px {
+            width: 250px;
+        }
+    </style>
+</head>
+<body>
+    <div id="aligner">
+        <div id="container" elq elq-breakpoints elq-width-min="100" elq-width-max="1000" elq-width-step="50">
+            <div id="test">
+                <div id="dimensions">
+                    <span id="dim-x"></span>x<span id="dim-y"></span>
+                </div>
+                <span id="mirror" elq elq-mirror>
+                    I'm an ELQ element.
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <script src="../../node_modules/jquery/dist/jquery.min.js"></script>
+    <script src="../../build/elq.js"></script>
+    <script src="../../build/elq-breakpoints.js"></script>
+    <script src="../../build/elq-mirror.js"></script>
+    <script>
+        $(function() {
+            function updateElement(element) {
+                updateDimensions(element);
+                //updateClasses(element);
+            }
+
+            function updateDimensions(element) {
+                var width = $(element).width();
+                var height = $(element).height();
+                $("#dim-x").html(width);
+                $("#dim-y").html(height);
+            }
+
+            function updateClasses(element) {
+                var classes = element.className;
+
+                var matches = classes.match(/elq-(width|height)-[a-z]+-[0-9]+/g);
+
+                $("#classes span").html("");
+
+                matches.forEach(function(match) {
+                    //TODO
+                    /*if(/^elq-width-above/.test(match)) {
+                        $("#width-above").html(match);
+                    } else if(/^elq-width-under/.test(match)) {
+                        $("#width-under").html(match);
+                    } else if(/^elq-height-above/.test(match)) {
+                        $("#height-above").html(match);
+                    } else if(/^elq-height-under/.test(match)) {
+                        $("#height-under").html(match);
+                    }*/
+                });
+            }
+
+            var container = $("#container");
+
+            elq.use(elqBreakpoints, {
+                postfix: "px"
+            });
+            elq.use(elqMirror);
+            elq.start($("[elq]"));
+
+            elq.listenTo(container[0], updateElement);
+            updateElement(container[0]);
+
+            container.click(function() {
+                function rand(min, max) {
+                    return Math.floor(Math.random() * (max - min + 1)) + min;
+                }
+
+                var width = rand(30, 90);
+                var height = rand(30, 90);
+
+                $(this).css({
+                    width: width + "%",
+                    height: height + "%"
+                });
+            });
+        });
+    </script>
+</body>
+</html>
