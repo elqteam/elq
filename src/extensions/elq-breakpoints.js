@@ -125,7 +125,7 @@ BreakpointsExtension.prototype.start = function(elq, elements) {
     forEach(elements, function(element) {
         if(element.hasAttribute("elq-breakpoints")) {
             elq.listenTo(element, onElementResize);
-            onElementResize(element);
+            //onElementResize(element);
         }
     });
 };
