@@ -15,10 +15,11 @@ module.exports = {
         return true; //TODO: Check elq version.
     },
     make: function(elq, options) {
-        options = options || {};
-        options.postfix = options.postfix || "";
-
-        var idHandler = elq.idHandler;
+        options             = options || {};
+        options.postfix     = options.postfix || "";
+        var reporter        = elq.reporter;
+        var idHandler       = elq.idHandler;
+        var cycleDetector   = elq.cycleDetector;
 
         var elementBreakpointsListeners = {};
         var previousElementBreakpointClasses = {};
@@ -113,6 +114,11 @@ module.exports = {
 
                 var id = idHandler.get(element);
                 if(previousElementBreakpointClasses[id] !== breakpointClasses) {
+                    if(cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                        reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
+                        return;
+                    }
+
                     updateBreakpointClasses(element, breakpointClasses);
                     previousElementBreakpointClasses[id] = breakpointClasses;
                     forEach(elementBreakpointsListeners[id], function(listener) {

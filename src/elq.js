@@ -1,27 +1,25 @@
 "use strict";
 
-var extensionHandlerMaker = require("./extension-handler");
-var elementResizeDetectorMaker = require("element-resize-detector");
-var reporterMaker = require("./reporter");
-var idGeneratorMaker = require("./id-generator");
-var idHandlerMaker = require("./id-handler");
+var extensionHandlerMaker       = require("./extension-handler");
+var elementResizeDetectorMaker  = require("element-resize-detector");
+var reporterMaker               = require("./reporter");
+var idGeneratorMaker            = require("./id-generator");
+var idHandlerMaker              = require("./id-handler");
+var cycleDetectorMaker          = require("./cycle-detector");
 
-var version = "v0.0.0";
+var libVersion = "v0.0.0";
+var libName = "ELQ";
 
 module.exports = function(options) {
     options = options || {};
 
-    var reporter = options.reporter || reporterMaker();
-
-    var idGenerator = idGeneratorMaker();
-    var idHandler = idHandlerMaker(idGenerator);
-
-    var elq = {};
-    var extensionHandler = extensionHandlerMaker(reporter);
-    var elementResizeDetector = elementResizeDetectorMaker({
-        idHandler: idHandler,
-        reporter: reporter
-    });
+    var elq                     = {};
+    var reporter                = options.reporter || reporterMaker();
+    var idGenerator             = idGeneratorMaker();
+    var idHandler               = idHandlerMaker(idGenerator);
+    var cycleDetector           = cycleDetectorMaker(idHandler);
+    var extensionHandler        = extensionHandlerMaker(reporter);
+    var elementResizeDetector   = elementResizeDetectorMaker({ idHandler: idHandler, reporter: reporter });
 
     function start(elements) {
         if(!elements) {
@@ -45,25 +43,29 @@ module.exports = function(options) {
         "listenTo"
     ];
 
-    elq.getVersion = function() {
-        return version;
-    };
-    elq.getName = function() {
-        return "ELQ";
-    };
-
-    elq.use = extensionHandler.register.bind(null, elq);
-    elq.using = extensionHandler.isRegistered;
-    elq.getExtension = extensionHandler.get;
-    elq.start = start;
-    elq.listenTo = elementResizeDetector.listenTo;
+    elq.getVersion      = getVersion;
+    elq.getName         = getName;
+    elq.use             = extensionHandler.register.bind(null, elq);
+    elq.using           = extensionHandler.isRegistered;
+    elq.getExtension    = extensionHandler.get;
+    elq.start           = start;
+    elq.listenTo        = elementResizeDetector.listenTo;
 
     //Functions only accesible by plugins.
-    elq.idHandler = idHandler;
-    elq.reporter = reporter;
+    elq.idHandler       = idHandler;
+    elq.reporter        = reporter;
+    elq.cycleDetector   = cycleDetector;
 
     return createPublicApi(elq, publicFunctions);
 };
+
+function getVersion() {
+    return libVersion;
+}
+
+function getName() {
+    return libName;
+}
 
 function createPublicApi(elq, publicFunctions) {
     var publicElq = {};
