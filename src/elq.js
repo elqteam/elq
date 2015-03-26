@@ -52,6 +52,7 @@ module.exports = function(options) {
 
     //Functions only accesible by plugins.
     elq.idHandler = idHandler;
+    elq.reporter = reporter;
 
     return createPublicApi(elq, publicFunctions);
 };

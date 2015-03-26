@@ -15,13 +15,17 @@ MirrorExtension.prototype.start = function(elq, elements) {
     function getElqParentElement(mirrorElement) {
         var currentElement = mirrorElement.parentNode;
 
-        while(currentElement) {
+        while(currentElement && currentElement.hasAttribute) {
             if(currentElement.hasAttribute("elq-breakpoints")) {
                 return currentElement;
             }
 
             currentElement = currentElement.parentNode;
         }
+
+        //If this is reached, it means that there was not elq-breakpoints parent found.
+        elq.reporter.error("Mirror elements require an elq-breakpoints ancestor. This error can probably be resolved by making body and elq-breakpoints element. Error caused by mirror element:", mirrorElement);
+        throw new Error("Mirror elements require an elq-breakpoints ancestor.");
     }
 
     function mirrorBreakpointClasses(destinationElement, sourceElement) {

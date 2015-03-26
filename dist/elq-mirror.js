@@ -938,6 +938,10 @@ MirrorExtension.prototype.start = function(elq, elements) {
 
             currentElement = currentElement.parentNode;
         }
+
+        //If this is reached, it means that there was not elq-breakpoints parent found.
+        elq.reporter.error("Mirror elements require an elq-breakpoints ancestor. This error can probably be resolved by making body and elq-breakpoints element.");
+        throw new Error("Mirror elements require an elq-breakpoints ancestor.");
     }
 
     function mirrorBreakpointClasses(destinationElement, sourceElement) {
