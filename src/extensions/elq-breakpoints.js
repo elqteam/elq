@@ -20,6 +20,7 @@ module.exports = {
         var reporter        = elq.reporter;
         var idHandler       = elq.idHandler;
         var cycleDetector   = elq.cycleDetector;
+        var batchUpdater    = elq.batchUpdater;
 
         var elementBreakpointsListeners = {};
         var previousElementBreakpointClasses = {};
@@ -113,18 +114,21 @@ module.exports = {
                 var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
 
                 var id = idHandler.get(element);
-                if(previousElementBreakpointClasses[id] !== breakpointClasses) {
-                    if(cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
-                        reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
-                        return;
-                    }
 
-                    updateBreakpointClasses(element, breakpointClasses);
-                    previousElementBreakpointClasses[id] = breakpointClasses;
-                    forEach(elementBreakpointsListeners[id], function(listener) {
-                        listener(element);
-                    });
-                }
+                batchUpdater.update(id, function updater() {
+                    if(previousElementBreakpointClasses[id] !== breakpointClasses) {
+                        if(cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                            reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
+                            return;
+                        }
+
+                        updateBreakpointClasses(element, breakpointClasses);
+                        previousElementBreakpointClasses[id] = breakpointClasses;
+                        forEach(elementBreakpointsListeners[id], function(listener) {
+                            listener(element);
+                        });
+                    }
+                });
             }
 
             forEach(elements, function(element) {
