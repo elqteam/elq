@@ -7,7 +7,7 @@ module.exports = function cycleDetectorMaker(idHandler, options) {
 
     options = options || {};
     options.numCyclesAllowed = options.numCyclesAllowed || 0;
-    options.timeBetweenCyclesAllowed = options.timeBetweenCyclesAllowed || NaN;
+    options.timeBetweenCyclesAllowed = options.timeBetweenCyclesAllowed || 300;
 
     var elements = {};
 
