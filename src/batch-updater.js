@@ -13,7 +13,8 @@ module.exports = function batchUpdaterMaker(options) {
     var batch = {};
 
     function requestFrame(callback) {
-        var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
+        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
+        var raf = function(fn) { return window.setTimeout(fn, 0); };
         return raf(callback);
     }
 
@@ -30,6 +31,7 @@ module.exports = function batchUpdaterMaker(options) {
         }
 
         batch[element] = updater;
+        batchSize++;
     }
 
     function updateBatch() {
