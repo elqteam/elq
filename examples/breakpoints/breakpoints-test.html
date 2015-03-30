@@ -128,10 +128,9 @@
             loopCreateAndAppend(10, createDivContainer.bind(null, 10), document.getElementById("target"));
 
             $(function onDomReady() {
-                elqBreakpoints.setConfig({
+                elq.use(elqBreakpoints, {
                     postfix: ""
                 });
-                elq.use(elqBreakpoints);
                 elq.use(elqMirror);
                 elq.start($("[elq]"));
             });
