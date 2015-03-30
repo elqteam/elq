@@ -10,7 +10,11 @@ module.exports = function(idGenerator) {
      * @returns {string|number} The id of the element.
      */
     function getId(element) {
-        return element[ID_PROP_NAME];
+        var id = element[ID_PROP_NAME];
+        if(id === undefined) {
+            throw new Error("element does not have any id.");
+        }
+        return id;
     }
 
     /**
