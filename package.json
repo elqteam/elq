@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "element-resize-detector": "^0.2.3",
+    "batch-updater": "^0.1.0",
     "lodash": "^2.4.1",
     "lodash.filter": "^2.4.1",
     "lodash.foreach": "^3.0.1",

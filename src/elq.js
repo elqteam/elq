@@ -6,7 +6,7 @@ var reporterMaker               = require("./reporter");
 var idGeneratorMaker            = require("./id-generator");
 var idHandlerMaker              = require("./id-handler");
 var cycleDetectorMaker          = require("./cycle-detector");
-var batchUpdaterMaker           = require("./batch-updater");
+var batchUpdaterMaker           = require("batch-updater");
 
 var libVersion = "v0.0.0";
 var libName = "ELQ";
