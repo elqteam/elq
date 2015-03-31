@@ -877,97 +877,75 @@ module.exports = bindCallback;
 },{}],9:[function(require,module,exports){
 arguments[4][6][0].apply(exports,arguments)
 },{"dup":6}],10:[function(require,module,exports){
-//TODO: Borrowed from bookie.js. Should be removed and used as a dependency instead.
-//https://github.com/backslashforward/bookie.js/tree/master/src/extension
-
 "use strict";
 
-module.exports = Extension;
+module.exports = require("./elq-mirror");
 
-/**
- * Represents an extension that will be applied to a system.
- * @constructor
- * @public
- * @param {string} name - The name of the extension. Must be unique in the context of used extensions in a system.
- * @param {function=} init - The function to be called to init the extension to the given system.
- */
-function Extension(name, init) {
-    function noop() {}
-
-    this.name = name;
-    this.init = init || noop;
-}
-
-/**
- * Inits the extension to the given system. Here extensions can alter properties and methods to the given system. This method should be overriden by extensions.
- * @param {object} target - The target system that this extension should be applied to.
- */
-Extension.prototype.init = function(target) {
-    this.init(target);
-};
-
-},{}],11:[function(require,module,exports){
+},{"./elq-mirror":11}],11:[function(require,module,exports){
 "use strict";
 
-var MirrorExtension = require("./elq-mirror");
-
-module.exports = new MirrorExtension();
-
-},{"./elq-mirror":12}],12:[function(require,module,exports){
-"use strict";
-
-var Extension = require("../extension/extension");
 var forEach = require("lodash.forEach");
 
-module.exports = MirrorExtension;
+module.exports = {
+    getName: function() {
+        return "elq-mirror";
+    },
+    getVersion: function() {
+        return "0.0.0";
+    },
+    isCompatible: function(elq) {
+        return true; //TODO: Check elq version.
+    },
+    make: function(elq, options) {
+        function start(elements) {
+            var elqBreakpoints = elq.getExtension("elq-breakpoints");
 
-function MirrorExtension() {
-    Extension.call(this, "elq-mirror");
-}
+            function getElqParentElement(mirrorElement) {
+                var currentElement = mirrorElement.parentNode;
 
-MirrorExtension.prototype.start = function(elq, elements) {
-    var elqBreakpoints = elq.getExtension("elq-breakpoints");
+                while(currentElement && currentElement.hasAttribute) {
+                    if(currentElement.hasAttribute("elq-breakpoints")) {
+                        return currentElement;
+                    }
 
-    function getElqParentElement(mirrorElement) {
-        var currentElement = mirrorElement.parentNode;
+                    currentElement = currentElement.parentNode;
+                }
 
-        while(currentElement) {
-            if(currentElement.hasAttribute("elq-breakpoints")) {
-                return currentElement;
+                //If this is reached, it means that there was not elq-breakpoints parent found.
+                elq.reporter.error("Mirror elements require an elq-breakpoints ancestor. This error can probably be resolved by making body and elq-breakpoints element. Error caused by mirror element:", mirrorElement);
+                throw new Error("Mirror elements require an elq-breakpoints ancestor.");
             }
 
-            currentElement = currentElement.parentNode;
-        }
-
-        //If this is reached, it means that there was not elq-breakpoints parent found.
-        elq.reporter.error("Mirror elements require an elq-breakpoints ancestor. This error can probably be resolved by making body and elq-breakpoints element.");
-        throw new Error("Mirror elements require an elq-breakpoints ancestor.");
-    }
-
-    function mirrorBreakpointClasses(destinationElement, sourceElement) {
-        var breakpointClasses = elqBreakpoints.getBreakpointClasses(sourceElement);
-        breakpointClasses = breakpointClasses.join(" ");
-        breakpointClasses = breakpointClasses.replace(/\s+/g, " ").trim();
-        elqBreakpoints.updateBreakpointClasses(destinationElement, breakpointClasses);
-    }
-
-    if(!elqBreakpoints) {
-        throw new Error("The elq-mirror extension requires the elq-breakpoints extension.");
-    }
-
-    forEach(elements, function(mirrorElement) {
-        if(mirrorElement.hasAttribute("elq-mirror")) {
-            var sourceElement = getElqParentElement(mirrorElement);
-
-            if(!sourceElement) {
-                throw new Error("There is no parent elq-breakpoints element to mirror.");
+            function mirrorBreakpointClasses(destinationElement, sourceElement) {
+                var breakpointClasses = elqBreakpoints.getBreakpointClasses(sourceElement);
+                breakpointClasses = breakpointClasses.join(" ");
+                breakpointClasses = breakpointClasses.replace(/\s+/g, " ").trim();
+                elqBreakpoints.updateBreakpointClasses(destinationElement, breakpointClasses);
             }
 
-            elqBreakpoints.listenToElementBreakpoints(sourceElement, mirrorBreakpointClasses.bind(null, mirrorElement));
-            mirrorBreakpointClasses(mirrorElement, sourceElement);
+            if(!elqBreakpoints) {
+                throw new Error("The elq-mirror extension requires the elq-breakpoints extension.");
+            }
+
+            forEach(elements, function(mirrorElement) {
+                if(mirrorElement.hasAttribute("elq-mirror")) {
+                    var sourceElement = getElqParentElement(mirrorElement);
+
+                    if(!sourceElement) {
+                        throw new Error("There is no parent elq-breakpoints element to mirror.");
+                    }
+
+                    elqBreakpoints.listenToElementBreakpoints(sourceElement, mirrorBreakpointClasses.bind(null, mirrorElement));
+                    mirrorBreakpointClasses(mirrorElement, sourceElement);
+                }
+            });
         }
-    });
+
+        return {
+            start: start
+        };
+    }
 };
 
-},{"../extension/extension":10,"lodash.forEach":1}]},{},[11])(11)
+},{"lodash.forEach":1}]},{},[10])(10)
 });

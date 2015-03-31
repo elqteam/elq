@@ -21,7 +21,7 @@ module.exports = function(options) {
     var cycleDetector           = cycleDetectorMaker(idHandler);
     var extensionHandler        = extensionHandlerMaker(reporter);
     var elementResizeDetector   = elementResizeDetectorMaker({ idHandler: idHandler, reporter: reporter });
-    var batchUpdater            = batchUpdaterMaker({ reporter: reporter });
+    var createBatchUpdater      = createBatchUpdaterWithDefaultOptions({ reporter: reporter });
 
     function start(elements) {
         if(!elements) {
@@ -45,19 +45,19 @@ module.exports = function(options) {
         "listenTo"
     ];
 
-    elq.getVersion      = getVersion;
-    elq.getName         = getName;
-    elq.use             = extensionHandler.register.bind(null, elq);
-    elq.using           = extensionHandler.isRegistered;
-    elq.getExtension    = extensionHandler.get;
-    elq.start           = start;
-    elq.listenTo        = elementResizeDetector.listenTo;
+    elq.getVersion          = getVersion;
+    elq.getName             = getName;
+    elq.use                 = extensionHandler.register.bind(null, elq);
+    elq.using               = extensionHandler.isRegistered;
+    elq.getExtension        = extensionHandler.get;
+    elq.start               = start;
+    elq.listenTo            = elementResizeDetector.listenTo;
 
     //Functions only accesible by plugins.
-    elq.idHandler       = idHandler;
-    elq.reporter        = reporter;
-    elq.cycleDetector   = cycleDetector;
-    elq.batchUpdater    = batchUpdater;
+    elq.idHandler           = idHandler;
+    elq.reporter            = reporter;
+    elq.cycleDetector       = cycleDetector;
+    elq.createBatchUpdater  = createBatchUpdater;
 
     return createPublicApi(elq, publicFunctions);
 };
@@ -80,4 +80,23 @@ function createPublicApi(elq, publicFunctions) {
     }
 
     return publicElq;
+}
+
+
+function createBatchUpdaterWithDefaultOptions(globalOptions) {
+    globalOptions = globalOptions || {};
+
+    function batchMakerOptionsProxy(options) {
+        options = options || globalOptions;
+
+        for(var prop in globalOptions) {
+            if(globalOptions.hasOwnProperty(prop) && !options.hasOwnProperty(prop)) {
+                options[prop] = globalOptions[prop];
+            }
+        }
+
+        return batchUpdaterMaker(options);
+    }
+
+    return batchMakerOptionsProxy;
 }

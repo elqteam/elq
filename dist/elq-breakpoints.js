@@ -3528,212 +3528,211 @@ function isObject(value) {
 module.exports = isIterateeCall;
 
 },{}],85:[function(require,module,exports){
-//TODO: Borrowed from bookie.js. Should be removed and used as a dependency instead.
-//https://github.com/backslashforward/bookie.js/tree/master/src/extension
-
 "use strict";
 
-module.exports = Extension;
+module.exports = require("./elq-breakpoints");
 
-/**
- * Represents an extension that will be applied to a system.
- * @constructor
- * @public
- * @param {string} name - The name of the extension. Must be unique in the context of used extensions in a system.
- * @param {function=} init - The function to be called to init the extension to the given system.
- */
-function Extension(name, init) {
-    function noop() {}
-
-    this.name = name;
-    this.init = init || noop;
-}
-
-/**
- * Inits the extension to the given system. Here extensions can alter properties and methods to the given system. This method should be overriden by extensions.
- * @param {object} target - The target system that this extension should be applied to.
- */
-Extension.prototype.init = function(target) {
-    this.init(target);
-};
-
-},{}],86:[function(require,module,exports){
+},{"./elq-breakpoints":86}],86:[function(require,module,exports){
 "use strict";
 
-var BreakpointsExtension = require("./elq-breakpoints");
-
-module.exports = new BreakpointsExtension();
-
-},{"./elq-breakpoints":87}],87:[function(require,module,exports){
-"use strict";
-
-var Extension = require("../extension/extension");
 var forEach = require("lodash.foreach");
 var unique = require("lodash.uniq");
 var filter = require("lodash.filter");
 
-module.exports = BreakpointsExtension;
+module.exports = {
+    getName: function() {
+        return "elq-breakpoints";
+    },
+    getVersion: function() {
+        return "0.0.0";
+    },
+    isCompatible: function(elq) {
+        return true; //TODO: Check elq version.
+    },
+    make: function(elq, options) {
+        options                 = options || {};
+        options.postfix         = options.postfix || "";
+        var reporter            = elq.reporter;
+        var idHandler           = elq.idHandler;
+        var cycleDetector       = elq.cycleDetector;
+        var batchUpdater        = elq.createBatchUpdater();
 
-function BreakpointsExtension() {
-    Extension.call(this, "elq-breakpoints");
+        var elementBreakpointsListeners = {};
+        var previousElementBreakpointClasses = {};
 
-    this.config = {};
-    this.config.postfix = "";
-
-    this.elementBreakpointsListeners = {};
-    this.previousElementBreakpointClasses = {};
-    this.idHandler;
-}
-
-BreakpointsExtension.prototype.start = function(elq, elements) {
-    //TODO: DI this one in the constructor instead? Then signature of use can be elq.use(plugin, options), instead of elq.use(plugin(options)).
-    //Save the idHandler of elq.
-    this.idHandler = elq.idHandler;
-
-    var self = this;
-
-    function onElementResize(element) {
-        function getAttributeOrDefault(attr, defaultValue) {
-            return element.hasAttribute(attr) ? parseInt(element.getAttribute(attr)) : defaultValue;
-        }
-
-        //can either be in the attribute elq-breakpoints-width="300 500 ..." or in the elq-width-min, elq-width-max, elq-width-step or both.
-        function getBreakpoints(element, dimension) {
-            function getFromMainAttr(element, dimension) {
-                var breakpoints = element.getAttribute("elq-breakpoints-" + dimension);
-
-                if(!breakpoints) {
-                    return [];
+        function start(elements) {
+            function onElementResize(batchUpdater, element) {
+                function getAttributeOrDefault(attr, defaultValue) {
+                    return element.hasAttribute(attr) ? parseInt(element.getAttribute(attr)) : defaultValue;
                 }
 
-                breakpoints = breakpoints.replace(/\s+/g, " ").trim();
-                breakpoints = breakpoints.split(" ");
-                return breakpoints.map(function(value) {
-                    return parseInt(value, 10);
-                });
-            }
+                //can either be in the attribute elq-breakpoints-width="300 500 ..." or in the elq-width-min, elq-width-max, elq-width-step or both.
+                function getBreakpoints(element, dimension) {
+                    function getFromMainAttr(element, dimension) {
+                        var breakpoints = element.getAttribute("elq-breakpoints-" + dimension);
 
-            function getFromMinMaxStep(element, dimension) {
-                var min = getAttributeOrDefault("elq-" + dimension + "-min", null);
-                var max = getAttributeOrDefault("elq-" + dimension + "-max", null);
-                var step = getAttributeOrDefault("elq-" + dimension + "-step", 50);
+                        if(!breakpoints) {
+                            return [];
+                        }
 
-                var breakpoints = [];
+                        breakpoints = breakpoints.replace(/\s+/g, " ").trim();
+                        breakpoints = breakpoints.split(" ");
+                        return breakpoints.map(function(value) {
+                            return parseInt(value, 10);
+                        });
+                    }
 
-                if(!min) {
+                    function getFromMinMaxStep(element, dimension) {
+                        var min = getAttributeOrDefault("elq-" + dimension + "-min", null);
+                        var max = getAttributeOrDefault("elq-" + dimension + "-max", null);
+                        var step = getAttributeOrDefault("elq-" + dimension + "-step", 50);
+
+                        var breakpoints = [];
+
+                        if(!min) {
+                            return breakpoints;
+                        }
+
+                        if(!max) {
+                            throw new Error("Max needs to be defined.");
+                        }
+
+                        if(!step) {
+                            throw new Error("Step needs to be defined.");
+                        }
+
+                        for(var i = min; i <= max; i += step) {
+                            breakpoints.push(i);
+                        }
+
+                        return breakpoints;
+                    }
+
+                    var breakpoints = [];
+                    breakpoints = breakpoints.concat(getFromMainAttr(element, dimension));
+                    breakpoints = breakpoints.concat(getFromMinMaxStep(element, dimension));
+                    breakpoints = unique(breakpoints);
+                    breakpoints = breakpoints.sort(function(a, b) {
+                        return a - b;
+                    });
                     return breakpoints;
                 }
 
-                if(!max) {
-                    throw new Error("Max needs to be defined.");
+                function getClasses(breakpoints, dimension, value) {
+                    var classes = [];
+
+                    if(!breakpoints.length) {
+                        return classes;
+                    }
+
+                    breakpoints.forEach(function(breakpoint) {
+                        var dir = "under";
+
+                        if(value >= breakpoint) {
+                            dir = "above";
+                        }
+
+                        classes.push("elq-" + dimension + "-" + dir + "-" + breakpoint + options.postfix);
+                    });
+
+                    return classes;
                 }
 
-                if(!step) {
-                    throw new Error("Step needs to be defined.");
-                }
+                var widthBreakpoints = getBreakpoints(element, "width");
+                var heightBreakpoints = getBreakpoints(element, "height");
 
-                for(var i = min; i <= max; i += step) {
-                    breakpoints.push(i);
-                }
+                var width = element.offsetWidth;
+                var height = element.offsetHeight;
 
-                return breakpoints;
+                var widthClasses = getClasses(widthBreakpoints, "width", width);
+                var heightClasses = getClasses(heightBreakpoints, "height", height);
+                var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
+
+                var id = idHandler.get(element);
+
+                batchUpdater.update(id, function mutateElementBreakpointClasses() {
+                    if(previousElementBreakpointClasses[id] !== breakpointClasses) {
+                        if(cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                            reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
+                            return;
+                        }
+
+                        updateBreakpointClasses(element, breakpointClasses);
+                        previousElementBreakpointClasses[id] = breakpointClasses;
+                        forEach(elementBreakpointsListeners[id], function(listener) {
+                            listener(element);
+                        });
+                    }
+                });
             }
 
-            var breakpoints = [];
-            breakpoints = breakpoints.concat(getFromMainAttr(element, dimension));
-            breakpoints = breakpoints.concat(getFromMinMaxStep(element, dimension));
-            breakpoints = unique(breakpoints);
-            breakpoints = breakpoints.sort(function(a, b) {
-                return a - b;
+            //Before listening to each element (which is a heavy task) it is improtant to apply the right classes
+            //to the elements so that a correct render can occur before all objects are injected to the elements.
+            var manualBatchUpdater = elq.createBatchUpdater({ async: false, auto: false });
+            forEach(elements, function onElementResizeLoop(element) {
+                idHandler.set(element);
+                onElementResize(manualBatchUpdater, element);
             });
-            return breakpoints;
-        }
 
-        function getClasses(breakpoints, dimension, value) {
-            var classes = [];
-
-            if(!breakpoints.length) {
-                return classes;
+            function onElementResizeProxy(element) {
+                return onElementResize(batchUpdater, element);
             }
 
-            breakpoints.forEach(function(breakpoint) {
-                var dir = "under";
-
-                if(value >= breakpoint) {
-                    dir = "above";
+            forEach(elements, function listenToLoop(element) {
+                if(element.hasAttribute("elq-breakpoints")) {
+                    elq.listenTo({
+                        callOnAdd: false,
+                        batchUpdater: batchUpdater
+                    }, element, onElementResizeProxy);
                 }
-
-                classes.push("elq-" + dimension + "-" + dir + "-" + breakpoint + self.config.postfix);
             });
 
-            return classes;
+            //Force everything currently in the batch to execute synchronously.
+            //Important that his is done after the listenToLoop since it reads the DOM style and the batch will write the DOM.
+            manualBatchUpdater.force();
         }
 
-        var widthBreakpoints = getBreakpoints(element, "width");
-        var heightBreakpoints = getBreakpoints(element, "height");
+        function listenToElementBreakpoints(element, callback) {
+            var id = idHandler.get(element);
 
-        var width = element.offsetWidth;
-        var height = element.offsetHeight;
+            elementBreakpointsListeners[id] = elementBreakpointsListeners[id] || [];
+            elementBreakpointsListeners[id].push(callback);
+        }
 
-        var widthClasses = getClasses(widthBreakpoints, "width", width);
-        var heightClasses = getClasses(heightBreakpoints, "height", height);
-        var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
+        function getBreakpointClasses(element) {
+            var classes = element.className;
+            classes = classes.replace(/\s+/g, " ").trim();
+            classes = classes.split(" ");
 
-        var id = self.idHandler.get(element);
-        if(self.previousElementBreakpointClasses[id] !== breakpointClasses) {
-            self.updateBreakpointClasses(element, breakpointClasses);
-            self.previousElementBreakpointClasses[id] = breakpointClasses;
-            forEach(self.elementBreakpointsListeners[id], function(listener) {
-                listener(element);
+            return filter(classes, function(className) {
+                return className.indexOf("elq-") === 0;
             });
         }
+
+        function updateBreakpointClasses(element, breakpointClasses) {
+            var classes = element.className;
+
+            //Remove all old breakpoints.
+            var breakpointRegexp = new RegExp("elq-(width|height)-[a-z]+-[0-9]+" + options.postfix, "g");
+            classes = classes.replace(breakpointRegexp, "");
+
+            //Add new classes
+            classes += " " + breakpointClasses;
+
+            //Format classes before putting it in.
+            classes = classes.replace(/\s+/g, " ").trim();
+
+            element.className = classes;
+        }
+
+        return {
+            start: start,
+            listenToElementBreakpoints: listenToElementBreakpoints,
+            getBreakpointClasses: getBreakpointClasses,
+            updateBreakpointClasses: updateBreakpointClasses
+        };
     }
-
-    forEach(elements, function(element) {
-        if(element.hasAttribute("elq-breakpoints")) {
-            elq.listenTo(element, onElementResize);
-            //onElementResize(element);
-        }
-    });
 };
 
-BreakpointsExtension.prototype.listenToElementBreakpoints = function(element, callback) {
-    var id = this.idHandler.get(element);
-
-    this.elementBreakpointsListeners[id] = this.elementBreakpointsListeners[id] || [];
-    this.elementBreakpointsListeners[id].push(callback);
-};
-
-BreakpointsExtension.prototype.setConfig = function(config) {
-    config = config || {};
-    this.config.postfix = config.postfix || "";
-};
-
-BreakpointsExtension.prototype.getBreakpointClasses = function(element) {
-    var classes = element.className;
-    classes = classes.replace(/\s+/g, " ").trim();
-    classes = classes.split(" ");
-
-    return filter(classes, function(className) {
-        return className.indexOf("elq-") === 0;
-    });
-};
-
-BreakpointsExtension.prototype.updateBreakpointClasses = function updateElementClasses(element, breakpointClasses) {
-    var classes = element.className;
-
-    //Remove all old breakpoints.
-    var breakpointRegexp = new RegExp("elq-(width|height)-[a-z]+-[0-9]+" + this.config.postfix, "g");
-    classes = classes.replace(breakpointRegexp, "");
-
-    //Add new classes
-    classes += " " + breakpointClasses;
-
-    //Format classes before putting it in.
-    classes = classes.replace(/\s+/g, " ").trim();
-
-    element.className = classes;
-};
-
-},{"../extension/extension":85,"lodash.filter":1,"lodash.foreach":57,"lodash.uniq":69}]},{},[86])(86)
+},{"lodash.filter":1,"lodash.foreach":57,"lodash.uniq":69}]},{},[85])(85)
 });

@@ -15,18 +15,18 @@ module.exports = {
         return true; //TODO: Check elq version.
     },
     make: function(elq, options) {
-        options             = options || {};
-        options.postfix     = options.postfix || "";
-        var reporter        = elq.reporter;
-        var idHandler       = elq.idHandler;
-        var cycleDetector   = elq.cycleDetector;
-        var batchUpdater    = elq.batchUpdater;
+        options                 = options || {};
+        options.postfix         = options.postfix || "";
+        var reporter            = elq.reporter;
+        var idHandler           = elq.idHandler;
+        var cycleDetector       = elq.cycleDetector;
+        var batchUpdater        = elq.createBatchUpdater();
 
         var elementBreakpointsListeners = {};
         var previousElementBreakpointClasses = {};
 
         function start(elements) {
-            function onElementResize(element) {
+            function onElementResize(batchUpdater, element) {
                 function getAttributeOrDefault(attr, defaultValue) {
                     return element.hasAttribute(attr) ? parseInt(element.getAttribute(attr)) : defaultValue;
                 }
@@ -115,7 +115,7 @@ module.exports = {
 
                 var id = idHandler.get(element);
 
-                batchUpdater.update(id, function updater() {
+                batchUpdater.update(id, function mutateElementBreakpointClasses() {
                     if(previousElementBreakpointClasses[id] !== breakpointClasses) {
                         if(cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
                             reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
@@ -131,12 +131,30 @@ module.exports = {
                 });
             }
 
-            forEach(elements, function(element) {
+            //Before listening to each element (which is a heavy task) it is improtant to apply the right classes
+            //to the elements so that a correct render can occur before all objects are injected to the elements.
+            var manualBatchUpdater = elq.createBatchUpdater({ async: false, auto: false });
+            forEach(elements, function onElementResizeLoop(element) {
+                idHandler.set(element);
+                onElementResize(manualBatchUpdater, element);
+            });
+
+            function onElementResizeProxy(element) {
+                return onElementResize(batchUpdater, element);
+            }
+
+            forEach(elements, function listenToLoop(element) {
                 if(element.hasAttribute("elq-breakpoints")) {
-                    elq.listenTo(element, onElementResize);
-                    //onElementResize(element);
+                    elq.listenTo({
+                        callOnAdd: false,
+                        batchUpdater: batchUpdater
+                    }, element, onElementResizeProxy);
                 }
             });
+
+            //Force everything currently in the batch to execute synchronously.
+            //Important that his is done after the listenToLoop since it reads the DOM style and the batch will write the DOM.
+            manualBatchUpdater.force();
         }
 
         function listenToElementBreakpoints(element, callback) {

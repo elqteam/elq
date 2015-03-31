@@ -98,7 +98,8 @@ module.exports = function(options) {
 
     //Options to be used as default for the listenTo function.
     var globalOptions = {};
-    globalOptions.callOnAdd = !!getOption(options, "callOnAdd", true);
+    globalOptions.callOnAdd     = !!getOption(options, "callOnAdd", true);
+    globalOptions.batchUpdater  = getOption(options, "batchUpdater", false);
 
     //idHandler is currently not an option to the listenTo function, so it should not be added to globalOptions.
     var idHandler = options.idHandler;
@@ -164,12 +165,13 @@ module.exports = function(options) {
             elements = [elements];
         }
 
-        var callOnAdd = getOption(options, "callOnAdd", globalOptions.callOnAdd);
+        var callOnAdd       = getOption(options, "callOnAdd", globalOptions.callOnAdd);
+        var batchUpdater    = getOption(options, "batchUpdater", globalOptions.batchUpdater);
 
         forEach(elements, function attachListenerToElement(element) {
             if(!elementUtils.isDetectable(element)) {
                 //The element is not prepared to be detectable, so do prepare it and add a listener to it.
-                return elementUtils.makeDetectable(reporter, element, function onElementDetectable(element) {
+                return elementUtils.makeDetectable(batchUpdater, reporter, element, function onElementDetectable(element) {
                     elementUtils.addListener(element, onResizeCallback);
                     onElementReadyToAddListener(callOnAdd, element, listener);
                 });
@@ -248,7 +250,7 @@ module.exports = function(idHandler) {
      * @param {element} element The element to make detectable
      * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
      */
-    function makeDetectable(reporter, element, callback) {
+    function makeDetectable(batchUpdater, reporter, element, callback) {
         function injectObject(id, element, callback) {
             var OBJECT_STYLE = "display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; opacity: 0; z-index: -1000; pointer-events: none;";
 
@@ -270,8 +272,12 @@ module.exports = function(idHandler) {
                     callback(element.contentDocument);
                 }
 
+                var objectElement = this;
+
+                objectElement.style.cssText = OBJECT_STYLE;
+
                 //Create the style element to be added to the object.
-                getDocument(this, function onObjectDocumentReady(objectDocument) {
+                getDocument(objectElement, function onObjectDocumentReady(objectDocument) {
                     var style = objectDocument.createElement("style");
                     style.innerHTML = "html, body { margin: 0; padding: 0 } div { -webkit-transition: opacity 0.01s; -ms-transition: opacity 0.01s; -o-transition: opacity 0.01s; transition: opacity 0.01s; opacity: 0; }";
 
@@ -280,9 +286,6 @@ module.exports = function(idHandler) {
                     //Append the style to the object.
                     objectDocument.head.appendChild(style);
 
-                    //TODO: Is this needed here?
-                    //this.style.cssText = OBJECT_STYLE;
-
                     //Notify that the element is ready to be listened to.
                     callback(element);
                 });
@@ -290,48 +293,57 @@ module.exports = function(idHandler) {
 
             //The target element needs to be positioned (everything except static) so the absolute positioned object will be positioned relative to the target element.
             var style = getComputedStyle(element);
-            if(style.position === "static") {
-                element.style.position = "relative";
+            var position = style.position;
 
-                var removeRelativeStyles = function(reporter, element, style, property) {
-                    function getNumericalValue(value) {
-                        return value.replace(/[^-\d\.]/g, "");
-                    }
+            function mutateDom() {
+                if(position === "static") {
+                    element.style.position = "relative";
 
-                    var value = style[property];
+                    var removeRelativeStyles = function(reporter, element, style, property) {
+                        function getNumericalValue(value) {
+                            return value.replace(/[^-\d\.]/g, "");
+                        }
 
-                    if(value !== "auto" && getNumericalValue(value) !== "0") {
-                        reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
-                        element.style[property] = 0;
-                    }
-                };
+                        var value = style[property];
 
-                //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
-                //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
-                removeRelativeStyles(reporter, element, style, "top");
-                removeRelativeStyles(reporter, element, style, "right");
-                removeRelativeStyles(reporter, element, style, "bottom");
-                removeRelativeStyles(reporter, element, style, "left");
+                        if(value !== "auto" && getNumericalValue(value) !== "0") {
+                            reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
+                            element.style[property] = 0;
+                        }
+                    };
+
+                    //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
+                    //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
+                    removeRelativeStyles(reporter, element, style, "top");
+                    removeRelativeStyles(reporter, element, style, "right");
+                    removeRelativeStyles(reporter, element, style, "bottom");
+                    removeRelativeStyles(reporter, element, style, "left");
+                }
+
+                //Add an object element as a child to the target element that will be listened to for resize events.
+                var object = document.createElement("object");
+                // object.type = "text/html";
+                object.onload = onObjectLoad;
+                object._erdObjectId = id;
+
+                //Safari: This must occur before adding the object to the DOM.
+                //IE: Does not like that this happens before, even if it is also added after.
+                if(!browserDetector.isIE()) {
+                    object.data = "about:blank";
+                }
+
+                element.appendChild(object);
+
+                //IE: This must occur after adding the object to the DOM.
+                if(browserDetector.isIE()) {
+                    object.data = "about:blank";
+                }
             }
 
-            //Add an object element as a child to the target element that will be listened to for resize events.
-            var object = document.createElement("object");
-            object.type = "text/html";
-            object.style.cssText = OBJECT_STYLE;
-            object.onload = onObjectLoad;
-            object._erdObjectId = id;
-
-            //Safari: This must occur before adding the object to the DOM.
-            //IE: Does not like that this happens before, even if it is also added after.
-            if(!browserDetector.isIE()) {
-                object.data = "about:blank";
-            }
-
-            element.appendChild(object);
-
-            //IE: This must occur after adding the object to the DOM.
-            if(browserDetector.isIE()) {
-                object.data = "about:blank";
+            if(batchUpdater) {
+                batchUpdater.update(id, mutateDom);
+            } else {
+                mutateDom();
             }
         }
 
@@ -3580,26 +3592,188 @@ arguments[4][81][0].apply(exports,arguments)
 },{"dup":81}],84:[function(require,module,exports){
 "use strict";
 
-var ExtensionHandler = require("./extension/extension-handler");
-var elementResizeDetectorMaker = require("element-resize-detector");
-var reporterMaker = require("./reporter");
-var idGeneratorMaker = require("./id-generator");
-var idHandlerMaker = require("./id-handler");
+var utils = require("./utils");
+
+module.exports = function batchUpdaterMaker(options) {
+    options = options || {};
+
+    var reporter    = options.reporter;
+    var async       = utils.getOption(options, "async", true);
+    var autoUpdate  = utils.getOption(options, "auto", true);
+
+    if(autoUpdate && !async) {
+        reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
+        async = true;
+    }
+
+    if(!reporter) {
+        throw new Error("Reporter required.");
+    }
+
+    var batchSize = 0;
+    var batch = {};
+    var handler;
+
+    function queueUpdate(element, updater) {
+        if(autoUpdate && async && batchSize === 0) {
+            updateBatchAsync();
+        }
+
+        if(!batch[element]) {
+            batch[element] = [];
+        }
+
+        batch[element].push(updater);
+        batchSize++;
+    }
+
+    function forceUpdateBatch(updateAsync) {
+        if(updateAsync === undefined) {
+            updateAsync = async;
+        }
+
+        if(handler) {
+            cancelFrame(handler);
+            handler = null;
+        }
+
+        if(async) {
+            updateBatchAsync();
+        } else {
+            updateBatch();
+        }
+    }
+
+    function updateBatch() {
+        for(var element in batch) {
+            if(batch.hasOwnProperty(element)) {
+                var updaters = batch[element];
+
+                for(var i = 0; i < updaters.length; i++) {
+                    var updater = updaters[i];
+                    updater();
+                }
+            }
+        }
+        clearBatch();
+    }
+
+    function updateBatchAsync() {
+        handler = requestFrame(function performUpdate() {
+            updateBatch();
+        });
+    }
+
+    function clearBatch() {
+        batchSize = 0;
+        batch = {};
+    }
+
+    function cancelFrame(listener) {
+        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
+        var cancel = window.clearTimeout;
+        return cancel(listener);
+    }
+
+    function requestFrame(callback) {
+        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
+        var raf = function(fn) { return window.setTimeout(fn, 0); };
+        return raf(callback);
+    }
+
+    return {
+        update: queueUpdate,
+        force: forceUpdateBatch
+    };
+};
+},{"./utils":92}],85:[function(require,module,exports){
+"use strict";
+
+module.exports = function cycleDetectorMaker(idHandler, options) {
+    if(!idHandler) {
+        throw new Error("IdHandler dependency required.");
+    }
+
+    options = options || {};
+    options.numCyclesAllowed = options.numCyclesAllowed || 0;
+    options.timeBetweenCyclesAllowed = options.timeBetweenCyclesAllowed || 300;
+
+    var elements = {};
+
+    function isUpdateCyclic(element, classes, time) {
+        time = time !== undefined ? time : Date.now();
+
+        var id = idHandler.get(element);
+
+        var update = {
+            classes: classes,
+            time: time
+        };
+
+        if(!elements[id]) {
+            elements[id] = [update];
+            return false;
+        }
+
+        var updates = elements[id];
+        
+        var cycles = 0;
+
+        for(var i = updates.length - 1; i >= 0; i--) {
+            var prevUpdate = updates[i];
+
+            if(update.time - prevUpdate.time > options.timeBetweenCyclesAllowed) {
+                elements[id] = updates.slice(i + 1, updates.length);
+                elements[id].push(update);
+                return false;
+            }
+
+
+            if(prevUpdate.classes === update.classes) {
+                cycles++;
+            }
+
+            if(cycles > options.numCyclesAllowed) {
+                elements[id].push(update);
+                return true;
+            }
+        }
+
+        elements[id].push(update);
+
+        return false;
+    }
+
+    return {
+        isUpdateCyclic: isUpdateCyclic
+    };
+};
+
+},{}],86:[function(require,module,exports){
+"use strict";
+
+var extensionHandlerMaker       = require("./extension-handler");
+var elementResizeDetectorMaker  = require("element-resize-detector");
+var reporterMaker               = require("./reporter");
+var idGeneratorMaker            = require("./id-generator");
+var idHandlerMaker              = require("./id-handler");
+var cycleDetectorMaker          = require("./cycle-detector");
+var batchUpdaterMaker           = require("./batch-updater");
+
+var libVersion = "v0.0.0";
+var libName = "ELQ";
 
 module.exports = function(options) {
     options = options || {};
 
-    var reporter = options.reporter || reporterMaker();
-
-    var idGenerator = idGeneratorMaker();
-    var idHandler = idHandlerMaker(idGenerator);
-
-    var elq = {};
-    var extensionHandler = new ExtensionHandler();
-    var elementResizeDetector = elementResizeDetectorMaker({
-        idHandler: idHandler,
-        reporter: reporter
-    });
+    var elq                     = {};
+    var reporter                = options.reporter || reporterMaker();
+    var idGenerator             = idGeneratorMaker();
+    var idHandler               = idHandlerMaker(idGenerator);
+    var cycleDetector           = cycleDetectorMaker(idHandler);
+    var extensionHandler        = extensionHandlerMaker(reporter);
+    var elementResizeDetector   = elementResizeDetectorMaker({ idHandler: idHandler, reporter: reporter });
+    var createBatchUpdater      = createBatchUpdaterWithDefaultOptions({ reporter: reporter });
 
     function start(elements) {
         if(!elements) {
@@ -3610,7 +3784,7 @@ module.exports = function(options) {
             elements = [elements];
         }
 
-        extensionHandler.callMethods("start", [elq, elements]);
+        extensionHandler.callMethods("start", [elements]);
     }
 
     //The public functions is a subset of all functions on the elq object.
@@ -3623,20 +3797,30 @@ module.exports = function(options) {
         "listenTo"
     ];
 
-    elq.version = version;
-    elq.use = extensionHandler.register.bind(extensionHandler, elq);
-    elq.using = extensionHandler.isRegistered.bind(extensionHandler);
-    elq.getExtension = extensionHandler.get.bind(extensionHandler);
-    elq.start = start;
-    elq.listenTo = elementResizeDetector.listenTo;
+    elq.getVersion          = getVersion;
+    elq.getName             = getName;
+    elq.use                 = extensionHandler.register.bind(null, elq);
+    elq.using               = extensionHandler.isRegistered;
+    elq.getExtension        = extensionHandler.get;
+    elq.start               = start;
+    elq.listenTo            = elementResizeDetector.listenTo;
 
     //Functions only accesible by plugins.
-    elq.idHandler = idHandler;
+    elq.idHandler           = idHandler;
+    elq.reporter            = reporter;
+    elq.cycleDetector       = cycleDetector;
+    elq.createBatchUpdater  = createBatchUpdater;
 
     return createPublicApi(elq, publicFunctions);
 };
 
-var version = "v0.0.0";
+function getVersion() {
+    return libVersion;
+}
+
+function getName() {
+    return libName;
+}
 
 function createPublicApi(elq, publicFunctions) {
     var publicElq = {};
@@ -3650,7 +3834,26 @@ function createPublicApi(elq, publicFunctions) {
     return publicElq;
 }
 
-},{"./extension/extension-handler":85,"./id-generator":86,"./id-handler":87,"./reporter":89,"element-resize-detector":3}],85:[function(require,module,exports){
+
+function createBatchUpdaterWithDefaultOptions(globalOptions) {
+    globalOptions = globalOptions || {};
+
+    function batchMakerOptionsProxy(options) {
+        options = options || globalOptions;
+
+        for(var prop in globalOptions) {
+            if(globalOptions.hasOwnProperty(prop) && !options.hasOwnProperty(prop)) {
+                options[prop] = globalOptions[prop];
+            }
+        }
+
+        return batchUpdaterMaker(options);
+    }
+
+    return batchMakerOptionsProxy;
+}
+
+},{"./batch-updater":84,"./cycle-detector":85,"./extension-handler":87,"./id-generator":88,"./id-handler":89,"./reporter":91,"element-resize-detector":3}],87:[function(require,module,exports){
 //TODO: Borrowed from bookie.js. Should be removed and used as a dependency instead.
 //https://github.com/backslashforward/bookie.js/tree/master/src/extension
 
@@ -3664,99 +3867,127 @@ _.isString = require("lodash.isString");
 _.filter = require("lodash.filter");
 _.map = require("lodash.map");
 
-module.exports = ExtensionHandler;
 
 /**
  * Handles extensions of a system instance.
  * @constructor
  * @public
+ * @param {Reporter} reporter Reporter instance that will be used for reporting errors.
  */
-function ExtensionHandler() {
-    this.extensions = {};
-}
-
-/**
- * Register an extension to the extension handler and inits it to the given system. All extensions in the extension handler context needs to have unique names.
- * @public
- * @param {object} target The target that the given extension should be applied to.
- * @param {Extension} extension The extension to be used.
- * @throws On invalid extension input (bad extension format or not unique name).
- */
-ExtensionHandler.prototype.register = function(target, extension) {
-    if(!_.isObject(extension) || !_.isString(extension.name) || !_.isFunction(extension.init)) {
-        throw new Error("Invalid extension");
+module.exports = function ExtensionHandler(reporter) {
+    if(!reporter) {
+        throw new Error("Reporter dependency required.");
     }
 
-    var name = extension.name;
+    var extensions = {};
 
-    if(this.extensions[name]) {
-        throw new Error("Extension " + name + " already exists.");
+    /**
+     * Register an extension to the extension handler and inits it to the given system. All extensions in the extension handler context needs to have unique names.
+     * @public
+     * @param {object} target The target that the given extension should be applied to.
+     * @param {Extension} extension TODO: Write me.
+     * @throws On invalid extension input (bad extension format or not unique name).
+     */
+    function register(target, extension, options) {
+        function checkExtensionMethod(method) {
+            if(!_.isFunction(extension[method])) {
+                reporter.error("Extension must provide the " + method + " method. Extension: ", extension);
+                throw new Error("Invalid extension: missing method");
+            }
+        }
+
+        if(!_.isObject(extension)) {
+            reporter.error("Extension must be an object. Extension: ", extension);
+            throw new Error("Invalid extension: not an object");
+        }
+
+        checkExtensionMethod("getName");
+        checkExtensionMethod("getVersion");
+        checkExtensionMethod("isCompatible");
+        checkExtensionMethod("make");
+
+        if(!extension.isCompatible(target)) {
+            reporter.error("Extension " + extension.getName() + ":" + extension.getVersion() + " is incompatible with " + target.getName() + ":" + target.getVersion());
+            throw new Error("Incompatible extension");
+        }
+
+        var name = extension.getName();
+
+        if(extensions[name]) {
+            throw new Error("Extension " + name + " is already being used.");
+        }
+
+        extensions[name] = extension.make(target, options);
     }
 
-    this.extensions[name] = extension;
+    /**
+     * Tells if an extension has been registered to the extension handler.
+     * @public
+     * @param {string|Extension} extension The extension to be checked if registered to the extension handler. If string, it will be used as name of the extension.
+     * @returns {boolean} True if the extension has been registered.
+     */
+    function isRegistered(extension) {
+        var name = _.isObject(extension) ? extension.getName() : extension;
 
-    extension.init(target);
-};
+        if(!_.isString(name)) {
+            return false;
+        }
 
-/**
- * Tells if an extension has been registered to the extension handler.
- * @public
- * @param {string|Extension} extension The extension to be checked if registered to the extension handler. If string, it will be used as name of the extension.
- * @returns {boolean} True if the extension has been registered.
- */
-ExtensionHandler.prototype.isRegistered = function(extension) {
-    var name = _.isObject(extension) ? extension.name : extension;
-
-    if(!_.isString(name)) {
-        return false;
+        return !!extensions[name];
     }
 
-    return !!this.extensions[name];
-};
-
-/**
- * Gets the extension by the given extension name.
- * @param {string} name The name of the extension to get.
- * @returns The extension object with the given name. Returns null if it doesn't exist.
- */
-ExtensionHandler.prototype.get = function(name) {
-    return this.extensions[name] || null;
-};
-
-/**
- * Gets all extension methods that exists for the given method name.
- * @public
- * @param {string} method The name of the methods that should be extracted from the extensions.
- * @returns {function[]} A list of all extension methods that matched the given method name. The methods will have the context bound to the extension object.
- */
-ExtensionHandler.prototype.getMethods = function(method) {
-    function filterer(extension) {
-        return _.isFunction(extension[method]);
+    /**
+     * Gets the extension by the given extension name.
+     * @param {string} name The name of the extension to get.
+     * @returns The extension object with the given name. Returns null if it doesn't exist.
+     */
+    function get(name) {
+        return extensions[name] || null;
     }
 
-    function mapper(extension) {
-        var f = extension[method];
-        return f ? f.bind(extension) : null;
+    /**
+     * Gets all extension methods that exists for the given method name.
+     * @public
+     * @param {string} method The name of the methods that should be extracted from the extensions.
+     * @returns {function[]} A list of all extension methods that matched the given method name. The methods will have the context bound to the extension object.
+     */
+    function getMethods(method) {
+        function filterer(extension) {
+            return _.isFunction(extension[method]);
+        }
+
+        function mapper(extension) {
+            var f = extension[method];
+            return f ? f.bind(extension) : null;
+        }
+
+        return _.map(_.filter(extensions, filterer), mapper) || [];
     }
 
-    return _.map(_.filter(this.extensions, filterer), mapper) || [];
+    /**
+     * Calls all extension methods with given arguments by the given method name.
+     * @public
+     * @param {string} method The method name to be called for all extensions that has it.
+     * @param {Array} args The arguments array to be applied to all extension methods.
+     */
+    function callMethods(method, args) {
+        getMethods(method).forEach(function(extensionMethod) {
+            extensionMethod.apply(null, args);
+        });
+    }
+
+    return {
+        register: register,
+        isRegistered: isRegistered,
+        get: get,
+        getMethods: getMethods,
+        callMethods: callMethods
+    };
 };
 
-/**
- * Calls all extension methods with given arguments by the given method name.
- * @public
- * @param {string} method The method name to be called for all extensions that has it.
- * @param {Array} args The arguments array to be applied to all extension methods.
- */
-ExtensionHandler.prototype.callMethods = function(method, args) {
-    this.getMethods(method).forEach(function(extensionMethod) {
-        extensionMethod.apply(null, args);
-    });
-};
-
-},{"lodash.filter":9,"lodash.isString":65,"lodash.isfunction":66,"lodash.isobject":67,"lodash.map":69}],86:[function(require,module,exports){
+},{"lodash.filter":9,"lodash.isString":65,"lodash.isfunction":66,"lodash.isobject":67,"lodash.map":69}],88:[function(require,module,exports){
 arguments[4][5][0].apply(exports,arguments)
-},{"dup":5}],87:[function(require,module,exports){
+},{"dup":5}],89:[function(require,module,exports){
 "use strict";
 
 module.exports = function(idGenerator) {
@@ -3769,7 +4000,11 @@ module.exports = function(idGenerator) {
      * @returns {string|number} The id of the element.
      */
     function getId(element) {
-        return element[ID_PROP_NAME];
+        var id = element[ID_PROP_NAME];
+        if(id === undefined) {
+            throw new Error("element does not have any id.");
+        }
+        return id;
     }
 
     /**
@@ -3796,14 +4031,14 @@ module.exports = function(idGenerator) {
     };
 };
 
-},{}],88:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 "use strict";
 
 var elqMaker = require("./elq");
 
 module.exports = elqMaker();
 
-},{"./elq":84}],89:[function(require,module,exports){
+},{"./elq":86}],91:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -3838,5 +4073,22 @@ module.exports = function(quiet) {
 
     return reporter;
 };
-},{}]},{},[88])(88)
+},{}],92:[function(require,module,exports){
+"use strict";
+
+var utils = module.exports = {};
+
+utils.getOption = getOption;
+
+function getOption(options, name, defaultValue) {
+    var value = options[name];
+
+    if((value === undefined || value === null) && defaultValue !== undefined) {
+        return defaultValue;
+    }
+
+    return value;
+}
+
+},{}]},{},[90])(90)
 });
