@@ -139,7 +139,6 @@ module.exports = {
             //to the elements so that a correct render can occur before all objects are injected to the elements.
             var manualBatchUpdater = elq.createBatchUpdater({ async: false, auto: false });
             forEach(elements, function onElementResizeLoop(element) {
-                idHandler.set(element);
                 onElementResize(manualBatchUpdater, element);
             });
 
