@@ -131,7 +131,11 @@ module.exports = {
                 });
             }
 
-            //Before listening to each element (which is a heavy task) it is improtant to apply the right classes
+            elements = filter(elements, function filterElements(element) {
+                return element.hasAttribute("elq-breakpoints");
+            });
+
+            //Before listening to each element (which is a heavy task) it is important to apply the right classes
             //to the elements so that a correct render can occur before all objects are injected to the elements.
             var manualBatchUpdater = elq.createBatchUpdater({ async: false, auto: false });
             forEach(elements, function onElementResizeLoop(element) {
@@ -144,12 +148,10 @@ module.exports = {
             }
 
             forEach(elements, function listenToLoop(element) {
-                if(element.hasAttribute("elq-breakpoints")) {
-                    elq.listenTo({
-                        callOnAdd: false,
-                        batchUpdater: batchUpdater
-                    }, element, onElementResizeProxy);
-                }
+                elq.listenTo({
+                    callOnAdd: false,
+                    batchUpdater: batchUpdater
+                }, element, onElementResizeProxy);
             });
 
             //Force everything currently in the batch to execute synchronously.
