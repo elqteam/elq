@@ -20,7 +20,7 @@ module.exports = function(options) {
     var idHandler               = idHandlerMaker(idGenerator);
     var cycleDetector           = cycleDetectorMaker(idHandler);
     var extensionHandler        = extensionHandlerMaker(reporter);
-    var elementResizeDetector   = elementResizeDetectorMaker({ idHandler: idHandler, reporter: reporter });
+    var elementResizeDetector   = elementResizeDetectorMaker({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var createBatchUpdater      = createBatchUpdaterWithDefaultOptions({ reporter: reporter });
 
     function start(elements) {
