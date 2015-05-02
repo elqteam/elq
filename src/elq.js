@@ -1,15 +1,13 @@
 "use strict";
 
-var extensionHandlerMaker       = require("./extension-handler");
 var elementResizeDetectorMaker  = require("element-resize-detector");
+var batchUpdaterMaker           = require("batch-updater");
+var extensionHandlerMaker       = require("./extension-handler");
 var reporterMaker               = require("./reporter");
 var idGeneratorMaker            = require("./id-generator");
 var idHandlerMaker              = require("./id-handler");
 var cycleDetectorMaker          = require("./cycle-detector");
-var batchUpdaterMaker           = require("batch-updater");
-
-var libVersion = "v0.0.0";
-var libName = "ELQ";
+var packageJson                 = require("../package.json");
 
 module.exports = function(options) {
     options = options || {};
@@ -36,9 +34,9 @@ module.exports = function(options) {
     }
 
     //The public functions is a subset of all functions on the elq object.
-    //TODO: These are not the same as the methods defined on elq below.
     var publicFunctions = [
-        "version",
+        "getVersion",
+        "getName",
         "use",
         "using",
         "getExtension",
@@ -46,6 +44,7 @@ module.exports = function(options) {
         "listenTo"
     ];
 
+    //Public
     elq.getVersion          = getVersion;
     elq.getName             = getName;
     elq.use                 = extensionHandler.register.bind(null, elq);
@@ -64,11 +63,11 @@ module.exports = function(options) {
 };
 
 function getVersion() {
-    return libVersion;
+    return packageJson.version;
 }
 
 function getName() {
-    return libName;
+    return packageJson.name;
 }
 
 function createPublicApi(elq, publicFunctions) {
