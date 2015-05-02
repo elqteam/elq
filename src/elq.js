@@ -51,6 +51,9 @@ module.exports = function(options) {
     elq.start               = start;
     elq.listenTo            = elementResizeDetector.listenTo;
 
+    //Create an object copy of the currently attached API methods, that will be exposed as the public API.
+    var publicElq           = copy(elq);
+
     //Functions only accesible by plugins.
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
@@ -58,7 +61,7 @@ module.exports = function(options) {
     elq.createBatchUpdater  = createBatchUpdater; //TODO: Rename to batch processor.
     elq.getPlugin           = extensionHandler.get;
 
-    return createPublicApi(elq, publicFunctions);
+    return publicElq;
 };
 
 function getVersion() {
@@ -69,16 +72,16 @@ function getName() {
     return packageJson.name;
 }
 
-function createPublicApi(elq, publicFunctions) {
-    var publicElq = {};
+function copy(object) {
+    var copy = {};
 
-    for(var i = 0; i < publicFunctions.length; i++) {
-        var property = publicFunctions[i];
-
-        publicElq[property] = elq[property];
+    for(var key in object) {
+        if(object.hasOwnProperty(key)) {
+            copy[key] = object[key];
+        }
     }
 
-    return publicElq;
+    return copy;
 }
 
 

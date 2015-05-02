@@ -14,7 +14,7 @@ module.exports = {
     },
     make: function(elq, options) {
         function start(elements) {
-            var elqBreakpoints = elq.getExtension("elq-breakpoints");
+            var elqBreakpoints = elq.getPlugin("elq-breakpoints");
 
             function getElqParentElement(mirrorElement) {
                 var currentElement = mirrorElement.parentNode;
