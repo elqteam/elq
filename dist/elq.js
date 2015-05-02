@@ -257,6 +257,10 @@ detector.isIE = function(version) {
     return version === ieVersion;
 };
 
+detector.isLegacyOpera = function() {
+    return !!window.opera;
+}
+
 },{}],6:[function(require,module,exports){
 "use strict";
 
@@ -468,6 +472,9 @@ module.exports = function(options) {
         throw new Error("Missing required dependency: reporter.");
     }
 
+    //TODO: Could this perhaps be done at installation time?
+    var scrollbarSizes = getScrollbarSizes();
+
     /**
      * Adds a resize event listener to the element.
      * @public
@@ -558,15 +565,19 @@ module.exports = function(options) {
                 removeRelativeStyles(reporter, element, elementStyle, "left");
             }
 
-            function getContainerCssText(left, top) {
+            function getContainerCssText(left, top, bottom, right) {
                 left = (!left ? "0" : (left + "px"));
                 top = (!top ? "0" : (top + "px"));
+                bottom = (!bottom ? "0" : (bottom + "px"));
+                right = (!right ? "0" : (right + "px"));
 
-                return "position: absolute; left: " + left + "; top: " + top + "; right: 0; bottom: 0; overflow: scroll; z-index: -1; visibility: hidden;";
+                return "position: absolute; left: " + left + "; top: " + top + "; right: " + right + "; bottom: " + bottom + "; overflow: scroll; z-index: -1; visibility: hidden;";
             }
 
-            var containerStyle          = getContainerCssText(-1, -1);
-            var shrinkExpandstyle       = getContainerCssText(0, 0);
+            var scrollbarWidth          = scrollbarSizes.width;
+            var scrollbarHeight         = scrollbarSizes.height;
+            var containerStyle          = getContainerCssText(-1, -1, -scrollbarHeight, -scrollbarWidth);
+            var shrinkExpandstyle       = getContainerCssText(0, 0, -scrollbarHeight, -scrollbarWidth);
             var shrinkExpandChildStyle  = "position: absolute; left: 0; top: 0;";
 
             var container               = document.createElement("div");
@@ -681,19 +692,42 @@ module.exports = function(options) {
         }
     }
 
+    function parseSize(size) {
+        return parseFloat(size.replace(/px/, ""));
+    }
+
+    function getScrollbarSizes() {
+        var width = 500;
+        var height = 500;
+
+        var child = document.createElement("div");
+        child.style.cssText = "position: absolute; width: " + width*2 + "px; height: " + height*2 + "px; visibility: hidden;";
+
+        var container = document.createElement("div");
+        container.style.cssText = "position: absolute; width: " + width + "px; height: " + height + "px; overflow: scroll; visibility: none; top: " + -width*3 + "px; left: " + -height*3 + "px; visibility: hidden;";
+
+        container.appendChild(child);
+
+        document.body.insertBefore(container, document.body.firstChild);
+
+        var widthSize = width - container.clientWidth;
+        var heightSize = height - container.clientHeight;
+
+        document.body.removeChild(container);
+
+        return {
+            width: widthSize,
+            height: heightSize
+        };
+    }
+
     return {
         makeDetectable: makeDetectable,
         addListener: addListener
     };
 };
 
-function parseSize(size) {
-    return parseFloat(size.replace(/px/, ""));
-}
-
 },{}],9:[function(require,module,exports){
-//Heavily inspired by http://www.backalleycoder.com/2013/03/18/cross-browser-event-based-element-resize-detection/
-
 "use strict";
 
 var forEach                 = require("./collection-utils").forEach;
@@ -702,7 +736,8 @@ var listenerHandlerMaker    = require("./listener-handler");
 var idGeneratorMaker        = require("./id-generator");
 var idHandlerMaker          = require("./id-handler");
 var reporterMaker           = require("./reporter");
-var batchProcessorMaker       = require("batch-processor");
+var browserDetector         = require("./browser-detector");
+var batchProcessorMaker     = require("batch-processor");
 
 //Detection strategies.
 var objectStrategyMaker     = require("./detection-strategy/object.js");
@@ -772,6 +807,11 @@ module.exports = function(options) {
         batchProcessor: batchProcessor
     };
 
+    if(desiredStrategy === "scroll" && browserDetector.isLegacyOpera()) {
+        reporter.warn("Scroll strategy is not supported on legacy Opera. Changing to object strategy.");
+        desiredStrategy = "object";
+    }
+
     if(desiredStrategy === "scroll") {
         detectionStrategy = scrollStrategyMaker(strategyOptions);
     } else if(desiredStrategy === "object") {
@@ -837,7 +877,7 @@ module.exports = function(options) {
 
         forEach(elements, function attachListenerToElement(element) {
             var id = idHandler.get(element);
-            
+
             if(!elementUtils.isDetectable(element)) {
                 if(elementUtils.isBusy(element)) {
                     //The element is being prepared to be detectable. Do not make it detectable.
@@ -901,7 +941,7 @@ function getOption(options, name, defaultValue) {
     return value;
 }
 
-},{"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"batch-processor":3}],10:[function(require,module,exports){
+},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"batch-processor":3}],10:[function(require,module,exports){
 "use strict";
 
 module.exports = function() {
@@ -1087,6 +1127,655 @@ module.exports = function(quiet) {
 };
 },{}],15:[function(require,module,exports){
 /**
+ * lodash 3.1.0 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.2 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+var createWrapper = require('lodash._createwrapper'),
+    replaceHolders = require('lodash._replaceholders'),
+    restParam = require('lodash.restparam');
+
+/** Used to compose bitmasks for wrapper metadata. */
+var BIND_FLAG = 1,
+    PARTIAL_FLAG = 32;
+
+/**
+ * Creates a function that invokes `func` with the `this` binding of `thisArg`
+ * and prepends any additional `_.bind` arguments to those provided to the
+ * bound function.
+ *
+ * The `_.bind.placeholder` value, which defaults to `_` in monolithic builds,
+ * may be used as a placeholder for partially applied arguments.
+ *
+ * **Note:** Unlike native `Function#bind` this method does not set the `length`
+ * property of bound functions.
+ *
+ * @static
+ * @memberOf _
+ * @category Function
+ * @param {Function} func The function to bind.
+ * @param {*} thisArg The `this` binding of `func`.
+ * @param {...*} [partials] The arguments to be partially applied.
+ * @returns {Function} Returns the new bound function.
+ * @example
+ *
+ * var greet = function(greeting, punctuation) {
+ *   return greeting + ' ' + this.user + punctuation;
+ * };
+ *
+ * var object = { 'user': 'fred' };
+ *
+ * var bound = _.bind(greet, object, 'hi');
+ * bound('!');
+ * // => 'hi fred!'
+ *
+ * // using placeholders
+ * var bound = _.bind(greet, object, _, '!');
+ * bound('hi');
+ * // => 'hi fred!'
+ */
+var bind = restParam(function(func, thisArg, partials) {
+  var bitmask = BIND_FLAG;
+  if (partials.length) {
+    var holders = replaceHolders(partials, bind.placeholder);
+    bitmask |= PARTIAL_FLAG;
+  }
+  return createWrapper(func, bitmask, thisArg, partials, holders);
+});
+
+// Assign default placeholders.
+bind.placeholder = {};
+
+module.exports = bind;
+
+},{"lodash._createwrapper":16,"lodash._replaceholders":19,"lodash.restparam":20}],16:[function(require,module,exports){
+(function (global){
+/**
+ * lodash 3.0.4 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+var arrayCopy = require('lodash._arraycopy'),
+    baseCreate = require('lodash._basecreate'),
+    replaceHolders = require('lodash._replaceholders');
+
+/** Used to compose bitmasks for wrapper metadata. */
+var BIND_FLAG = 1,
+    BIND_KEY_FLAG = 2,
+    CURRY_BOUND_FLAG = 4,
+    CURRY_FLAG = 8,
+    CURRY_RIGHT_FLAG = 16,
+    PARTIAL_FLAG = 32,
+    PARTIAL_RIGHT_FLAG = 64,
+    ARY_FLAG = 128;
+
+/** Used as the `TypeError` message for "Functions" methods. */
+var FUNC_ERROR_TEXT = 'Expected a function';
+
+/* Native method references for those with the same name as other `lodash` methods. */
+var nativeMax = Math.max,
+    nativeMin = Math.min;
+
+/**
+ * Used as the [maximum length](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.max_safe_integer)
+ * of an array-like value.
+ */
+var MAX_SAFE_INTEGER = Math.pow(2, 53) - 1;
+
+/**
+ * Creates an array that is the composition of partially applied arguments,
+ * placeholders, and provided arguments into a single array of arguments.
+ *
+ * @private
+ * @param {Array|Object} args The provided arguments.
+ * @param {Array} partials The arguments to prepend to those provided.
+ * @param {Array} holders The `partials` placeholder indexes.
+ * @returns {Array} Returns the new array of composed arguments.
+ */
+function composeArgs(args, partials, holders) {
+  var holdersLength = holders.length,
+      argsIndex = -1,
+      argsLength = nativeMax(args.length - holdersLength, 0),
+      leftIndex = -1,
+      leftLength = partials.length,
+      result = Array(argsLength + leftLength);
+
+  while (++leftIndex < leftLength) {
+    result[leftIndex] = partials[leftIndex];
+  }
+  while (++argsIndex < holdersLength) {
+    result[holders[argsIndex]] = args[argsIndex];
+  }
+  while (argsLength--) {
+    result[leftIndex++] = args[argsIndex++];
+  }
+  return result;
+}
+
+/**
+ * This function is like `composeArgs` except that the arguments composition
+ * is tailored for `_.partialRight`.
+ *
+ * @private
+ * @param {Array|Object} args The provided arguments.
+ * @param {Array} partials The arguments to append to those provided.
+ * @param {Array} holders The `partials` placeholder indexes.
+ * @returns {Array} Returns the new array of composed arguments.
+ */
+function composeArgsRight(args, partials, holders) {
+  var holdersIndex = -1,
+      holdersLength = holders.length,
+      argsIndex = -1,
+      argsLength = nativeMax(args.length - holdersLength, 0),
+      rightIndex = -1,
+      rightLength = partials.length,
+      result = Array(argsLength + rightLength);
+
+  while (++argsIndex < argsLength) {
+    result[argsIndex] = args[argsIndex];
+  }
+  var offset = argsIndex;
+  while (++rightIndex < rightLength) {
+    result[offset + rightIndex] = partials[rightIndex];
+  }
+  while (++holdersIndex < holdersLength) {
+    result[offset + holders[holdersIndex]] = args[argsIndex++];
+  }
+  return result;
+}
+
+/**
+ * Creates a function that wraps `func` and invokes it with the `this`
+ * binding of `thisArg`.
+ *
+ * @private
+ * @param {Function} func The function to bind.
+ * @param {*} [thisArg] The `this` binding of `func`.
+ * @returns {Function} Returns the new bound function.
+ */
+function createBindWrapper(func, thisArg) {
+  var Ctor = createCtorWrapper(func);
+
+  function wrapper() {
+    var fn = (this && this !== global && this instanceof wrapper) ? Ctor : func;
+    return fn.apply(thisArg, arguments);
+  }
+  return wrapper;
+}
+
+/**
+ * Creates a function that produces an instance of `Ctor` regardless of
+ * whether it was invoked as part of a `new` expression or by `call` or `apply`.
+ *
+ * @private
+ * @param {Function} Ctor The constructor to wrap.
+ * @returns {Function} Returns the new wrapped function.
+ */
+function createCtorWrapper(Ctor) {
+  return function() {
+    var thisBinding = baseCreate(Ctor.prototype),
+        result = Ctor.apply(thisBinding, arguments);
+
+    // Mimic the constructor's `return` behavior.
+    // See https://es5.github.io/#x13.2.2 for more details.
+    return isObject(result) ? result : thisBinding;
+  };
+}
+
+/**
+ * Creates a function that wraps `func` and invokes it with optional `this`
+ * binding of, partial application, and currying.
+ *
+ * @private
+ * @param {Function|string} func The function or method name to reference.
+ * @param {number} bitmask The bitmask of flags. See `createWrapper` for more details.
+ * @param {*} [thisArg] The `this` binding of `func`.
+ * @param {Array} [partials] The arguments to prepend to those provided to the new function.
+ * @param {Array} [holders] The `partials` placeholder indexes.
+ * @param {Array} [partialsRight] The arguments to append to those provided to the new function.
+ * @param {Array} [holdersRight] The `partialsRight` placeholder indexes.
+ * @param {Array} [argPos] The argument positions of the new function.
+ * @param {number} [ary] The arity cap of `func`.
+ * @param {number} [arity] The arity of `func`.
+ * @returns {Function} Returns the new wrapped function.
+ */
+function createHybridWrapper(func, bitmask, thisArg, partials, holders, partialsRight, holdersRight, argPos, ary, arity) {
+  var isAry = bitmask & ARY_FLAG,
+      isBind = bitmask & BIND_FLAG,
+      isBindKey = bitmask & BIND_KEY_FLAG,
+      isCurry = bitmask & CURRY_FLAG,
+      isCurryBound = bitmask & CURRY_BOUND_FLAG,
+      isCurryRight = bitmask & CURRY_RIGHT_FLAG;
+
+  var Ctor = !isBindKey && createCtorWrapper(func),
+      key = func;
+
+  function wrapper() {
+    // Avoid `arguments` object use disqualifying optimizations by
+    // converting it to an array before providing it to other functions.
+    var length = arguments.length,
+        index = length,
+        args = Array(length);
+
+    while (index--) {
+      args[index] = arguments[index];
+    }
+    if (partials) {
+      args = composeArgs(args, partials, holders);
+    }
+    if (partialsRight) {
+      args = composeArgsRight(args, partialsRight, holdersRight);
+    }
+    if (isCurry || isCurryRight) {
+      var placeholder = wrapper.placeholder,
+          argsHolders = replaceHolders(args, placeholder);
+
+      length -= argsHolders.length;
+      if (length < arity) {
+        var newArgPos = argPos ? arrayCopy(argPos) : null,
+            newArity = nativeMax(arity - length, 0),
+            newsHolders = isCurry ? argsHolders : null,
+            newHoldersRight = isCurry ? null : argsHolders,
+            newPartials = isCurry ? args : null,
+            newPartialsRight = isCurry ? null : args;
+
+        bitmask |= (isCurry ? PARTIAL_FLAG : PARTIAL_RIGHT_FLAG);
+        bitmask &= ~(isCurry ? PARTIAL_RIGHT_FLAG : PARTIAL_FLAG);
+
+        if (!isCurryBound) {
+          bitmask &= ~(BIND_FLAG | BIND_KEY_FLAG);
+        }
+        var result = createHybridWrapper(func, bitmask, thisArg, newPartials, newsHolders, newPartialsRight, newHoldersRight, newArgPos, ary, newArity);
+
+        result.placeholder = placeholder;
+        return result;
+      }
+    }
+    var thisBinding = isBind ? thisArg : this;
+    if (isBindKey) {
+      func = thisBinding[key];
+    }
+    if (argPos) {
+      args = reorder(args, argPos);
+    }
+    if (isAry && ary < args.length) {
+      args.length = ary;
+    }
+    var fn = (this && this !== global && this instanceof wrapper) ? (Ctor || createCtorWrapper(func)) : func;
+    return fn.apply(thisBinding, args);
+  }
+  return wrapper;
+}
+
+/**
+ * Creates a function that wraps `func` and invokes it with the optional `this`
+ * binding of `thisArg` and the `partials` prepended to those provided to
+ * the wrapper.
+ *
+ * @private
+ * @param {Function} func The function to partially apply arguments to.
+ * @param {number} bitmask The bitmask of flags. See `createWrapper` for more details.
+ * @param {*} thisArg The `this` binding of `func`.
+ * @param {Array} partials The arguments to prepend to those provided to the new function.
+ * @returns {Function} Returns the new bound function.
+ */
+function createPartialWrapper(func, bitmask, thisArg, partials) {
+  var isBind = bitmask & BIND_FLAG,
+      Ctor = createCtorWrapper(func);
+
+  function wrapper() {
+    // Avoid `arguments` object use disqualifying optimizations by
+    // converting it to an array before providing it `func`.
+    var argsIndex = -1,
+        argsLength = arguments.length,
+        leftIndex = -1,
+        leftLength = partials.length,
+        args = Array(argsLength + leftLength);
+
+    while (++leftIndex < leftLength) {
+      args[leftIndex] = partials[leftIndex];
+    }
+    while (argsLength--) {
+      args[leftIndex++] = arguments[++argsIndex];
+    }
+    var fn = (this && this !== global && this instanceof wrapper) ? Ctor : func;
+    return fn.apply(isBind ? thisArg : this, args);
+  }
+  return wrapper;
+}
+
+/**
+ * Creates a function that either curries or invokes `func` with optional
+ * `this` binding and partially applied arguments.
+ *
+ * @private
+ * @param {Function|string} func The function or method name to reference.
+ * @param {number} bitmask The bitmask of flags.
+ *  The bitmask may be composed of the following flags:
+ *     1 - `_.bind`
+ *     2 - `_.bindKey`
+ *     4 - `_.curry` or `_.curryRight` of a bound function
+ *     8 - `_.curry`
+ *    16 - `_.curryRight`
+ *    32 - `_.partial`
+ *    64 - `_.partialRight`
+ *   128 - `_.rearg`
+ *   256 - `_.ary`
+ * @param {*} [thisArg] The `this` binding of `func`.
+ * @param {Array} [partials] The arguments to be partially applied.
+ * @param {Array} [holders] The `partials` placeholder indexes.
+ * @param {Array} [argPos] The argument positions of the new function.
+ * @param {number} [ary] The arity cap of `func`.
+ * @param {number} [arity] The arity of `func`.
+ * @returns {Function} Returns the new wrapped function.
+ */
+function createWrapper(func, bitmask, thisArg, partials, holders, argPos, ary, arity) {
+  var isBindKey = bitmask & BIND_KEY_FLAG;
+  if (!isBindKey && typeof func != 'function') {
+    throw new TypeError(FUNC_ERROR_TEXT);
+  }
+  var length = partials ? partials.length : 0;
+  if (!length) {
+    bitmask &= ~(PARTIAL_FLAG | PARTIAL_RIGHT_FLAG);
+    partials = holders = null;
+  }
+  length -= (holders ? holders.length : 0);
+  if (bitmask & PARTIAL_RIGHT_FLAG) {
+    var partialsRight = partials,
+        holdersRight = holders;
+
+    partials = holders = null;
+  }
+  var newData = [func, bitmask, thisArg, partials, holders, partialsRight, holdersRight, argPos, ary, arity];
+
+  newData[9] = arity == null
+    ? (isBindKey ? 0 : func.length)
+    : (nativeMax(arity - length, 0) || 0);
+
+  if (bitmask == BIND_FLAG) {
+    var result = createBindWrapper(newData[0], newData[2]);
+  } else if ((bitmask == PARTIAL_FLAG || bitmask == (BIND_FLAG | PARTIAL_FLAG)) && !newData[4].length) {
+    result = createPartialWrapper.apply(undefined, newData);
+  } else {
+    result = createHybridWrapper.apply(undefined, newData);
+  }
+  return result;
+}
+
+/**
+ * Checks if `value` is a valid array-like index.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @param {number} [length=MAX_SAFE_INTEGER] The upper bounds of a valid index.
+ * @returns {boolean} Returns `true` if `value` is a valid index, else `false`.
+ */
+function isIndex(value, length) {
+  value = +value;
+  length = length == null ? MAX_SAFE_INTEGER : length;
+  return value > -1 && value % 1 == 0 && value < length;
+}
+
+/**
+ * Reorder `array` according to the specified indexes where the element at
+ * the first index is assigned as the first element, the element at
+ * the second index is assigned as the second element, and so on.
+ *
+ * @private
+ * @param {Array} array The array to reorder.
+ * @param {Array} indexes The arranged array indexes.
+ * @returns {Array} Returns `array`.
+ */
+function reorder(array, indexes) {
+  var arrLength = array.length,
+      length = nativeMin(indexes.length, arrLength),
+      oldArray = arrayCopy(array);
+
+  while (length--) {
+    var index = indexes[length];
+    array[length] = isIndex(index, arrLength) ? oldArray[index] : undefined;
+  }
+  return array;
+}
+
+/**
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
+ * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(1);
+ * // => false
+ */
+function isObject(value) {
+  // Avoid a V8 JIT bug in Chrome 19-20.
+  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
+  var type = typeof value;
+  return type == 'function' || (!!value && type == 'object');
+}
+
+module.exports = createWrapper;
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"lodash._arraycopy":17,"lodash._basecreate":18,"lodash._replaceholders":19}],17:[function(require,module,exports){
+/**
+ * lodash 3.0.0 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/**
+ * Copies the values of `source` to `array`.
+ *
+ * @private
+ * @param {Array} source The array to copy values from.
+ * @param {Array} [array=[]] The array to copy values to.
+ * @returns {Array} Returns `array`.
+ */
+function arrayCopy(source, array) {
+  var index = -1,
+      length = source.length;
+
+  array || (array = Array(length));
+  while (++index < length) {
+    array[index] = source[index];
+  }
+  return array;
+}
+
+module.exports = arrayCopy;
+
+},{}],18:[function(require,module,exports){
+(function (global){
+/**
+ * lodash 3.0.1 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.2 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/**
+ * The base implementation of `_.create` without support for assigning
+ * properties to the created object.
+ *
+ * @private
+ * @param {Object} prototype The object to inherit from.
+ * @returns {Object} Returns the new object.
+ */
+var baseCreate = (function() {
+  function Object() {}
+  return function(prototype) {
+    if (isObject(prototype)) {
+      Object.prototype = prototype;
+      var result = new Object;
+      Object.prototype = null;
+    }
+    return result || global.Object();
+  };
+}());
+
+/**
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
+ * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(1);
+ * // => false
+ */
+function isObject(value) {
+  // Avoid a V8 JIT bug in Chrome 19-20.
+  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
+  var type = typeof value;
+  return type == 'function' || (!!value && type == 'object');
+}
+
+module.exports = baseCreate;
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],19:[function(require,module,exports){
+/**
+ * lodash 3.0.0 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/** Used as the internal argument placeholder. */
+var PLACEHOLDER = '__lodash_placeholder__';
+
+/**
+ * Replaces all `placeholder` elements in `array` with an internal placeholder
+ * and returns an array of their indexes.
+ *
+ * @private
+ * @param {Array} array The array to modify.
+ * @param {*} placeholder The placeholder to replace.
+ * @returns {Array} Returns the new array of placeholder indexes.
+ */
+function replaceHolders(array, placeholder) {
+  var index = -1,
+      length = array.length,
+      resIndex = -1,
+      result = [];
+
+  while (++index < length) {
+    if (array[index] === placeholder) {
+      array[index] = PLACEHOLDER;
+      result[++resIndex] = index;
+    }
+  }
+  return result;
+}
+
+module.exports = replaceHolders;
+
+},{}],20:[function(require,module,exports){
+/**
+ * lodash 3.6.1 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/** Used as the `TypeError` message for "Functions" methods. */
+var FUNC_ERROR_TEXT = 'Expected a function';
+
+/* Native method references for those with the same name as other `lodash` methods. */
+var nativeMax = Math.max;
+
+/**
+ * Creates a function that invokes `func` with the `this` binding of the
+ * created function and arguments from `start` and beyond provided as an array.
+ *
+ * **Note:** This method is based on the [rest parameter](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/rest_parameters).
+ *
+ * @static
+ * @memberOf _
+ * @category Function
+ * @param {Function} func The function to apply a rest parameter to.
+ * @param {number} [start=func.length-1] The start position of the rest parameter.
+ * @returns {Function} Returns the new function.
+ * @example
+ *
+ * var say = _.restParam(function(what, names) {
+ *   return what + ' ' + _.initial(names).join(', ') +
+ *     (_.size(names) > 1 ? ', & ' : '') + _.last(names);
+ * });
+ *
+ * say('hello', 'fred', 'barney', 'pebbles');
+ * // => 'hello fred, barney, & pebbles'
+ */
+function restParam(func, start) {
+  if (typeof func != 'function') {
+    throw new TypeError(FUNC_ERROR_TEXT);
+  }
+  start = nativeMax(start === undefined ? (func.length - 1) : (+start || 0), 0);
+  return function() {
+    var args = arguments,
+        index = -1,
+        length = nativeMax(args.length - start, 0),
+        rest = Array(length);
+
+    while (++index < length) {
+      rest[index] = args[start + index];
+    }
+    switch (start) {
+      case 0: return func.call(this, rest);
+      case 1: return func.call(this, args[0], rest);
+      case 2: return func.call(this, args[0], args[1], rest);
+    }
+    var otherArgs = Array(start + 1);
+    index = -1;
+    while (++index < start) {
+      otherArgs[index] = args[index];
+    }
+    otherArgs[start] = rest;
+    return func.apply(this, otherArgs);
+  };
+}
+
+module.exports = restParam;
+
+},{}],21:[function(require,module,exports){
+/**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
  * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
@@ -1163,7 +1852,7 @@ function filter(collection, callback, thisArg) {
 
 module.exports = filter;
 
-},{"lodash.createcallback":16,"lodash.forown":48}],16:[function(require,module,exports){
+},{"lodash.createcallback":22,"lodash.forown":54}],22:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.3 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1246,7 +1935,7 @@ function createCallback(func, thisArg, argCount) {
 
 module.exports = createCallback;
 
-},{"lodash._basecreatecallback":17,"lodash._baseisequal":35,"lodash.isobject":73,"lodash.keys":43,"lodash.property":47}],17:[function(require,module,exports){
+},{"lodash._basecreatecallback":23,"lodash._baseisequal":41,"lodash.isobject":79,"lodash.keys":49,"lodash.property":53}],23:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1328,7 +2017,7 @@ function baseCreateCallback(func, thisArg, argCount) {
 
 module.exports = baseCreateCallback;
 
-},{"lodash._setbinddata":18,"lodash.bind":21,"lodash.identity":32,"lodash.support":33}],18:[function(require,module,exports){
+},{"lodash._setbinddata":24,"lodash.bind":27,"lodash.identity":38,"lodash.support":39}],24:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1373,7 +2062,7 @@ var setBindData = !defineProperty ? noop : function(func, value) {
 
 module.exports = setBindData;
 
-},{"lodash._isnative":19,"lodash.noop":20}],19:[function(require,module,exports){
+},{"lodash._isnative":25,"lodash.noop":26}],25:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1409,7 +2098,7 @@ function isNative(value) {
 
 module.exports = isNative;
 
-},{}],20:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1437,7 +2126,7 @@ function noop() {
 
 module.exports = noop;
 
-},{}],21:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1479,7 +2168,7 @@ function bind(func, thisArg) {
 
 module.exports = bind;
 
-},{"lodash._createwrapper":22,"lodash._slice":31}],22:[function(require,module,exports){
+},{"lodash._createwrapper":28,"lodash._slice":37}],28:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1587,7 +2276,7 @@ function createWrapper(func, bitmask, partialArgs, partialRightArgs, thisArg, ar
 
 module.exports = createWrapper;
 
-},{"lodash._basebind":23,"lodash._basecreatewrapper":27,"lodash._slice":31,"lodash.isfunction":72}],23:[function(require,module,exports){
+},{"lodash._basebind":29,"lodash._basecreatewrapper":33,"lodash._slice":37,"lodash.isfunction":78}],29:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1651,7 +2340,7 @@ function baseBind(bindData) {
 
 module.exports = baseBind;
 
-},{"lodash._basecreate":24,"lodash._setbinddata":18,"lodash._slice":31,"lodash.isobject":73}],24:[function(require,module,exports){
+},{"lodash._basecreate":30,"lodash._setbinddata":24,"lodash._slice":37,"lodash.isobject":79}],30:[function(require,module,exports){
 (function (global){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
@@ -1697,11 +2386,11 @@ if (!nativeCreate) {
 module.exports = baseCreate;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._isnative":25,"lodash.isobject":73,"lodash.noop":26}],25:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],26:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],27:[function(require,module,exports){
+},{"lodash._isnative":31,"lodash.isobject":79,"lodash.noop":32}],31:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],32:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],33:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1781,13 +2470,13 @@ function baseCreateWrapper(bindData) {
 
 module.exports = baseCreateWrapper;
 
-},{"lodash._basecreate":28,"lodash._setbinddata":18,"lodash._slice":31,"lodash.isobject":73}],28:[function(require,module,exports){
-arguments[4][24][0].apply(exports,arguments)
-},{"dup":24,"lodash._isnative":29,"lodash.isobject":73,"lodash.noop":30}],29:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],30:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],31:[function(require,module,exports){
+},{"lodash._basecreate":34,"lodash._setbinddata":24,"lodash._slice":37,"lodash.isobject":79}],34:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30,"lodash._isnative":35,"lodash.isobject":79,"lodash.noop":36}],35:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],36:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],37:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1827,7 +2516,7 @@ function slice(array, start, end) {
 
 module.exports = slice;
 
-},{}],32:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1857,7 +2546,7 @@ function identity(value) {
 
 module.exports = identity;
 
-},{}],33:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 (function (global){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
@@ -1901,9 +2590,9 @@ support.funcNames = typeof Function.name == 'string';
 module.exports = support;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._isnative":34}],34:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],35:[function(require,module,exports){
+},{"lodash._isnative":40}],40:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],41:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2114,7 +2803,7 @@ function baseIsEqual(a, b, callback, isWhere, stackA, stackB) {
 
 module.exports = baseIsEqual;
 
-},{"lodash._getarray":36,"lodash._objecttypes":38,"lodash._releasearray":39,"lodash.forin":42,"lodash.isfunction":72}],36:[function(require,module,exports){
+},{"lodash._getarray":42,"lodash._objecttypes":44,"lodash._releasearray":45,"lodash.forin":48,"lodash.isfunction":78}],42:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2137,7 +2826,7 @@ function getArray() {
 
 module.exports = getArray;
 
-},{"lodash._arraypool":37}],37:[function(require,module,exports){
+},{"lodash._arraypool":43}],43:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2152,7 +2841,7 @@ var arrayPool = [];
 
 module.exports = arrayPool;
 
-},{}],38:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2174,7 +2863,7 @@ var objectTypes = {
 
 module.exports = objectTypes;
 
-},{}],39:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2201,9 +2890,9 @@ function releaseArray(array) {
 
 module.exports = releaseArray;
 
-},{"lodash._arraypool":40,"lodash._maxpoolsize":41}],40:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"dup":37}],41:[function(require,module,exports){
+},{"lodash._arraypool":46,"lodash._maxpoolsize":47}],46:[function(require,module,exports){
+arguments[4][43][0].apply(exports,arguments)
+},{"dup":43}],47:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2218,7 +2907,7 @@ var maxPoolSize = 40;
 
 module.exports = maxPoolSize;
 
-},{}],42:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2274,7 +2963,7 @@ var forIn = function(collection, callback, thisArg) {
 
 module.exports = forIn;
 
-},{"lodash._basecreatecallback":17,"lodash._objecttypes":38}],43:[function(require,module,exports){
+},{"lodash._basecreatecallback":23,"lodash._objecttypes":44}],49:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2312,9 +3001,9 @@ var keys = !nativeKeys ? shimKeys : function(object) {
 
 module.exports = keys;
 
-},{"lodash._isnative":44,"lodash._shimkeys":45,"lodash.isobject":73}],44:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],45:[function(require,module,exports){
+},{"lodash._isnative":50,"lodash._shimkeys":51,"lodash.isobject":79}],50:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],51:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2354,9 +3043,9 @@ var shimKeys = function(object) {
 
 module.exports = shimKeys;
 
-},{"lodash._objecttypes":46}],46:[function(require,module,exports){
-arguments[4][38][0].apply(exports,arguments)
-},{"dup":38}],47:[function(require,module,exports){
+},{"lodash._objecttypes":52}],52:[function(require,module,exports){
+arguments[4][44][0].apply(exports,arguments)
+},{"dup":44}],53:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2398,7 +3087,7 @@ function property(key) {
 
 module.exports = property;
 
-},{}],48:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2450,51 +3139,51 @@ var forOwn = function(collection, callback, thisArg) {
 
 module.exports = forOwn;
 
-},{"lodash._basecreatecallback":49,"lodash._objecttypes":67,"lodash.keys":68}],49:[function(require,module,exports){
-arguments[4][17][0].apply(exports,arguments)
-},{"dup":17,"lodash._setbinddata":50,"lodash.bind":53,"lodash.identity":64,"lodash.support":65}],50:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"dup":18,"lodash._isnative":51,"lodash.noop":52}],51:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],52:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],53:[function(require,module,exports){
-arguments[4][21][0].apply(exports,arguments)
-},{"dup":21,"lodash._createwrapper":54,"lodash._slice":63}],54:[function(require,module,exports){
-arguments[4][22][0].apply(exports,arguments)
-},{"dup":22,"lodash._basebind":55,"lodash._basecreatewrapper":59,"lodash._slice":63,"lodash.isfunction":72}],55:[function(require,module,exports){
+},{"lodash._basecreatecallback":55,"lodash._objecttypes":73,"lodash.keys":74}],55:[function(require,module,exports){
 arguments[4][23][0].apply(exports,arguments)
-},{"dup":23,"lodash._basecreate":56,"lodash._setbinddata":50,"lodash._slice":63,"lodash.isobject":73}],56:[function(require,module,exports){
+},{"dup":23,"lodash._setbinddata":56,"lodash.bind":59,"lodash.identity":70,"lodash.support":71}],56:[function(require,module,exports){
 arguments[4][24][0].apply(exports,arguments)
-},{"dup":24,"lodash._isnative":57,"lodash.isobject":73,"lodash.noop":58}],57:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],58:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],59:[function(require,module,exports){
+},{"dup":24,"lodash._isnative":57,"lodash.noop":58}],57:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],58:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],59:[function(require,module,exports){
 arguments[4][27][0].apply(exports,arguments)
-},{"dup":27,"lodash._basecreate":60,"lodash._setbinddata":50,"lodash._slice":63,"lodash.isobject":73}],60:[function(require,module,exports){
-arguments[4][24][0].apply(exports,arguments)
-},{"dup":24,"lodash._isnative":61,"lodash.isobject":73,"lodash.noop":62}],61:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],62:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],63:[function(require,module,exports){
-arguments[4][31][0].apply(exports,arguments)
-},{"dup":31}],64:[function(require,module,exports){
-arguments[4][32][0].apply(exports,arguments)
-},{"dup":32}],65:[function(require,module,exports){
+},{"dup":27,"lodash._createwrapper":60,"lodash._slice":69}],60:[function(require,module,exports){
+arguments[4][28][0].apply(exports,arguments)
+},{"dup":28,"lodash._basebind":61,"lodash._basecreatewrapper":65,"lodash._slice":69,"lodash.isfunction":78}],61:[function(require,module,exports){
+arguments[4][29][0].apply(exports,arguments)
+},{"dup":29,"lodash._basecreate":62,"lodash._setbinddata":56,"lodash._slice":69,"lodash.isobject":79}],62:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30,"lodash._isnative":63,"lodash.isobject":79,"lodash.noop":64}],63:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],64:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],65:[function(require,module,exports){
 arguments[4][33][0].apply(exports,arguments)
-},{"dup":33,"lodash._isnative":66}],66:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],67:[function(require,module,exports){
+},{"dup":33,"lodash._basecreate":66,"lodash._setbinddata":56,"lodash._slice":69,"lodash.isobject":79}],66:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30,"lodash._isnative":67,"lodash.isobject":79,"lodash.noop":68}],67:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],68:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],69:[function(require,module,exports){
+arguments[4][37][0].apply(exports,arguments)
+},{"dup":37}],70:[function(require,module,exports){
 arguments[4][38][0].apply(exports,arguments)
-},{"dup":38}],68:[function(require,module,exports){
-arguments[4][43][0].apply(exports,arguments)
-},{"dup":43,"lodash._isnative":69,"lodash._shimkeys":70,"lodash.isobject":73}],69:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],70:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"dup":45,"lodash._objecttypes":67}],71:[function(require,module,exports){
+},{"dup":38}],71:[function(require,module,exports){
+arguments[4][39][0].apply(exports,arguments)
+},{"dup":39,"lodash._isnative":72}],72:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],73:[function(require,module,exports){
+arguments[4][44][0].apply(exports,arguments)
+},{"dup":44}],74:[function(require,module,exports){
+arguments[4][49][0].apply(exports,arguments)
+},{"dup":49,"lodash._isnative":75,"lodash._shimkeys":76,"lodash.isobject":79}],75:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25}],76:[function(require,module,exports){
+arguments[4][51][0].apply(exports,arguments)
+},{"dup":51,"lodash._objecttypes":73}],77:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2533,7 +3222,7 @@ function isString(value) {
 
 module.exports = isString;
 
-},{}],72:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2562,7 +3251,7 @@ function isFunction(value) {
 
 module.exports = isFunction;
 
-},{}],73:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2603,9 +3292,9 @@ function isObject(value) {
 
 module.exports = isObject;
 
-},{"lodash._objecttypes":74}],74:[function(require,module,exports){
-arguments[4][38][0].apply(exports,arguments)
-},{"dup":38}],75:[function(require,module,exports){
+},{"lodash._objecttypes":80}],80:[function(require,module,exports){
+arguments[4][44][0].apply(exports,arguments)
+},{"dup":44}],81:[function(require,module,exports){
 /**
  * lodash 3.1.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -2701,7 +3390,7 @@ function map(collection, iteratee, thisArg) {
 
 module.exports = map;
 
-},{"lodash._arraymap":76,"lodash._basecallback":77,"lodash._baseeach":81,"lodash.isarray":82,"lodash.keys":83}],76:[function(require,module,exports){
+},{"lodash._arraymap":82,"lodash._basecallback":83,"lodash._baseeach":87,"lodash.isarray":88,"lodash.keys":89}],82:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -2733,7 +3422,7 @@ function arrayMap(array, iteratee) {
 
 module.exports = arrayMap;
 
-},{}],77:[function(require,module,exports){
+},{}],83:[function(require,module,exports){
 /**
  * lodash 3.1.3 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -2985,7 +3674,7 @@ function identity(value) {
 
 module.exports = baseCallback;
 
-},{"lodash._baseisequal":78,"lodash._bindcallback":80,"lodash.keys":83}],78:[function(require,module,exports){
+},{"lodash._baseisequal":84,"lodash._bindcallback":86,"lodash.keys":89}],84:[function(require,module,exports){
 /**
  * lodash 3.0.3 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3295,7 +3984,7 @@ function equalObjects(object, other, equalFunc, customizer, isLoose, stackA, sta
 
 module.exports = baseIsEqual;
 
-},{"lodash.isarray":82,"lodash.istypedarray":79,"lodash.keys":83}],79:[function(require,module,exports){
+},{"lodash.isarray":88,"lodash.istypedarray":85,"lodash.keys":89}],85:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3407,7 +4096,7 @@ function isTypedArray(value) {
 
 module.exports = isTypedArray;
 
-},{}],80:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3473,7 +4162,7 @@ function identity(value) {
 
 module.exports = bindCallback;
 
-},{}],81:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 /**
  * lodash 3.0.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3631,7 +4320,7 @@ function isObject(value) {
 
 module.exports = baseEach;
 
-},{"lodash.keys":83}],82:[function(require,module,exports){
+},{"lodash.keys":89}],88:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3791,7 +4480,7 @@ function escapeRegExp(string) {
 
 module.exports = isArray;
 
-},{}],83:[function(require,module,exports){
+},{}],89:[function(require,module,exports){
 /**
  * lodash 3.0.5 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4026,7 +4715,7 @@ function keysIn(object) {
 
 module.exports = keys;
 
-},{"lodash.isarguments":84,"lodash.isarray":82,"lodash.isnative":85}],84:[function(require,module,exports){
+},{"lodash.isarguments":90,"lodash.isarray":88,"lodash.isnative":91}],90:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4101,7 +4790,7 @@ function isArguments(value) {
 
 module.exports = isArguments;
 
-},{}],85:[function(require,module,exports){
+},{}],91:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4218,7 +4907,125 @@ function escapeRegExp(string) {
 
 module.exports = isNative;
 
-},{}],86:[function(require,module,exports){
+},{}],92:[function(require,module,exports){
+/**
+ * lodash 3.1.0 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.2 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+var createWrapper = require('lodash._createwrapper'),
+    replaceHolders = require('lodash._replaceholders'),
+    restParam = require('lodash.restparam');
+
+/** Used to compose bitmasks for wrapper metadata. */
+var PARTIAL_FLAG = 32;
+
+/**
+ * Creates a `_.partial` or `_.partialRight` function.
+ *
+ * @private
+ * @param {boolean} flag The partial bit flag.
+ * @returns {Function} Returns the new partial function.
+ */
+function createPartial(flag) {
+  var partialFunc = restParam(function(func, partials) {
+    var holders = replaceHolders(partials, partialFunc.placeholder);
+    return createWrapper(func, flag, null, partials, holders);
+  });
+  return partialFunc;
+}
+
+/**
+ * Creates a function that invokes `func` with `partial` arguments prepended
+ * to those provided to the new function. This method is like `_.bind` except
+ * it does **not** alter the `this` binding.
+ *
+ * The `_.partial.placeholder` value, which defaults to `_` in monolithic
+ * builds, may be used as a placeholder for partially applied arguments.
+ *
+ * **Note:** This method does not set the `length` property of partially
+ * applied functions.
+ *
+ * @static
+ * @memberOf _
+ * @category Function
+ * @param {Function} func The function to partially apply arguments to.
+ * @param {...*} [partials] The arguments to be partially applied.
+ * @returns {Function} Returns the new partially applied function.
+ * @example
+ *
+ * var greet = function(greeting, name) {
+ *   return greeting + ' ' + name;
+ * };
+ *
+ * var sayHelloTo = _.partial(greet, 'hello');
+ * sayHelloTo('fred');
+ * // => 'hello fred'
+ *
+ * // using placeholders
+ * var greetFred = _.partial(greet, _, 'fred');
+ * greetFred('hi');
+ * // => 'hi fred'
+ */
+var partial = createPartial(PARTIAL_FLAG);
+
+// Assign default placeholders.
+partial.placeholder = {};
+
+module.exports = partial;
+
+},{"lodash._createwrapper":93,"lodash._replaceholders":96,"lodash.restparam":97}],93:[function(require,module,exports){
+arguments[4][16][0].apply(exports,arguments)
+},{"dup":16,"lodash._arraycopy":94,"lodash._basecreate":95,"lodash._replaceholders":96}],94:[function(require,module,exports){
+arguments[4][17][0].apply(exports,arguments)
+},{"dup":17}],95:[function(require,module,exports){
+arguments[4][18][0].apply(exports,arguments)
+},{"dup":18}],96:[function(require,module,exports){
+arguments[4][19][0].apply(exports,arguments)
+},{"dup":19}],97:[function(require,module,exports){
+arguments[4][20][0].apply(exports,arguments)
+},{"dup":20}],98:[function(require,module,exports){
+module.exports={
+  "name": "elq",
+  "description": "Element media queries framework. Solution to modular responsive components.",
+  "homepage": "https://github.com/wnr/elq",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "devDependencies": {
+    "grunt": "^0.4.5",
+    "grunt-banner": "^0.3.1",
+    "grunt-browserify": "^3.3.0",
+    "grunt-contrib-jshint": "^0.11.0",
+    "grunt-jscs": "^1.2.0",
+    "load-grunt-tasks": "^3.0.0"
+  },
+  "dependencies": {
+    "element-resize-detector": "^0.3.0",
+    "batch-updater": "^0.1.0",
+    "lodash": "^2.4.1",
+    "lodash.filter": "^2.4.1",
+    "lodash.foreach": "^3.0.1",
+    "lodash.isfunction": "^2.4.1",
+    "lodash.isobject": "^2.4.1",
+    "lodash.isstring": "^2.4.1",
+    "lodash.map": "^3.0.0",
+    "lodash.partialright": "^2.4.1",
+    "lodash.uniq": "^3.0.0",
+    "lodash.bind": "^3.1.0",
+    "lodash.partial": "^3.1.0"
+  },
+  "scripts": {
+    "build": "grunt build",
+    "dist": "grunt dist",
+    "test": "grunt test"
+  }
+}
+
+},{}],99:[function(require,module,exports){
 "use strict";
 
 module.exports = function cycleDetectorMaker(idHandler, options) {
@@ -4281,21 +5088,20 @@ module.exports = function cycleDetectorMaker(idHandler, options) {
     };
 };
 
-},{}],87:[function(require,module,exports){
+},{}],100:[function(require,module,exports){
 "use strict";
 
-var extensionHandlerMaker       = require("./extension-handler");
 var elementResizeDetectorMaker  = require("element-resize-detector");
+var batchUpdaterMaker           = require("batch-updater");
+var partial                     = require("lodash.partial");
+var extensionHandlerMaker       = require("./extension-handler");
 var reporterMaker               = require("./reporter");
 var idGeneratorMaker            = require("./id-generator");
 var idHandlerMaker              = require("./id-handler");
 var cycleDetectorMaker          = require("./cycle-detector");
-var batchUpdaterMaker           = require("batch-updater");
+var packageJson                 = require("../package.json");
 
-var libVersion = "v0.0.0";
-var libName = "ELQ";
-
-module.exports = function(options) {
+module.exports = function Elq(options) {
     options = options || {};
 
     var elq                     = {};
@@ -4319,51 +5125,45 @@ module.exports = function(options) {
         extensionHandler.callMethods("start", [elements]);
     }
 
-    //The public functions is a subset of all functions on the elq object.
-    var publicFunctions = [
-        "version",
-        "use",
-        "using",
-        "getExtension",
-        "start",
-        "listenTo"
-    ];
-
+    //Public
     elq.getVersion          = getVersion;
     elq.getName             = getName;
-    elq.use                 = extensionHandler.register.bind(null, elq);
+    elq.use                 = partial(extensionHandler.register, elq);
     elq.using               = extensionHandler.isRegistered;
-    elq.getExtension        = extensionHandler.get;
     elq.start               = start;
     elq.listenTo            = elementResizeDetector.listenTo;
+
+    //Create an object copy of the currently attached API methods, that will be exposed as the public API.
+    var publicElq           = copy(elq);
 
     //Functions only accesible by plugins.
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.createBatchUpdater  = createBatchUpdater;
+    elq.createBatchUpdater  = createBatchUpdater; //TODO: Rename to batch processor.
+    elq.getPlugin           = extensionHandler.get;
 
-    return createPublicApi(elq, publicFunctions);
+    return publicElq;
 };
 
 function getVersion() {
-    return libVersion;
+    return packageJson.version;
 }
 
 function getName() {
-    return libName;
+    return packageJson.name;
 }
 
-function createPublicApi(elq, publicFunctions) {
-    var publicElq = {};
+function copy(o) {
+    var c = {};
 
-    for(var i = 0; i < publicFunctions.length; i++) {
-        var property = publicFunctions[i];
-
-        publicElq[property] = elq[property];
+    for(var key in o) {
+        if(o.hasOwnProperty(key)) {
+            c[key] = o[key];
+        }
     }
 
-    return publicElq;
+    return c;
 }
 
 
@@ -4385,7 +5185,7 @@ function createBatchUpdaterWithDefaultOptions(globalOptions) {
     return batchMakerOptionsProxy;
 }
 
-},{"./cycle-detector":86,"./extension-handler":88,"./id-generator":89,"./id-handler":90,"./reporter":92,"batch-updater":1,"element-resize-detector":9}],88:[function(require,module,exports){
+},{"../package.json":98,"./cycle-detector":99,"./extension-handler":101,"./id-generator":102,"./id-handler":103,"./reporter":105,"batch-updater":1,"element-resize-detector":9,"lodash.partial":92}],101:[function(require,module,exports){
 //TODO: Borrowed from bookie.js. Should be removed and used as a dependency instead.
 //https://github.com/backslashforward/bookie.js/tree/master/src/extension
 
@@ -4393,12 +5193,12 @@ function createBatchUpdaterWithDefaultOptions(globalOptions) {
 
 var _ = {};
 
-_.isFunction = require("lodash.isfunction");
-_.isObject = require("lodash.isobject");
-_.isString = require("lodash.isString");
-_.filter = require("lodash.filter");
-_.map = require("lodash.map");
-
+_.isFunction    = require("lodash.isfunction");
+_.isObject      = require("lodash.isobject");
+_.isString      = require("lodash.isString");
+_.filter        = require("lodash.filter");
+_.map           = require("lodash.map");
+_.bind          = require("lodash.bind");
 
 /**
  * Handles extensions of a system instance.
@@ -4418,6 +5218,7 @@ module.exports = function ExtensionHandler(reporter) {
      * @public
      * @param {object} target The target that the given extension should be applied to.
      * @param {Extension} extension TODO: Write me.
+     * @returns the externsion instance registered to the target.
      * @throws On invalid extension input (bad extension format or not unique name).
      */
     function register(target, extension, options) {
@@ -4450,6 +5251,8 @@ module.exports = function ExtensionHandler(reporter) {
         }
 
         extensions[name] = extension.make(target, options);
+
+        return extensions[name];
     }
 
     /**
@@ -4490,7 +5293,7 @@ module.exports = function ExtensionHandler(reporter) {
 
         function mapper(extension) {
             var f = extension[method];
-            return f ? f.bind(extension) : null;
+            return f ? _.bind(f, extension) : null;
         }
 
         return _.map(_.filter(extensions, filterer), mapper) || [];
@@ -4517,18 +5320,18 @@ module.exports = function ExtensionHandler(reporter) {
     };
 };
 
-},{"lodash.filter":15,"lodash.isString":71,"lodash.isfunction":72,"lodash.isobject":73,"lodash.map":75}],89:[function(require,module,exports){
+},{"lodash.bind":15,"lodash.filter":21,"lodash.isString":77,"lodash.isfunction":78,"lodash.isobject":79,"lodash.map":81}],102:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],90:[function(require,module,exports){
+},{"dup":11}],103:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12}],91:[function(require,module,exports){
+},{"dup":12}],104:[function(require,module,exports){
 "use strict";
 
-var elqMaker = require("./elq");
+var Elq = require("./elq");
 
-module.exports = elqMaker();
+module.exports = Elq;
 
-},{"./elq":87}],92:[function(require,module,exports){
+},{"./elq":100}],105:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -4563,5 +5366,5 @@ module.exports = function(quiet) {
 
     return reporter;
 };
-},{}]},{},[91])(91)
+},{}]},{},[104])(104)
 });
