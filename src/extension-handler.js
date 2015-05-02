@@ -30,6 +30,7 @@ module.exports = function ExtensionHandler(reporter) {
      * @public
      * @param {object} target The target that the given extension should be applied to.
      * @param {Extension} extension TODO: Write me.
+     * @returns the externsion instance registered to the target.
      * @throws On invalid extension input (bad extension format or not unique name).
      */
     function register(target, extension, options) {
@@ -62,6 +63,8 @@ module.exports = function ExtensionHandler(reporter) {
         }
 
         extensions[name] = extension.make(target, options);
+
+        return extensions[name];
     }
 
     /**

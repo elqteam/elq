@@ -39,7 +39,6 @@ module.exports = function(options) {
         "getName",
         "use",
         "using",
-        "getExtension",
         "start",
         "listenTo"
     ];
@@ -49,7 +48,6 @@ module.exports = function(options) {
     elq.getName             = getName;
     elq.use                 = extensionHandler.register.bind(null, elq);
     elq.using               = extensionHandler.isRegistered;
-    elq.getExtension        = extensionHandler.get;
     elq.start               = start;
     elq.listenTo            = elementResizeDetector.listenTo;
 
@@ -58,6 +56,7 @@ module.exports = function(options) {
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
     elq.createBatchUpdater  = createBatchUpdater; //TODO: Rename to batch processor.
+    elq.getPlugin           = extensionHandler.get;
 
     return createPublicApi(elq, publicFunctions);
 };
