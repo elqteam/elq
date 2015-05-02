@@ -2,6 +2,7 @@
 
 var elementResizeDetectorMaker  = require("element-resize-detector");
 var batchUpdaterMaker           = require("batch-updater");
+var partial                     = require("lodash.partial");
 var extensionHandlerMaker       = require("./extension-handler");
 var reporterMaker               = require("./reporter");
 var idGeneratorMaker            = require("./id-generator");
@@ -36,7 +37,7 @@ module.exports = function Elq(options) {
     //Public
     elq.getVersion          = getVersion;
     elq.getName             = getName;
-    elq.use                 = extensionHandler.register.bind(null, elq);
+    elq.use                 = partial(extensionHandler.register, elq);
     elq.using               = extensionHandler.isRegistered;
     elq.start               = start;
     elq.listenTo            = elementResizeDetector.listenTo;

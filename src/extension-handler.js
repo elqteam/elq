@@ -5,12 +5,12 @@
 
 var _ = {};
 
-_.isFunction = require("lodash.isfunction");
-_.isObject = require("lodash.isobject");
-_.isString = require("lodash.isString");
-_.filter = require("lodash.filter");
-_.map = require("lodash.map");
-
+_.isFunction    = require("lodash.isfunction");
+_.isObject      = require("lodash.isobject");
+_.isString      = require("lodash.isString");
+_.filter        = require("lodash.filter");
+_.map           = require("lodash.map");
+_.bind          = require("lodash.bind");
 
 /**
  * Handles extensions of a system instance.
@@ -105,7 +105,7 @@ module.exports = function ExtensionHandler(reporter) {
 
         function mapper(extension) {
             var f = extension[method];
-            return f ? f.bind(extension) : null;
+            return f ? _.bind(f, extension) : null;
         }
 
         return _.map(_.filter(extensions, filterer), mapper) || [];

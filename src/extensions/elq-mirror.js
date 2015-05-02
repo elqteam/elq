@@ -1,6 +1,7 @@
 "use strict";
 
 var forEach = require("lodash.forEach");
+var partial = require("lodash.partial");
 
 module.exports = {
     getName: function() {
@@ -51,7 +52,7 @@ module.exports = {
                         throw new Error("There is no parent elq-breakpoints element to mirror.");
                     }
 
-                    elqBreakpoints.listenToElementBreakpoints(sourceElement, mirrorBreakpointClasses.bind(null, mirrorElement));
+                    elqBreakpoints.listenToElementBreakpoints(sourceElement, partial(mirrorBreakpointClasses, mirrorElement));
                     mirrorBreakpointClasses(mirrorElement, sourceElement);
                 }
             });
