@@ -36,6 +36,7 @@ module.exports = function(options) {
     }
 
     //The public functions is a subset of all functions on the elq object.
+    //TODO: These are not the same as the methods defined on elq below.
     var publicFunctions = [
         "version",
         "use",
@@ -57,7 +58,7 @@ module.exports = function(options) {
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.createBatchUpdater  = createBatchUpdater;
+    elq.createBatchUpdater  = createBatchUpdater; //TODO: Rename to batch processor.
 
     return createPublicApi(elq, publicFunctions);
 };
