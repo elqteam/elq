@@ -1,5 +1,5 @@
 "use strict";
 
-var elqMaker = require("./elq");
+var Elq = require("./elq");
 
-module.exports = elqMaker();
+module.exports = Elq;

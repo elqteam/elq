@@ -9,7 +9,7 @@ var idHandlerMaker              = require("./id-handler");
 var cycleDetectorMaker          = require("./cycle-detector");
 var packageJson                 = require("../package.json");
 
-module.exports = function(options) {
+module.exports = function Elq(options) {
     options = options || {};
 
     var elq                     = {};
@@ -32,16 +32,6 @@ module.exports = function(options) {
 
         extensionHandler.callMethods("start", [elements]);
     }
-
-    //The public functions is a subset of all functions on the elq object.
-    var publicFunctions = [
-        "getVersion",
-        "getName",
-        "use",
-        "using",
-        "start",
-        "listenTo"
-    ];
 
     //Public
     elq.getVersion          = getVersion;
@@ -72,16 +62,16 @@ function getName() {
     return packageJson.name;
 }
 
-function copy(object) {
-    var copy = {};
+function copy(o) {
+    var c = {};
 
-    for(var key in object) {
-        if(object.hasOwnProperty(key)) {
-            copy[key] = object[key];
+    for(var key in o) {
+        if(o.hasOwnProperty(key)) {
+            c[key] = o[key];
         }
     }
 
-    return copy;
+    return c;
 }
 
 

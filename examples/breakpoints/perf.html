@@ -83,6 +83,7 @@
         loopCreateAndAppend(5, createDiv.bind(null, 20), document.getElementById("aligner"));
 
         $(function onDomReady() {
+            var elq = Elq();
             elq.use(elqBreakpoints);
             elq.use(elqMirror);
             elq.start($("[elq]"));

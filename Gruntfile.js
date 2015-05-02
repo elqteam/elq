@@ -5,11 +5,6 @@ module.exports = function(grunt) {
 
     var config = {
         pkg: grunt.file.readJSON("package.json"),
-        banner: "/*!\n" +
-                " * bookie.js <%= pkg.version %> (<%= grunt.template.today('yyyy-mm-dd, HH:MM') %>)\n" +
-                " * <%= pkg.homepage %>\n" +
-                " * Licensed under <%= pkg.license %>\n" +
-                " */\n",
         jshint: {
             src: {
                 src: ["src/**/*.js", "*.js"]
@@ -33,7 +28,7 @@ module.exports = function(grunt) {
                 dest: "build/elq.js",
                 options: {
                     browserifyOptions: {
-                        standalone: "elq",
+                        standalone: "Elq",
                         debug: true
                     }
                 }
