@@ -58,7 +58,7 @@ module.exports = function(grunt) {
                 dest: "dist/elq.js",
                 options: {
                     browserifyOptions: {
-                        standalone: "elq"
+                        standalone: "Elq"
                     }
                 }
             },
