@@ -8,9 +8,9 @@
  * @param {boolean} quiet Tells if the reporter should be quiet or not.
  */
 module.exports = function(quiet) {
-    var noop = function () {
+    function noop() {
         //Does nothing.
-    };
+    }
 
     var reporter = {
         log: noop,

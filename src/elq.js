@@ -75,7 +75,6 @@ function copy(o) {
     return c;
 }
 
-
 function createBatchUpdaterWithDefaultOptions(globalOptions) {
     globalOptions = globalOptions || {};
 

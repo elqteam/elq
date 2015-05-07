@@ -27,7 +27,7 @@ module.exports = function cycleDetectorMaker(idHandler, options) {
         }
 
         var updates = elements[id];
-        
+
         var cycles = 0;
 
         for(var i = updates.length - 1; i >= 0; i--) {
@@ -38,7 +38,6 @@ module.exports = function cycleDetectorMaker(idHandler, options) {
                 elements[id].push(update);
                 return false;
             }
-
 
             if(prevUpdate.classes === update.classes) {
                 cycles++;

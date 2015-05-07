@@ -10,10 +10,11 @@ module.exports = {
     getVersion: function() {
         return "0.0.0";
     },
-    isCompatible: function(elq) {
+
+    isCompatible: function() {
         return true; //TODO: Check elq version.
     },
-    make: function(elq, options) {
+    make: function(elq) {
         function start(elements) {
             var elqBreakpoints = elq.getPlugin("elq-breakpoints");
 

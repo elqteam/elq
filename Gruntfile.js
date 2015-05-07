@@ -80,6 +80,22 @@ module.exports = function(grunt) {
                     }
                 }
             }
+        },
+        karma: {
+            local: {
+                configFile: "karma.conf.js",
+                options: {
+                    browsers: [
+                        "Chrome",
+                        "Safari",
+                        "Firefox"
+                        //"IE8 - Win7",
+                        //"IE10 - Win7",
+                        //"IE11 - Win8.1"
+                    ],
+                    singleRun: true
+                }
+            }
         }
     };
 
@@ -92,7 +108,7 @@ module.exports = function(grunt) {
     grunt.registerTask("dist", ["build:dist"]);
 
     grunt.registerTask("test:style", ["jshint", "jscs"]);
-    grunt.registerTask("test", ["test:style", "build:dev"]); //TODO
+    grunt.registerTask("test", ["test:style", "build:dev", "karma:local"]);
 
     grunt.registerTask("default", ["test"]);
 };
