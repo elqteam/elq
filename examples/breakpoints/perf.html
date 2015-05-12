@@ -8,7 +8,6 @@
 
         #aligner {
             height: 100%;
-            display: flex;
         }
 
         .container {
@@ -16,16 +15,16 @@
             background: #FF9800;
             cursor: pointer;
             position: relative;
-            border-right: 1px solid black;
-            border-left: 1px solid black;
+            border: 1px solid black;
+            height: 20px;
         }
 
         .container.elq-width-under-200 {
-            height: 200px;
+            background-color: red;
         }
 
         .container.elq-width-above-200 {
-            height: 400px;
+            background-color: blue;
         }
 
         #dimensions {
@@ -67,7 +66,6 @@
             d.setAttribute("elq-breakpoints", "");
             d.setAttribute("elq-breakpoints-width", "50 100 150 200 250 300");
             d.className = "container";
-            d.style.width = width;
             return d;
         }
 
@@ -80,7 +78,7 @@
             return target;
         }
 
-        loopCreateAndAppend(5, createDiv.bind(null, 20), document.getElementById("aligner"));
+        loopCreateAndAppend(400, createDiv.bind(null, 20), document.getElementById("aligner"));
 
         $(function onDomReady() {
             var elq = Elq();
