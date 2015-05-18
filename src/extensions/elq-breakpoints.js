@@ -14,16 +14,16 @@ module.exports = {
     isCompatible: function() {
         return true; //TODO: Check elq version.
     },
-    make: function(elq, options) {
-        options                 = options || {};
-        options.postfix         = options.postfix || "";
+    make: function(elq, globalOptions) {
+        globalOptions           = globalOptions || {};
+        globalOptions.postfix   = globalOptions.postfix || "";
         var reporter            = elq.reporter;
         var idHandler           = elq.idHandler;
         var cycleDetector       = elq.cycleDetector;
         var batchUpdater        = elq.createBatchUpdater();
 
         var elementBreakpointsListeners = {};
-        var previousElementBreakpointClasses = {};
+        var currentElementBreakpointClasses = {};
 
         function start(elements) {
             function onElementResize(batchUpdater, element) {
@@ -97,7 +97,7 @@ module.exports = {
                             dir = "above";
                         }
 
-                        classes.push("elq-" + dimension + "-" + dir + "-" + breakpoint + options.postfix);
+                        classes.push("elq-" + dimension + "-" + dir + "-" + breakpoint + globalOptions.postfix);
                     });
 
                     return classes;
@@ -114,16 +114,20 @@ module.exports = {
                 var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
 
                 var id = idHandler.get(element);
+                var options = getOptions(element);
 
                 batchUpdater.update(id, function mutateElementBreakpointClasses() {
-                    if(previousElementBreakpointClasses[id] !== breakpointClasses) {
+                    if(currentElementBreakpointClasses[id] !== breakpointClasses) {
                         if(cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
                             reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
                             return;
                         }
 
-                        updateBreakpointClasses(element, breakpointClasses);
-                        previousElementBreakpointClasses[id] = breakpointClasses;
+                        if(!options.noclasses) {
+                            updateBreakpointClasses(element, breakpointClasses);
+                        }
+
+                        currentElementBreakpointClasses[id] = breakpointClasses;
                         forEach(elementBreakpointsListeners[id], function(listener) {
                             listener(element);
                         });
@@ -148,7 +152,7 @@ module.exports = {
 
             forEach(elements, function listenToLoop(element) {
                 elq.listenTo({
-                    callOnAdd: false,
+                    callOnAdd: true,
                     batchUpdater: batchUpdater
                 }, element, onElementResizeProxy);
             });
@@ -166,20 +170,16 @@ module.exports = {
         }
 
         function getBreakpointClasses(element) {
-            var classes = element.className;
-            classes = classes.replace(/\s+/g, " ").trim();
-            classes = classes.split(" ");
-
-            return filter(classes, function(className) {
-                return className.indexOf("elq-") === 0;
-            });
+            var id = idHandler.get(element);
+            return currentElementBreakpointClasses[id];
         }
 
+        //TODO: This function should maybe take into consideration if the target element has the noclasses option set.
         function updateBreakpointClasses(element, breakpointClasses) {
             var classes = element.className;
 
             //Remove all old breakpoints.
-            var breakpointRegexp = new RegExp("elq-(width|height)-[a-z]+-[0-9]+" + options.postfix, "g");
+            var breakpointRegexp = new RegExp("elq-(width|height)-[a-z]+-[0-9]+" + globalOptions.postfix, "g");
             classes = classes.replace(breakpointRegexp, "");
 
             //Add new classes
@@ -189,6 +189,17 @@ module.exports = {
             classes = classes.replace(/\s+/g, " ").trim();
 
             element.className = classes;
+        }
+
+        function getOptions(element) {
+            var options = {};
+
+            var optionsString = element.getAttribute("elq-breakpoints") || "";
+            optionsString = optionsString.toLowerCase();
+
+            options.noclasses =  !!~optionsString.indexOf("noclasses");
+
+            return options;
         }
 
         return {

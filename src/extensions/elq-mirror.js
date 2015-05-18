@@ -36,7 +36,6 @@ module.exports = {
 
             function mirrorBreakpointClasses(destinationElement, sourceElement) {
                 var breakpointClasses = elqBreakpoints.getBreakpointClasses(sourceElement);
-                breakpointClasses = breakpointClasses.join(" ");
                 breakpointClasses = breakpointClasses.replace(/\s+/g, " ").trim();
                 elqBreakpoints.updateBreakpointClasses(destinationElement, breakpointClasses);
             }
