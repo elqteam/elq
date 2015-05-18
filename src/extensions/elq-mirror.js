@@ -8,7 +8,7 @@ module.exports = {
         return "elq-mirror";
     },
     getVersion: function() {
-        return "0.0.0";
+        return "0.1.0";
     },
 
     isCompatible: function() {

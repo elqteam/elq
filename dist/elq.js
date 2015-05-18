@@ -259,7 +259,7 @@ detector.isIE = function(version) {
 
 detector.isLegacyOpera = function() {
     return !!window.opera;
-}
+};
 
 },{}],6:[function(require,module,exports){
 "use strict";
@@ -359,14 +359,6 @@ module.exports = function(options) {
 
                 //Create the style element to be added to the object.
                 getDocument(objectElement, function onObjectDocumentReady(objectDocument) {
-                    var style = objectDocument.createElement("style");
-                    style.innerHTML = "html, body { margin: 0; padding: 0 } div { -webkit-transition: opacity 0.01s; -ms-transition: opacity 0.01s; -o-transition: opacity 0.01s; transition: opacity 0.01s; opacity: 0; }";
-
-                    //TODO: Remove any styles that has been set on the object. Only the style above should be styling the object.
-
-                    //Append the style to the object.
-                    objectDocument.head.appendChild(style);
-
                     //Notify that the element is ready to be listened to.
                     callback(element);
                 });
@@ -527,9 +519,15 @@ module.exports = function(options) {
      * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
      */
     function makeDetectable(element, callback) {
+        // Reading properties of elementStyle will result in a forced getComputedStyle for some browsers, so read all values and store them as primitives here.
         var elementStyle        = getComputedStyle(element);
+        var position            = elementStyle.position;
         var width               = parseSize(elementStyle.width);
         var height              = parseSize(elementStyle.height);
+        var top                 = elementStyle.top;
+        var right               = elementStyle.right;
+        var bottom              = elementStyle.bottom;
+        var left                = elementStyle.left;
         var readyExpandScroll   = false;
         var readyShrinkScroll   = false;
         var readyOverall        = false;
@@ -541,15 +539,13 @@ module.exports = function(options) {
         }
 
         function mutateDom() {
-            if(elementStyle.position === "static") {
+            if(position === "static") {
                 element.style.position = "relative";
 
-                var removeRelativeStyles = function(reporter, element, style, property) {
+                var removeRelativeStyles = function(reporter, element, value, property) {
                     function getNumericalValue(value) {
                         return value.replace(/[^-\d\.]/g, "");
                     }
-
-                    var value = elementStyle[property];
 
                     if(value !== "auto" && getNumericalValue(value) !== "0") {
                         reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
@@ -559,10 +555,10 @@ module.exports = function(options) {
 
                 //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
                 //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
-                removeRelativeStyles(reporter, element, elementStyle, "top");
-                removeRelativeStyles(reporter, element, elementStyle, "right");
-                removeRelativeStyles(reporter, element, elementStyle, "bottom");
-                removeRelativeStyles(reporter, element, elementStyle, "left");
+                removeRelativeStyles(reporter, element, top, "top");
+                removeRelativeStyles(reporter, element, right, "right");
+                removeRelativeStyles(reporter, element, bottom, "bottom");
+                removeRelativeStyles(reporter, element, left, "left");
             }
 
             function getContainerCssText(left, top, bottom, right) {
@@ -4992,21 +4988,32 @@ module.exports={
   "name": "elq",
   "description": "Element media queries framework. Solution to modular responsive components.",
   "homepage": "https://github.com/wnr/elq",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "license": "MIT",
   "devDependencies": {
+    "load-grunt-tasks": "^3.0.0",
     "grunt": "^0.4.5",
     "grunt-banner": "^0.3.1",
     "grunt-browserify": "^3.3.0",
     "grunt-contrib-jshint": "^0.11.0",
     "grunt-jscs": "^1.2.0",
-    "load-grunt-tasks": "^3.0.0"
+    "grunt-karma": "^0.10.1",
+    "jasmine-core": "^2.2.0",
+    "jasmine-expect": "^2.0.0-beta1",
+    "jasmine-jquery": "^2.0.6",
+    "jquery": "^1.11.2",
+    "karma": "^0.12.31",
+    "karma-chrome-launcher": "^0.1.7",
+    "karma-firefox-launcher": "^0.1.4",
+    "karma-jasmine": "^0.3.5",
+    "karma-safari-launcher": "^0.1.1",
+    "karma-sauce-launcher": "^0.2.10",
+    "lodash": "^3.3.1"
   },
   "dependencies": {
     "element-resize-detector": "^0.3.0",
     "batch-updater": "^0.1.0",
-    "lodash": "^2.4.1",
     "lodash.filter": "^2.4.1",
     "lodash.foreach": "^3.0.1",
     "lodash.isfunction": "^2.4.1",
@@ -5055,7 +5062,7 @@ module.exports = function cycleDetectorMaker(idHandler, options) {
         }
 
         var updates = elements[id];
-        
+
         var cycles = 0;
 
         for(var i = updates.length - 1; i >= 0; i--) {
@@ -5066,7 +5073,6 @@ module.exports = function cycleDetectorMaker(idHandler, options) {
                 elements[id].push(update);
                 return false;
             }
-
 
             if(prevUpdate.classes === update.classes) {
                 cycles++;
@@ -5165,7 +5171,6 @@ function copy(o) {
 
     return c;
 }
-
 
 function createBatchUpdaterWithDefaultOptions(globalOptions) {
     globalOptions = globalOptions || {};
@@ -5342,9 +5347,9 @@ module.exports = Elq;
  * @param {boolean} quiet Tells if the reporter should be quiet or not.
  */
 module.exports = function(quiet) {
-    var noop = function () {
+    function noop() {
         //Does nothing.
-    };
+    }
 
     var reporter = {
         log: noop,
@@ -5366,5 +5371,6 @@ module.exports = function(quiet) {
 
     return reporter;
 };
+
 },{}]},{},[104])(104)
 });

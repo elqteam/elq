@@ -1575,12 +1575,13 @@ module.exports = {
         return "elq-mirror";
     },
     getVersion: function() {
-        return "0.0.0";
+        return "0.1.0";
     },
-    isCompatible: function(elq) {
+
+    isCompatible: function() {
         return true; //TODO: Check elq version.
     },
-    make: function(elq, options) {
+    make: function(elq) {
         function start(elements) {
             var elqBreakpoints = elq.getPlugin("elq-breakpoints");
 
@@ -1602,7 +1603,6 @@ module.exports = {
 
             function mirrorBreakpointClasses(destinationElement, sourceElement) {
                 var breakpointClasses = elqBreakpoints.getBreakpointClasses(sourceElement);
-                breakpointClasses = breakpointClasses.join(" ");
                 breakpointClasses = breakpointClasses.replace(/\s+/g, " ").trim();
                 elqBreakpoints.updateBreakpointClasses(destinationElement, breakpointClasses);
             }

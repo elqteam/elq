@@ -9,7 +9,7 @@ module.exports = {
         return "elq-breakpoints";
     },
     getVersion: function() {
-        return "0.0.0";
+        return "0.1.0";
     },
     isCompatible: function() {
         return true; //TODO: Check elq version.
