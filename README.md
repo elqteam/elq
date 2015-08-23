@@ -3,6 +3,12 @@ Element queries framework. Solution to modular responsive components.
 
 ## Why Element Queries?
 
+Element queries are not for the faint hearted (read: not suitable for all projects).
+If your web app consists of modules that are (or should be) responsive --- then this is most probably something for you!
+Otherwise, move on and come back another time :)
+
+
+
 ## Why ELQ?
 
 Since element queries have not been standardized (and also not implemented in browsers), developers need to resort to JavaScript libraries to provide element queries.
