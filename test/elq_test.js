@@ -94,7 +94,7 @@ describe("elq", function() {
                 myPluginInstance = elq.use(myPlugin);
                 expect(myPlugin.getName).toHaveBeenCalled();
                 expect(myPlugin.isCompatible).toHaveBeenCalledWith(jasmine.any(Object));
-                expect(myPlugin.make).toHaveBeenCalledWith(jasmine.any(Object), undefined);
+                expect(myPlugin.make).toHaveBeenCalledWith(jasmine.any(Object), jasmine.any(Object));
                 expect(myPluginInstance).toEqual(jasmine.any(Object));
                 expect(myPluginInstance.foo()).toEqual(elq.getName() + undefined);
 

@@ -34,6 +34,8 @@ module.exports = function ExtensionHandler(reporter) {
      * @throws On invalid extension input (bad extension format or not unique name).
      */
     function register(target, extension, options) {
+        options = options || {};
+
         function checkExtensionMethod(method) {
             if(!_.isFunction(extension[method])) {
                 reporter.error("Extension must provide the " + method + " method. Extension: ", extension);
