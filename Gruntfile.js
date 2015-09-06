@@ -79,6 +79,10 @@ module.exports = function(grunt) {
                         standalone: "elqMirror"
                     }
                 }
+            },
+            test: {
+                src: "test/**/*_test.js",
+                dest: "build/tests.js"
             }
         },
         karma: {
@@ -102,13 +106,14 @@ module.exports = function(grunt) {
     grunt.initConfig(config);
 
     grunt.registerTask("build:dev", ["browserify:dev"]);
+    grunt.registerTask("build:test", ["browserify:test"]);
     grunt.registerTask("build:dist", ["browserify:dist", "browserify:distBreakpoints", "browserify:distMirror"]);
 
     grunt.registerTask("build", ["build:dev", "browserify:breakpoints", "browserify:mirror"]);
     grunt.registerTask("dist", ["build:dist"]);
 
     grunt.registerTask("test:style", ["jshint", "jscs"]);
-    grunt.registerTask("test", ["test:style", "build:dev", "karma:local"]);
+    grunt.registerTask("test", ["test:style", "build:dev", "build:test", "karma:local"]);
 
     grunt.registerTask("default", ["test"]);
 };

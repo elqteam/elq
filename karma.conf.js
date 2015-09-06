@@ -20,8 +20,7 @@ module.exports = function(config) {
             "node_modules/jasmine-jquery/lib/jasmine-jquery.js",
             "node_modules/jasmine-expect/dist/jasmine-matchers.js",
             "build/elq.js",
-            "js/*_test.js",
-            "test/*_test.js"
+            "build/tests.js"
         ],
 
         // list of files to exclude

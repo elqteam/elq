@@ -7,7 +7,7 @@
     "curly": true,
     "forin": true,
     "immed": true,
-    "newcap": true,
+    "newcap": false,
     "noempty": true,
     "nonew": true,
     "undef": true,

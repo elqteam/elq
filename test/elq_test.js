@@ -1,6 +1,8 @@
-/* global describe:false, it:false, expect:false, Elq:false, jasmine: false, _:false */
+/* global describe:false, it:false, expect:false, Elq:false, jasmine: false, _:false, spyOn: false */
 
 "use strict";
+
+var packageJson = require("../package.json");
 
 function createDummyPlugin(name, make) {
     var makeFunction = make;
@@ -32,13 +34,13 @@ describe("elq", function() {
         it("getName should return the name of the isntance", function() {
             var elq = Elq();
             var name = elq.getName();
-            expect(name).toEqual("elq"); //TODO: This should be checked against the package.json file.
+            expect(name).toEqual(packageJson.name); //TODO: This should be checked against the package.json file.
         });
 
         it("getVersion should return the version of the instance", function() {
             var elq = Elq();
             var version = elq.getVersion();
-            expect(version).toEqual("0.1.1"); //TODO: This should be checked against the package.json file.
+            expect(version).toEqual(packageJson.version); //TODO: This should be checked against the package.json file.
         });
 
         describe("use", function() {
@@ -116,7 +118,7 @@ describe("elq", function() {
                 });
                 myPlugin.isCompatible = function() {
                     return false;
-                }
+                };
                 expect(function() {
                     myPluginInstance = elq.use(myPlugin);
                 }).toThrow();
@@ -125,10 +127,7 @@ describe("elq", function() {
 
         describe("using", function() {
             it("should tell if a plugin is being used or not, by string or plugin definition", function() {
-                var elq;
-
                 var myPlugin = createDummyPlugin("my-plugin", {});
-
                 var elq = Elq();
                 expect(elq.using(myPlugin)).toEqual(false);
                 expect(elq.using(myPlugin.getName())).toEqual(false);
@@ -143,11 +142,11 @@ describe("elq", function() {
             var elements;
 
             var myPlugin = createDummyPlugin("my-plugin", {
-                start: function(elements) {}
+                start: function() {}
             });
 
             var myOtherPlugin = createDummyPlugin("my-other-plugin", {
-                start: function(elements) {}
+                start: function() {}
             });
 
             var myOtherExtraPlugin = createDummyPlugin("my-other-extra-plugin", {});
@@ -156,7 +155,7 @@ describe("elq", function() {
 
             var myPluginInstance = elq.use(myPlugin);
             var myOtherPluginInstance = elq.use(myOtherPlugin);
-            var myOtherExtraPlugininstance = elq.use(myOtherExtraPlugin);
+            elq.use(myOtherExtraPlugin);
 
             spyOn(myPluginInstance, "start");
             spyOn(myOtherPluginInstance, "start");
@@ -206,6 +205,5 @@ describe("elq", function() {
     });
 
     describe("Plugin API", function() {
-
     });
 });
