@@ -15,7 +15,6 @@ module.exports = {
         return true; //TODO: Check elq version.
     },
     make: function(elq, globalOptions) {
-        globalOptions           = globalOptions || {};
         globalOptions.postfix   = globalOptions.postfix || "";
         var reporter            = elq.reporter;
         var idHandler           = elq.idHandler;
