@@ -91,11 +91,7 @@ module.exports = function ExtensionHandler(reporter) {
      * @returns The extension object with the given name. Returns null if it doesn't exist.
      */
     function get(extension) {
-        var name = extension;
-
-        if (_.isObject(name)) {
-            name = extension.getName();
-        }
+        var name = _.isObject(extension) ? extension.getName() : extension;
 
         return extensions[name] || null;
     }
