@@ -189,6 +189,27 @@ describe("elq", function() {
                 elq.start(elements);
                 expect(myPluginInstance.start).toHaveBeenCalledWith([11, 22, 33, 44]);
                 expect(myOtherPluginInstance.start).toHaveBeenCalledWith([11, 22, 33, 44]);
+                myPluginInstance.start.calls.reset();
+                myOtherPluginInstance.start.calls.reset();
+
+                // Called with falsy values should be okay.
+                elq.start(false);
+                expect(myPluginInstance.start).not.toHaveBeenCalled;
+                expect(myOtherPluginInstance.start).not.toHaveBeenCalled;
+                myPluginInstance.start.calls.reset();
+                myOtherPluginInstance.start.calls.reset();
+
+                elq.start([]);
+                expect(myPluginInstance.start).not.toHaveBeenCalled;
+                expect(myOtherPluginInstance.start).not.toHaveBeenCalled;
+                myPluginInstance.start.calls.reset();
+                myOtherPluginInstance.start.calls.reset();
+
+                elq.start({length: 0});
+                expect(myPluginInstance.start).not.toHaveBeenCalled;
+                expect(myOtherPluginInstance.start).not.toHaveBeenCalled;
+                myPluginInstance.start.calls.reset();
+                myOtherPluginInstance.start.calls.reset();
             });
         });
 

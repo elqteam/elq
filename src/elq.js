@@ -26,10 +26,6 @@ module.exports = function Elq(options) {
     function start(elements) {
         var elementsArray = elements;
 
-        if(!elements) {
-            throw new Error("Elements are required to start.");
-        }
-
         if(elements.length === undefined) {
             elementsArray = [elements];
         }
@@ -43,7 +39,9 @@ module.exports = function Elq(options) {
             });
         }
 
-        extensionHandler.callMethods("start", [elementsArray]);
+        if (elementsArray.length) {
+            extensionHandler.callMethods("start", [elementsArray]);
+        }
     }
 
     //Public
