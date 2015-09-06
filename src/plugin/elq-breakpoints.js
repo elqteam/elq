@@ -30,10 +30,10 @@ module.exports = {
                     return element.hasAttribute(attr) ? parseInt(element.getAttribute(attr)) : defaultValue;
                 }
 
-                //can either be in the attribute elq-breakpoints-width="300 500 ..." or in the elq-width-min, elq-width-max, elq-width-step or both.
+                //Read breakpoints by the format elq-breakpoints-widths="300 500 ...".
                 function getBreakpoints(element, dimension) {
                     function getFromMainAttr(element, dimension) {
-                        var breakpoints = element.getAttribute("elq-breakpoints-" + dimension);
+                        var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
 
                         if(!breakpoints) {
                             return [];
@@ -46,6 +46,7 @@ module.exports = {
                         });
                     }
 
+                    //Deprecated. To be removed.
                     function getFromMinMaxStep(element, dimension) {
                         var min = getAttributeOrDefault("elq-" + dimension + "-min", null);
                         var max = getAttributeOrDefault("elq-" + dimension + "-max", null);
@@ -74,7 +75,7 @@ module.exports = {
 
                     var breakpoints = [];
                     breakpoints = breakpoints.concat(getFromMainAttr(element, dimension));
-                    breakpoints = breakpoints.concat(getFromMinMaxStep(element, dimension));
+                    //breakpoints = breakpoints.concat(getFromMinMaxStep(element, dimension));
                     breakpoints = unique(breakpoints);
                     breakpoints = breakpoints.sort(function(a, b) {
                         return a - b;
