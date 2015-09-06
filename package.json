@@ -2,7 +2,7 @@
   "name": "elq",
   "description": "Element media queries framework. Solution to modular responsive components.",
   "homepage": "https://github.com/wnr/elq",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "license": "MIT",
   "devDependencies": {
