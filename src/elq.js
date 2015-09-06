@@ -3,6 +3,7 @@
 var elementResizeDetectorMaker  = require("element-resize-detector");
 var batchUpdaterMaker           = require("batch-updater");
 var partial                     = require("lodash.partial");
+var forEach                     = require("lodash.forEach");
 var extensionHandlerMaker       = require("./extension-handler");
 var reporterMaker               = require("./reporter");
 var idGeneratorMaker            = require("./id-generator");
@@ -23,15 +24,26 @@ module.exports = function Elq(options) {
     var createBatchUpdater      = createBatchUpdaterWithDefaultOptions({ reporter: reporter });
 
     function start(elements) {
+        var elementsArray = elements;
+
         if(!elements) {
             throw new Error("Elements are required to start.");
         }
 
         if(elements.length === undefined) {
-            elements = [elements];
+            elementsArray = [elements];
         }
 
-        extensionHandler.callMethods("start", [elements]);
+        // Convert collection to array for plugins.
+        if (!Array.isArray(elementsArray)) {
+            elementsArray = [];
+
+            forEach(elements, function (element) {
+                elementsArray.push(element);
+            });
+        }
+
+        extensionHandler.callMethods("start", [elementsArray]);
     }
 
     //Public

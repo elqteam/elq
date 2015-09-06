@@ -109,7 +109,7 @@ module.exports = function(grunt) {
     grunt.registerTask("build:test", ["browserify:test"]);
     grunt.registerTask("build:dist", ["browserify:dist", "browserify:distBreakpoints", "browserify:distMirror"]);
 
-    grunt.registerTask("build", ["build:dev", "browserify:breakpoints", "browserify:mirror"]);
+    grunt.registerTask("build", ["build:dev", "browserify:breakpoints", "browserify:mirror", "build:test"]);
     grunt.registerTask("dist", ["build:dist"]);
 
     grunt.registerTask("test:style", ["jshint", "jscs"]);

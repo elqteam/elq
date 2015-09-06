@@ -137,64 +137,59 @@ describe("elq", function() {
             });
         });
 
-        it("start should call all plugins that have a start method", function() {
-            var elq;
-            var elements;
+        describe("start", function() {
+            it("should call all plugins that have a start method", function() {
+                var elq;
+                var elements;
 
-            var myPlugin = createDummyPlugin("my-plugin", {
-                start: function() {}
+                var myPlugin = createDummyPlugin("my-plugin", {
+                    start: function(elements) {}
+                });
+
+                var myOtherPlugin = createDummyPlugin("my-other-plugin", {
+                    start: function() {}
+                });
+
+                var myOtherExtraPlugin = createDummyPlugin("my-other-extra-plugin", {});
+
+                elq = Elq();
+
+                var myPluginInstance = elq.use(myPlugin);
+                var myOtherPluginInstance = elq.use(myOtherPlugin);
+                elq.use(myOtherExtraPlugin);
+
+                spyOn(myPluginInstance, "start");
+                spyOn(myOtherPluginInstance, "start");
+
+                //Note that elements here can be anything. Not using strings because they are also enumerable, which makes the testing a bit hard.
+
+                //Called with array.
+                elements = [11, 22, 33, 44];
+                elq.start(elements);
+                expect(myPluginInstance.start).toHaveBeenCalledWith(elements);
+                expect(myOtherPluginInstance.start).toHaveBeenCalledWith(elements);
+                myPluginInstance.start.calls.reset();
+                myOtherPluginInstance.start.calls.reset();
+
+                //Called with single element.
+                elq.start(11);
+                expect(myPluginInstance.start).toHaveBeenCalledWith([11]);
+                expect(myOtherPluginInstance.start).toHaveBeenCalledWith([11]);
+                myPluginInstance.start.calls.reset();
+                myOtherPluginInstance.start.calls.reset();
+
+                //Called with an enumerable object which should be transformed to an array for plugins.
+                elements = {
+                    length: 4,
+                    0: 11,
+                    1: 22,
+                    2: 33,
+                    3: 44
+                };
+                elq.start(elements);
+                expect(myPluginInstance.start).toHaveBeenCalledWith([11, 22, 33, 44]);
+                expect(myOtherPluginInstance.start).toHaveBeenCalledWith([11, 22, 33, 44]);
             });
-
-            var myOtherPlugin = createDummyPlugin("my-other-plugin", {
-                start: function() {}
-            });
-
-            var myOtherExtraPlugin = createDummyPlugin("my-other-extra-plugin", {});
-
-            elq = Elq();
-
-            var myPluginInstance = elq.use(myPlugin);
-            var myOtherPluginInstance = elq.use(myOtherPlugin);
-            elq.use(myOtherExtraPlugin);
-
-            spyOn(myPluginInstance, "start");
-            spyOn(myOtherPluginInstance, "start");
-
-            //Note that elements here can be anything. Not using strings because they are also enumerable, which makes the testing a bit hard.
-
-            //Called with array.
-            elements = [11, 22, 33, 44];
-            elq.start(elements);
-            expect(myPluginInstance.start).toHaveBeenCalledWith(elements);
-            expect(myOtherPluginInstance.start).toHaveBeenCalledWith(elements);
-            myPluginInstance.start.calls.reset();
-            myOtherPluginInstance.start.calls.reset();
-
-            //Called with single element.
-            elq.start(11);
-            expect(myPluginInstance.start).toHaveBeenCalled();
-            expect(myOtherPluginInstance.start).toHaveBeenCalled();
-            expect(myPluginInstance.start.calls.argsFor(0)[0]).toEqual([11]);
-            expect(myOtherPluginInstance.start.calls.argsFor(0)[0]).toEqual([11]);
-            myPluginInstance.start.calls.reset();
-            myOtherPluginInstance.start.calls.reset();
-
-            //Called with an enumerable object.
-            elements = {
-                length: 4,
-                0: 11,
-                1: 22,
-                2: 33,
-                3: 44
-            };
-            elq.start(elements);
-            expect(myPluginInstance.start).toHaveBeenCalled();
-            expect(myOtherPluginInstance.start).toHaveBeenCalled();
-            expect(myPluginInstance.start.calls.argsFor(0)[0]).toEqual(elements);
-            expect(myOtherPluginInstance.start.calls.argsFor(0)[0]).toEqual(elements);
-            //TODO: Might be changed to this desired behavior:
-            //expect(myPluginInstance.start.calls.argsFor(0)).toEqual([11, 22, 33, 44]);
-            //expect(myOtherPluginInstance.start.calls.argsFor(0)).toEqual([11, 22, 33, 44]);
         });
 
         it("listenTo should be defined", function() {
