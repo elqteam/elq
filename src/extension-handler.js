@@ -90,7 +90,13 @@ module.exports = function ExtensionHandler(reporter) {
      * @param {string} name The name of the extension to get.
      * @returns The extension object with the given name. Returns null if it doesn't exist.
      */
-    function get(name) {
+    function get(extension) {
+        var name = extension;
+
+        if (_.isObject(name)) {
+            name = extension.getName();
+        }
+
         return extensions[name] || null;
     }
 
