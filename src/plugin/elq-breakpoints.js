@@ -26,10 +26,6 @@ module.exports = {
 
         function start(elements) {
             function onElementResize(batchUpdater, element) {
-                function getAttributeOrDefault(attr, defaultValue) {
-                    return element.hasAttribute(attr) ? parseInt(element.getAttribute(attr)) : defaultValue;
-                }
-
                 //Read breakpoints by the format elq-breakpoints-widths="300 500 ...".
                 function getBreakpoints(element, dimension) {
                     function getFromMainAttr(element, dimension) {
@@ -46,36 +42,8 @@ module.exports = {
                         });
                     }
 
-                    //Deprecated. To be removed.
-                    function getFromMinMaxStep(element, dimension) {
-                        var min = getAttributeOrDefault("elq-" + dimension + "-min", null);
-                        var max = getAttributeOrDefault("elq-" + dimension + "-max", null);
-                        var step = getAttributeOrDefault("elq-" + dimension + "-step", 50);
-
-                        var breakpoints = [];
-
-                        if(!min) {
-                            return breakpoints;
-                        }
-
-                        if(!max) {
-                            throw new Error("Max needs to be defined.");
-                        }
-
-                        if(!step) {
-                            throw new Error("Step needs to be defined.");
-                        }
-
-                        for(var i = min; i <= max; i += step) {
-                            breakpoints.push(i);
-                        }
-
-                        return breakpoints;
-                    }
-
                     var breakpoints = [];
                     breakpoints = breakpoints.concat(getFromMainAttr(element, dimension));
-                    //breakpoints = breakpoints.concat(getFromMinMaxStep(element, dimension));
                     breakpoints = unique(breakpoints);
                     breakpoints = breakpoints.sort(function(a, b) {
                         return a - b;
