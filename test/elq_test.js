@@ -143,7 +143,7 @@ describe("elq", function() {
                 var elements;
 
                 var myPlugin = createDummyPlugin("my-plugin", {
-                    start: function(elements) {}
+                    start: function() {}
                 });
 
                 var myOtherPlugin = createDummyPlugin("my-other-plugin", {
@@ -194,20 +194,20 @@ describe("elq", function() {
 
                 // Called with falsy values should be okay.
                 elq.start(false);
-                expect(myPluginInstance.start).not.toHaveBeenCalled;
-                expect(myOtherPluginInstance.start).not.toHaveBeenCalled;
+                expect(myPluginInstance.start).not.toHaveBeenCalled();
+                expect(myOtherPluginInstance.start).not.toHaveBeenCalled();
                 myPluginInstance.start.calls.reset();
                 myOtherPluginInstance.start.calls.reset();
 
                 elq.start([]);
-                expect(myPluginInstance.start).not.toHaveBeenCalled;
-                expect(myOtherPluginInstance.start).not.toHaveBeenCalled;
+                expect(myPluginInstance.start).not.toHaveBeenCalled();
+                expect(myOtherPluginInstance.start).not.toHaveBeenCalled();
                 myPluginInstance.start.calls.reset();
                 myOtherPluginInstance.start.calls.reset();
 
                 elq.start({length: 0});
-                expect(myPluginInstance.start).not.toHaveBeenCalled;
-                expect(myOtherPluginInstance.start).not.toHaveBeenCalled;
+                expect(myPluginInstance.start).not.toHaveBeenCalled();
+                expect(myOtherPluginInstance.start).not.toHaveBeenCalled();
                 myPluginInstance.start.calls.reset();
                 myOtherPluginInstance.start.calls.reset();
             });

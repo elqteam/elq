@@ -34,7 +34,7 @@ module.exports = function(grunt) {
                 }
             },
             breakpoints: {
-                src: "src/extensions/elq-breakpoints-index.js",
+                src: "src/plugin/elq-breakpoints-index.js",
                 dest: "build/elq-breakpoints.js",
                 options: {
                     browserifyOptions: {
@@ -44,7 +44,7 @@ module.exports = function(grunt) {
                 }
             },
             mirror: {
-                src: "src/extensions/elq-mirror-index.js",
+                src: "src/plugin/elq-mirror-index.js",
                 dest: "build/elq-mirror.js",
                 options: {
                     browserifyOptions: {
@@ -63,7 +63,7 @@ module.exports = function(grunt) {
                 }
             },
             distBreakpoints: {
-                src: "src/extensions/elq-breakpoints-index.js",
+                src: "src/plugin/elq-breakpoints-index.js",
                 dest: "dist/elq-breakpoints.js",
                 options: {
                     browserifyOptions: {
@@ -72,7 +72,7 @@ module.exports = function(grunt) {
                 }
             },
             distMirror: {
-                src: "src/extensions/elq-mirror-index.js",
+                src: "src/plugin/elq-mirror-index.js",
                 dest: "dist/elq-mirror.js",
                 options: {
                     browserifyOptions: {

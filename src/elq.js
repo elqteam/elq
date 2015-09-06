@@ -4,7 +4,7 @@ var elementResizeDetectorMaker  = require("element-resize-detector");
 var batchUpdaterMaker           = require("batch-updater");
 var partial                     = require("lodash.partial");
 var forEach                     = require("lodash.forEach");
-var extensionHandlerMaker       = require("./extension-handler");
+var PluginHandler               = require("./plugin-handler");
 var reporterMaker               = require("./reporter");
 var idGeneratorMaker            = require("./id-generator");
 var idHandlerMaker              = require("./id-handler");
@@ -19,12 +19,16 @@ module.exports = function Elq(options) {
     var idGenerator             = idGeneratorMaker();
     var idHandler               = idHandlerMaker(idGenerator);
     var cycleDetector           = cycleDetectorMaker(idHandler);
-    var extensionHandler        = extensionHandlerMaker(reporter);
+    var pluginHandler        = PluginHandler(reporter);
     var elementResizeDetector   = elementResizeDetectorMaker({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var createBatchUpdater      = createBatchUpdaterWithDefaultOptions({ reporter: reporter });
 
     function start(elements) {
         var elementsArray = elements;
+
+        if (!elementsArray) {
+            return;
+        }
 
         if(elements.length === undefined) {
             elementsArray = [elements];
@@ -40,15 +44,15 @@ module.exports = function Elq(options) {
         }
 
         if (elementsArray.length) {
-            extensionHandler.callMethods("start", [elementsArray]);
+            pluginHandler.callMethods("start", [elementsArray]);
         }
     }
 
     //Public
     elq.getVersion          = getVersion;
     elq.getName             = getName;
-    elq.use                 = partial(extensionHandler.register, elq);
-    elq.using               = extensionHandler.isRegistered;
+    elq.use                 = partial(pluginHandler.register, elq);
+    elq.using               = pluginHandler.isRegistered;
     elq.start               = start;
     elq.listenTo            = elementResizeDetector.listenTo;
 
@@ -60,7 +64,7 @@ module.exports = function Elq(options) {
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
     elq.createBatchUpdater  = createBatchUpdater; //TODO: Rename to batch processor.
-    elq.getPlugin           = extensionHandler.get;
+    elq.getPlugin           = pluginHandler.get;
 
     return publicElq;
 };
