@@ -59,13 +59,13 @@ module.exports = {
                     }
 
                     breakpoints.forEach(function(breakpoint) {
-                        var dir = "under";
+                        var dir = "max";
 
                         if(value >= breakpoint) {
-                            dir = "above";
+                            dir = "min";
                         }
 
-                        classes.push("elq-" + dimension + "-" + dir + "-" + breakpoint + globalOptions.postfix);
+                        classes.push("elq-" + dir + "-" + dimension + "-" + breakpoint + globalOptions.postfix);
                     });
 
                     return classes;
@@ -147,7 +147,7 @@ module.exports = {
             var classes = element.className;
 
             //Remove all old breakpoints.
-            var breakpointRegexp = new RegExp("elq-(width|height)-[a-z]+-[0-9]+" + globalOptions.postfix, "g");
+            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+" + globalOptions.postfix, "g");
             classes = classes.replace(breakpointRegexp, "");
 
             //Add new classes
