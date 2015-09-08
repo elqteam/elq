@@ -15,11 +15,11 @@ module.exports = {
         return true; //TODO: Check elq version.
     },
     make: function(elq, globalOptions) {
-        globalOptions.defaultUnit   = globalOptions.defaultUnit || "";
-        var reporter            = elq.reporter;
-        var idHandler           = elq.idHandler;
-        var cycleDetector       = elq.cycleDetector;
-        var batchUpdater        = elq.createBatchUpdater();
+        globalOptions.defaultUnit   = globalOptions.defaultUnit || "px";
+        var reporter                = elq.reporter;
+        var idHandler               = elq.idHandler;
+        var cycleDetector           = elq.cycleDetector;
+        var batchUpdater            = elq.createBatchUpdater();
 
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
