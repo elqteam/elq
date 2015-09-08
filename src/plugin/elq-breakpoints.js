@@ -15,7 +15,7 @@ module.exports = {
         return true; //TODO: Check elq version.
     },
     make: function(elq, globalOptions) {
-        globalOptions.postfix   = globalOptions.postfix || "";
+        globalOptions.defaultUnit   = globalOptions.defaultUnit || "";
         var reporter            = elq.reporter;
         var idHandler           = elq.idHandler;
         var cycleDetector       = elq.cycleDetector;
@@ -65,7 +65,7 @@ module.exports = {
                             dir = "min";
                         }
 
-                        classes.push("elq-" + dir + "-" + dimension + "-" + breakpoint + globalOptions.postfix);
+                        classes.push("elq-" + dir + "-" + dimension + "-" + breakpoint + globalOptions.defaultUnit);
                     });
 
                     return classes;
@@ -147,7 +147,7 @@ module.exports = {
             var classes = element.className;
 
             //Remove all old breakpoints.
-            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+" + globalOptions.postfix, "g");
+            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+" + globalOptions.defaultUnit, "g");
             classes = classes.replace(breakpointRegexp, "");
 
             //Add new classes
