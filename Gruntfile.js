@@ -34,7 +34,7 @@ module.exports = function(grunt) {
                 }
             },
             breakpoints: {
-                src: "src/extensions/elq-breakpoints-index.js",
+                src: "src/plugin/elq-breakpoints-index.js",
                 dest: "build/elq-breakpoints.js",
                 options: {
                     browserifyOptions: {
@@ -44,7 +44,7 @@ module.exports = function(grunt) {
                 }
             },
             mirror: {
-                src: "src/extensions/elq-mirror-index.js",
+                src: "src/plugin/elq-mirror-index.js",
                 dest: "build/elq-mirror.js",
                 options: {
                     browserifyOptions: {
@@ -63,7 +63,7 @@ module.exports = function(grunt) {
                 }
             },
             distBreakpoints: {
-                src: "src/extensions/elq-breakpoints-index.js",
+                src: "src/plugin/elq-breakpoints-index.js",
                 dest: "dist/elq-breakpoints.js",
                 options: {
                     browserifyOptions: {
@@ -72,13 +72,17 @@ module.exports = function(grunt) {
                 }
             },
             distMirror: {
-                src: "src/extensions/elq-mirror-index.js",
+                src: "src/plugin/elq-mirror-index.js",
                 dest: "dist/elq-mirror.js",
                 options: {
                     browserifyOptions: {
                         standalone: "elqMirror"
                     }
                 }
+            },
+            test: {
+                src: ["test/**/*_test.js", "src/**/*_test.js"],
+                dest: "build/tests.js"
             }
         },
         karma: {
@@ -102,13 +106,14 @@ module.exports = function(grunt) {
     grunt.initConfig(config);
 
     grunt.registerTask("build:dev", ["browserify:dev"]);
+    grunt.registerTask("build:test", ["browserify:test"]);
     grunt.registerTask("build:dist", ["browserify:dist", "browserify:distBreakpoints", "browserify:distMirror"]);
 
-    grunt.registerTask("build", ["build:dev", "browserify:breakpoints", "browserify:mirror"]);
+    grunt.registerTask("build", ["build:dev", "browserify:breakpoints", "browserify:mirror", "build:test"]);
     grunt.registerTask("dist", ["build:dist"]);
 
     grunt.registerTask("test:style", ["jshint", "jscs"]);
-    grunt.registerTask("test", ["test:style", "build:dev", "karma:local"]);
+    grunt.registerTask("test", ["test:style", "build:dev", "build:test", "karma:local"]);
 
     grunt.registerTask("default", ["test"]);
 };

@@ -43,18 +43,23 @@
             font-family: monospace;
         }
 
-        #mirror.elq-width-under-500px {
-            color: blue;
+        #mirror.elq-min-width-19rem { /* 19rem = 300px */
+            color:blue;
         }
 
-        #mirror.elq-width-above-500px {
-            color: red;
+        #mirror.elq-min-width-25em { /* 25em = 400px */
+            color:green;
         }
+
+        #mirror.elq-min-width-500px {
+            color:yellow;
+        }
+
     </style>
 </head>
 <body>
     <div id="aligner">
-        <div id="container" elq elq-breakpoints elq-width-min="100" elq-width-max="1000" elq-width-step="50">
+        <div id="container" elq elq-breakpoints elq-breakpoints-widths="500px  19rem   25">
             <div id="test">
                 <div id="dimensions">
                     <span id="dim-x"></span>x<span id="dim-y"></span>
@@ -74,7 +79,6 @@
         $(function() {
             function updateElement(element) {
                 updateDimensions(element);
-                //updateClasses(element);
             }
 
             function updateDimensions(element) {
@@ -84,32 +88,12 @@
                 $("#dim-y").html(height);
             }
 
-            function updateClasses(element) {
-                var classes = element.className;
-
-                var matches = classes.match(/elq-(width|height)-[a-z]+-[0-9]+/g);
-
-                $("#classes span").html("");
-
-                matches.forEach(function(match) {
-                    //TODO
-                    /*if(/^elq-width-above/.test(match)) {
-                        $("#width-above").html(match);
-                    } else if(/^elq-width-under/.test(match)) {
-                        $("#width-under").html(match);
-                    } else if(/^elq-height-above/.test(match)) {
-                        $("#height-above").html(match);
-                    } else if(/^elq-height-under/.test(match)) {
-                        $("#height-under").html(match);
-                    }*/
-                });
-            }
-
             var container = $("#container");
 
             var elq = new Elq();
+
             elq.use(elqBreakpoints, {
-                postfix: "px"
+                defaultUnit: "em"
             });
             elq.use(elqMirror);
             elq.start($("[elq]"));

@@ -1,44 +1,58 @@
 "use strict";
 
-var elementResizeDetectorMaker  = require("element-resize-detector");
-var batchUpdaterMaker           = require("batch-updater");
-var partial                     = require("lodash.partial");
-var extensionHandlerMaker       = require("./extension-handler");
-var reporterMaker               = require("./reporter");
-var idGeneratorMaker            = require("./id-generator");
-var idHandlerMaker              = require("./id-handler");
-var cycleDetectorMaker          = require("./cycle-detector");
 var packageJson                 = require("../package.json");
+var BatchUpdater                = require("batch-updater");
+var partial                     = require("lodash.partial");
+var forEach                     = require("lodash.forEach");
+var ElementResizeDetector       = require("element-resize-detector");
+var PluginHandler               = require("./plugin-handler");
+var Reporter                    = require("./reporter");
+var IdGenerator                 = require("./id-generator");
+var IdHandler                   = require("./id-handler");
+var CycleDetector               = require("./cycle-detector");
 
 module.exports = function Elq(options) {
     options = options || {};
 
     var elq                     = {};
-    var reporter                = options.reporter || reporterMaker();
-    var idGenerator             = idGeneratorMaker();
-    var idHandler               = idHandlerMaker(idGenerator);
-    var cycleDetector           = cycleDetectorMaker(idHandler);
-    var extensionHandler        = extensionHandlerMaker(reporter);
-    var elementResizeDetector   = elementResizeDetectorMaker({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
+    var reporter                = options.reporter || Reporter();
+    var idGenerator             = IdGenerator();
+    var idHandler               = IdHandler(idGenerator);
+    var cycleDetector           = CycleDetector(idHandler);
+    var pluginHandler           = PluginHandler(reporter);
+    var elementResizeDetector   = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var createBatchUpdater      = createBatchUpdaterWithDefaultOptions({ reporter: reporter });
 
     function start(elements) {
-        if(!elements) {
-            throw new Error("Elements are required to start.");
+        var elementsArray = elements;
+
+        if (!elementsArray) {
+            return;
         }
 
         if(elements.length === undefined) {
-            elements = [elements];
+            elementsArray = [elements];
         }
 
-        extensionHandler.callMethods("start", [elements]);
+        // Convert collection to array for plugins.
+        if (!Array.isArray(elementsArray)) {
+            elementsArray = [];
+
+            forEach(elements, function (element) {
+                elementsArray.push(element);
+            });
+        }
+
+        if (elementsArray.length) {
+            pluginHandler.callMethods("start", [elementsArray]);
+        }
     }
 
     //Public
     elq.getVersion          = getVersion;
     elq.getName             = getName;
-    elq.use                 = partial(extensionHandler.register, elq);
-    elq.using               = extensionHandler.isRegistered;
+    elq.use                 = partial(pluginHandler.register, elq);
+    elq.using               = pluginHandler.isRegistered;
     elq.start               = start;
     elq.listenTo            = elementResizeDetector.listenTo;
 
@@ -50,7 +64,7 @@ module.exports = function Elq(options) {
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
     elq.createBatchUpdater  = createBatchUpdater; //TODO: Rename to batch processor.
-    elq.getPlugin           = extensionHandler.get;
+    elq.getPlugin           = pluginHandler.get;
 
     return publicElq;
 };
@@ -78,7 +92,7 @@ function copy(o) {
 function createBatchUpdaterWithDefaultOptions(globalOptions) {
     globalOptions = globalOptions || {};
 
-    function batchMakerOptionsProxy(options) {
+    function createBatchUpdaterOptionsProxy(options) {
         options = options || globalOptions;
 
         for(var prop in globalOptions) {
@@ -87,8 +101,8 @@ function createBatchUpdaterWithDefaultOptions(globalOptions) {
             }
         }
 
-        return batchUpdaterMaker(options);
+        return BatchUpdater(options);
     }
 
-    return batchMakerOptionsProxy;
+    return createBatchUpdaterOptionsProxy;
 }

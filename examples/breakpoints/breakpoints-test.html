@@ -18,37 +18,37 @@
                 height: 100px;
             }
 
-            .test.elq-width-under-50 {
+            .test.elq-max-width-50 {
                 background: #F2522E;
                 opacity: 0.4;
             }
 
-            .test.elq-width-above-50 {
+            .test.elq-min-width-50 {
                 background: #F2522E;
                 opacity: 0.5;
             }
 
-            .test.elq-width-above-100 {
+            .test.elq-min-width-100 {
                 background: #F2522E;
                 opacity: 0.6;
             }
 
-            .test.elq-width-above-150 {
+            .test.elq-min-width-150 {
                 background: #F2522E;
                 opacity: 0.7;
             }
 
-            .test.elq-width-above-200 {
+            .test.elq-min-width-200 {
                 background: #F2522E;
                 opacity: 0.8;
             }
 
-            .test.elq-width-above-250 {
+            .test.elq-min-width-250 {
                 background: #F2522E;
                 opacity: 0.9;
             }
 
-            .test.elq-width-above-300 {
+            .test.elq-min-width-300 {
                 background: #F2522E;
                 opacity: 1;
             }
@@ -100,7 +100,7 @@
                 var d = document.createElement("div");
                 d.setAttribute("elq", "");
                 d.setAttribute("elq-breakpoints", "");
-                d.setAttribute("elq-breakpoints-width", "50 100 150 200 250 300");
+                d.setAttribute("elq-breakpoints-widths", "50 100 150 200 250 300");
                 d.className = "test";
                 d.style.width = width;
                 return d;
@@ -130,7 +130,7 @@
             $(function onDomReady() {
                 var elq = Elq();
                 elq.use(elqBreakpoints, {
-                    postfix: ""
+                    defaultUnit: "px"
                 });
                 elq.use(elqMirror);
                 elq.start($("[elq]"));

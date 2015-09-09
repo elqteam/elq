@@ -1,6 +1,6 @@
 "use strict";
 
-module.exports = function cycleDetectorMaker(idHandler, options) {
+module.exports = function CycleDetector(idHandler, options) {
     if(!idHandler) {
         throw new Error("IdHandler dependency required.");
     }

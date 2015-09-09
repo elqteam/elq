@@ -3,6 +3,8 @@
 var forEach = require("lodash.forEach");
 var partial = require("lodash.partial");
 
+var elqBreakpointsPlugin = require("./elq-breakpoints.js");
+
 module.exports = {
     getName: function() {
         return "elq-mirror";
@@ -16,7 +18,7 @@ module.exports = {
     },
     make: function(elq) {
         function start(elements) {
-            var elqBreakpoints = elq.getPlugin("elq-breakpoints");
+            var elqBreakpoints = elq.getPlugin(elqBreakpointsPlugin);
 
             function getElqParentElement(mirrorElement) {
                 var currentElement = mirrorElement.parentNode;
@@ -41,7 +43,7 @@ module.exports = {
             }
 
             if(!elqBreakpoints) {
-                throw new Error("The elq-mirror extension requires the elq-breakpoints extension.");
+                throw new Error("The elq-mirror plugin requires the elq-breakpoints plugin.");
             }
 
             forEach(elements, function(mirrorElement) {

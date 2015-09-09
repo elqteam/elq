@@ -4,6 +4,20 @@ var forEach = require("lodash.foreach");
 var unique = require("lodash.uniq");
 var filter = require("lodash.filter");
 
+var BP_UNITS = {};
+BP_UNITS.PX = "px";
+BP_UNITS.EM = "em";
+BP_UNITS.REM = "rem";
+
+function isUnitTypeValid(val) {
+    for(var prop in BP_UNITS) {
+        if(BP_UNITS.hasOwnProperty(prop) && BP_UNITS[prop] === val) {
+            return true;   
+        }
+    }
+    return false;
+}
+
 module.exports = {
     getName: function() {
         return "elq-breakpoints";
@@ -15,26 +29,71 @@ module.exports = {
         return true; //TODO: Check elq version.
     },
     make: function(elq, globalOptions) {
-        globalOptions           = globalOptions || {};
-        globalOptions.postfix   = globalOptions.postfix || "";
-        var reporter            = elq.reporter;
-        var idHandler           = elq.idHandler;
-        var cycleDetector       = elq.cycleDetector;
-        var batchUpdater        = elq.createBatchUpdater();
+        globalOptions.defaultUnit   = globalOptions.defaultUnit || "px";
+        var reporter                = elq.reporter;
+        var idHandler               = elq.idHandler;
+        var cycleDetector           = elq.cycleDetector;
+        var batchUpdater            = elq.createBatchUpdater();
 
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
 
+        if(!isUnitTypeValid(globalOptions.defaultUnit)) {
+            reporter.error("The given default unit is not recognized: ", globalOptions.defaultUnit); 
+        }
+
         function start(elements) {
             function onElementResize(batchUpdater, element) {
-                function getAttributeOrDefault(attr, defaultValue) {
-                    return element.hasAttribute(attr) ? parseInt(element.getAttribute(attr)) : defaultValue;
-                }
-
-                //can either be in the attribute elq-breakpoints-width="300 500 ..." or in the elq-width-min, elq-width-max, elq-width-step or both.
+                //Read breakpoints by the format elq-breakpoints-widths="px300 500em 200 ...".
                 function getBreakpoints(element, dimension) {
+
+                    function Breakpoint(string, value, valuePx, unit, element) {
+                        var bp = {};
+                        bp.string = string; // Can be either just value as a string or value + unit
+                        bp.value = value;
+                        bp.valuePx = valuePx;
+                        bp.unit = unit;
+                        bp.element = element;
+                        return bp;
+                    }
+
+                    function getElementFontSize(element) {
+                        return parseFloat(getComputedStyle(element).fontSize);
+                    }
+
+                    var breakpointPixelValueConverters = [];
+
+                    breakpointPixelValueConverters[BP_UNITS.PX] = function(value) {
+                        return value;
+                    }
+
+                    var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times
+                    breakpointPixelValueConverters[BP_UNITS.REM] = function(value) {
+                        function getRootElementFontSize() {
+                            if(!cachedRootFontSize) {
+                                cachedRootFontSize = getElementFontSize(document.documentElement);
+                            }
+                            return cachedRootFontSize;
+                        }
+                        function remValToPxVal() {
+                            return value * getRootElementFontSize();
+                        }
+                        return remValToPxVal();
+                    }
+
+                    var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times
+                    breakpointPixelValueConverters[BP_UNITS.EM] = function(value) {
+                        function emValToPxVal() {
+                            if(!cachedElementFontSize) {
+                                cachedElementFontSize = getElementFontSize(element);
+                            }
+                            return value * cachedElementFontSize;
+                        }
+                        return emValToPxVal();
+                    }
+
                     function getFromMainAttr(element, dimension) {
-                        var breakpoints = element.getAttribute("elq-breakpoints-" + dimension);
+                        var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
 
                         if(!breakpoints) {
                             return [];
@@ -42,44 +101,46 @@ module.exports = {
 
                         breakpoints = breakpoints.replace(/\s+/g, " ").trim();
                         breakpoints = breakpoints.split(" ");
-                        return breakpoints.map(function(value) {
-                            return parseInt(value, 10);
+
+                        breakpoints = breakpoints.map( function(breakpointString) {
+                            var valueMatch = breakpointString.match(/^([0-9]+)/g); 
+                            // a breakpoint value must exist
+                            if(!valueMatch) {
+                                reporter.error("Elq breakpoint found with invalid input value: ", breakpointString);
+                            }
+
+                            var unitMatch = breakpointString.match(/([a-zA-Z]+)$/g); // the unit is allowed to be omitted
+                            var unit =  (unitMatch) ? unitMatch[0] : globalOptions.defaultUnit;
+
+                            if(!isUnitTypeValid(unit)) {
+                                reporter.error("Elq breakpoint found with invalid unit: ", unit); 
+                            }
+
+                            var value = parseFloat(valueMatch[0]);
+                            var valuePx = breakpointPixelValueConverters[unit](value);
+
+                            return Breakpoint(breakpointString, value, valuePx, unit, element);
                         });
-                    }
-
-                    function getFromMinMaxStep(element, dimension) {
-                        var min = getAttributeOrDefault("elq-" + dimension + "-min", null);
-                        var max = getAttributeOrDefault("elq-" + dimension + "-max", null);
-                        var step = getAttributeOrDefault("elq-" + dimension + "-step", 50);
-
-                        var breakpoints = [];
-
-                        if(!min) {
-                            return breakpoints;
-                        }
-
-                        if(!max) {
-                            throw new Error("Max needs to be defined.");
-                        }
-
-                        if(!step) {
-                            throw new Error("Step needs to be defined.");
-                        }
-
-                        for(var i = min; i <= max; i += step) {
-                            breakpoints.push(i);
-                        }
-
                         return breakpoints;
                     }
 
-                    var breakpoints = [];
-                    breakpoints = breakpoints.concat(getFromMainAttr(element, dimension));
-                    breakpoints = breakpoints.concat(getFromMinMaxStep(element, dimension));
-                    breakpoints = unique(breakpoints);
-                    breakpoints = breakpoints.sort(function(a, b) {
-                        return a - b;
-                    });
+                    function uniqueBreakpoints(breakpoints) {
+                        return unique(breakpoints, function uniqueFunction(bp) {
+                            // Can not simply take breakpoint.string since unit is allowed to be omitted
+                            return bp.value + bp.unit; 
+                        });
+                    }
+
+                    function sortBreakpoints(breakpoints) {
+                        return breakpoints.sort(function(bp1, bp2) {
+                            return bp1.valuePx - bp2.valuePx;
+                        });
+                    }
+
+                    var breakpoints = getFromMainAttr(element, dimension);
+                    breakpoints = uniqueBreakpoints(breakpoints);
+                    // Sort for the visual aspect of having the classes in order in the html
+                    breakpoints = sortBreakpoints(breakpoints);
                     return breakpoints;
                 }
 
@@ -91,13 +152,13 @@ module.exports = {
                     }
 
                     breakpoints.forEach(function(breakpoint) {
-                        var dir = "under";
+                        var dir = "max";
 
-                        if(value >= breakpoint) {
-                            dir = "above";
+                        if(value >= breakpoint.valuePx) {
+                            dir = "min";
                         }
 
-                        classes.push("elq-" + dimension + "-" + dir + "-" + breakpoint + globalOptions.postfix);
+                        classes.push("elq-" + dir + "-" + dimension + "-" + breakpoint.value + breakpoint.unit);
                     });
 
                     return classes;
@@ -179,7 +240,7 @@ module.exports = {
             var classes = element.className;
 
             //Remove all old breakpoints.
-            var breakpointRegexp = new RegExp("elq-(width|height)-[a-z]+-[0-9]+" + globalOptions.postfix, "g");
+            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+[a-zA-Z]+" , "g");
             classes = classes.replace(breakpointRegexp, "");
 
             //Add new classes
