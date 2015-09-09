@@ -9,44 +9,45 @@ BP_UNITS.PX = "px";
 BP_UNITS.EM = "em";
 BP_UNITS.REM = "rem";
 
-function Breakpoint(string, value, unit, element) {
+function Breakpoint(string, value, valuePx, unit, element) {
     var bp = {};
     bp.string = string;
     bp.value = value;
+    bp.valuePx = valuePx;
     bp.unit = unit;
     bp.element = element;
     return bp;
 }
 
 function uniqueBreakpoint(bp) {
-    return bp.string;
+    return bp.value + bp.unit; // Can not simply take breakpoint.string since unit is allowed to be omitted
 }
 
 function getElementFontSize(element) {
     return parseFloat(getComputedStyle(element).fontSize);
 }
 
-var breakpointValueCalculators = [];
+var breakpointPixelValueConverters = [];
 
-breakpointValueCalculators[BP_UNITS.PX] = function(bp) {
-    return bp.value;
+breakpointPixelValueConverters[BP_UNITS.PX] = function(value) {
+    return value;
 }
 
-breakpointValueCalculators[BP_UNITS.REM] = function(bp) {
+breakpointPixelValueConverters[BP_UNITS.REM] = function(value) {
     function getRootElementFontSize() {
         return getElementFontSize(document.documentElement);
     }
-    function remValToPxVal(value) {
-        return bp.value * getRootElementFontSize();
+    function remValToPxVal() {
+        return value * getRootElementFontSize();
     }
-    return remValToPxVal(bp.value);
+    return remValToPxVal();
 }
 
-breakpointValueCalculators[BP_UNITS.EM] = function(bp) {
-    function emValToPxVal(value) {
-        return bp.value * getElementFontSize(bp.element);
+breakpointPixelValueConverters[BP_UNITS.EM] = function(value, element) {
+    function emValToPxVal() {
+        return value * getElementFontSize(element);
     }
-    return emValToPxVal(bp.value);
+    return emValToPxVal();
 }
 
 module.exports = {
@@ -86,11 +87,13 @@ module.exports = {
 
                         // var res = str.match(/^[0-9]*/g);
                         breakpoints = breakpoints.map( function(breakpointString) {
-                            var value = breakpointString.match(/[0-9]+/g)[0]; // a breakpoint value must exist
+                            var stringValue = breakpointString.match(/[0-9]+/g)[0]; // a breakpoint value must exist
+                            var value = parseFloat(stringValue);
                             var unitMatch = breakpointString.match(/[a-zA-Z]+/g); // the unit is allowed to be omitted
                             var unit =  (unitMatch) ? unitMatch[0] : globalOptions.defaultUnit;
+                            var valuePx = breakpointPixelValueConverters[unit](value, element);
 
-                            return Breakpoint(breakpointString, value, unit, element);
+                            return Breakpoint(breakpointString, value, valuePx, unit, element);
                         });
                         return breakpoints;
                     }
@@ -118,11 +121,11 @@ module.exports = {
                     breakpoints.forEach(function(breakpoint) {
                         var dir = "max";
 
-                        if(value >= breakpoint) {
+                        if(value >= breakpoint.valuePx) {
                             dir = "min";
                         }
 
-                        classes.push("elq-" + dir + "-" + dimension + "-" + breakpoint + globalOptions.defaultUnit);
+                        classes.push("elq-" + dir + "-" + dimension + "-" + breakpoint.value + breakpoint.unit);
                     });
 
                     return classes;
@@ -204,7 +207,7 @@ module.exports = {
             var classes = element.className;
 
             //Remove all old breakpoints.
-            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+" + globalOptions.defaultUnit, "g");
+            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+[a-zA-Z]+" , "g");
             classes = classes.replace(breakpointRegexp, "");
 
             //Add new classes
