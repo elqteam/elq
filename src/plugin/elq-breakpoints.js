@@ -97,7 +97,6 @@ module.exports = {
         function start(elements) {
             function onElementResize(batchUpdater, element) {
                 //Read breakpoints by the format elq-breakpoints-widths="px300 500em 200 ...".
-                //The returned breakpoint objects have a value (ex. '300') and a unit (ex. 'px')
                 function getBreakpoints(element, dimension) {
                     function getFromMainAttr(element, dimension) {
                         var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
@@ -109,7 +108,6 @@ module.exports = {
                         breakpoints = breakpoints.replace(/\s+/g, " ").trim();
                         breakpoints = breakpoints.split(" ");
 
-                        // var res = str.match(/^[0-9]*/g);
                         breakpoints = breakpoints.map( function(breakpointString) {
                             var valueMatch = breakpointString.match(/^([0-9]+)/g); 
                             // a breakpoint value must exist
@@ -161,7 +159,7 @@ module.exports = {
                     return classes;
                 }
 
-                var widthBreakpoints = getBreakpoints(element, "width"); // Should return em, rem, or px in order.
+                var widthBreakpoints = getBreakpoints(element, "width");
                 var heightBreakpoints = getBreakpoints(element, "height");
 
                 var width = element.offsetWidth;
