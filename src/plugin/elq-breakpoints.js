@@ -18,58 +18,6 @@ function isUnitTypeValid(val) {
     return false;
 }
 
-
-function Breakpoint(string, value, valuePx, unit, element) {
-    var bp = {};
-    bp.string = string; // Can be either just value as a string or value + unit
-    bp.value = value;
-    bp.valuePx = valuePx;
-    bp.unit = unit;
-    bp.element = element;
-    return bp;
-}
-
-function getElementFontSize(element) {
-    return parseFloat(getComputedStyle(element).fontSize);
-}
-
-var breakpointPixelValueConverters = [];
-
-breakpointPixelValueConverters[BP_UNITS.PX] = function(value) {
-    return value;
-}
-
-breakpointPixelValueConverters[BP_UNITS.REM] = function(value) {
-    function getRootElementFontSize() {
-        return getElementFontSize(document.documentElement);
-    }
-    function remValToPxVal() {
-        return value * getRootElementFontSize();
-    }
-    return remValToPxVal();
-}
-
-breakpointPixelValueConverters[BP_UNITS.EM] = function(value, element) {
-    function emValToPxVal() {
-        return value * getElementFontSize(element);
-    }
-    return emValToPxVal();
-}
-
-function uniqueBreakpoints(breakpoints) {
-    return unique(breakpoints, function uniqueFunction(bp) {
-        // Can not simply take breakpoint.string since unit is allowed to be omitted
-        return bp.value + bp.unit; 
-    });
-}
-
-function sortBreakpoints(breakpoints) {
-    return breakpoints.sort(function(bp1, bp2) {
-        return bp1.valuePx - bp2.valuePx;
-    });
-}
-
-
 module.exports = {
     getName: function() {
         return "elq-breakpoints";
@@ -98,6 +46,52 @@ module.exports = {
             function onElementResize(batchUpdater, element) {
                 //Read breakpoints by the format elq-breakpoints-widths="px300 500em 200 ...".
                 function getBreakpoints(element, dimension) {
+
+                    function Breakpoint(string, value, valuePx, unit, element) {
+                        var bp = {};
+                        bp.string = string; // Can be either just value as a string or value + unit
+                        bp.value = value;
+                        bp.valuePx = valuePx;
+                        bp.unit = unit;
+                        bp.element = element;
+                        return bp;
+                    }
+
+                    function getElementFontSize(element) {
+                        return parseFloat(getComputedStyle(element).fontSize);
+                    }
+
+                    var breakpointPixelValueConverters = [];
+
+                    breakpointPixelValueConverters[BP_UNITS.PX] = function(value) {
+                        return value;
+                    }
+
+                    var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times
+                    breakpointPixelValueConverters[BP_UNITS.REM] = function(value) {
+                        function getRootElementFontSize() {
+                            if(!cachedRootFontSize) {
+                                cachedRootFontSize = getElementFontSize(document.documentElement);
+                            }
+                            return cachedRootFontSize;
+                        }
+                        function remValToPxVal() {
+                            return value * getRootElementFontSize();
+                        }
+                        return remValToPxVal();
+                    }
+
+                    var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times
+                    breakpointPixelValueConverters[BP_UNITS.EM] = function(value) {
+                        function emValToPxVal() {
+                            if(!cachedElementFontSize) {
+                                cachedElementFontSize = getElementFontSize(element);
+                            }
+                            return value * cachedElementFontSize;
+                        }
+                        return emValToPxVal();
+                    }
+
                     function getFromMainAttr(element, dimension) {
                         var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
 
@@ -123,14 +117,25 @@ module.exports = {
                             }
 
                             var value = parseFloat(valueMatch[0]);
-                            var valuePx = breakpointPixelValueConverters[unit](value, element);
+                            var valuePx = breakpointPixelValueConverters[unit](value);
 
                             return Breakpoint(breakpointString, value, valuePx, unit, element);
                         });
                         return breakpoints;
                     }
 
-                    
+                    function uniqueBreakpoints(breakpoints) {
+                        return unique(breakpoints, function uniqueFunction(bp) {
+                            // Can not simply take breakpoint.string since unit is allowed to be omitted
+                            return bp.value + bp.unit; 
+                        });
+                    }
+
+                    function sortBreakpoints(breakpoints) {
+                        return breakpoints.sort(function(bp1, bp2) {
+                            return bp1.valuePx - bp2.valuePx;
+                        });
+                    }
 
                     var breakpoints = getFromMainAttr(element, dimension);
                     breakpoints = uniqueBreakpoints(breakpoints);
