@@ -11,16 +11,12 @@ BP_UNITS.REM = "rem";
 
 function Breakpoint(string, value, valuePx, unit, element) {
     var bp = {};
-    bp.string = string;
+    bp.string = string; // Can be either just value as a string or value + unit
     bp.value = value;
     bp.valuePx = valuePx;
     bp.unit = unit;
     bp.element = element;
     return bp;
-}
-
-function uniqueBreakpoint(bp) {
-    return bp.value + bp.unit; // Can not simply take breakpoint.string since unit is allowed to be omitted
 }
 
 function getElementFontSize(element) {
@@ -48,6 +44,19 @@ breakpointPixelValueConverters[BP_UNITS.EM] = function(value, element) {
         return value * getElementFontSize(element);
     }
     return emValToPxVal();
+}
+
+function uniqueBreakpoints(breakpoints) {
+    return unique(breakpoints, function uniqueFunction(bp) {
+        // Can not simply take breakpoint.string since unit is allowed to be omitted
+        return bp.value + bp.unit; 
+    });
+}
+
+function sortBreakpoints(breakpoints) {
+    return breakpoints.sort(function(bp1, bp2) {
+        return bp1.valuePx - bp2.valuePx;
+    });
 }
 
 module.exports = {
@@ -98,16 +107,12 @@ module.exports = {
                         return breakpoints;
                     }
 
-                    // Sort for the visual aspect of having the classes in order in the htm
-                    function sortBreakpoints(breakpoints) {
-                        return breakpoints.sort(function(a, b) {
-                            return a - b;
-                        });
-                    }
+                    
 
                     var breakpoints = getFromMainAttr(element, dimension);
-                    breakpoints = unique(breakpoints, uniqueBreakpoint);
-                    // breakpoints = sortBreakpoints(breakpoints);
+                    breakpoints = uniqueBreakpoints(breakpoints);
+                    // Sort for the visual aspect of having the classes in order in the html
+                    breakpoints = sortBreakpoints(breakpoints);
                     return breakpoints;
                 }
 
