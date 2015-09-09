@@ -55,11 +55,11 @@
             color:blue;
         }*/
 
-        #mirror.elq-min-width-19rem {
+        #mirror.elq-min-width-19rem { /* 19rem = 300px */
             color:blue;
         }
 
-        #mirror.elq-min-width-25em {
+        #mirror.elq-min-width-25em { /* 25em = 400px */
             color:green;
         }
 
@@ -75,7 +75,7 @@
 </head>
 <body>
     <div id="aligner">
-        <div id="container" elq elq-breakpoints elq-breakpoints-widths="500px  19rem   25em">
+        <div id="container" elq elq-breakpoints elq-breakpoints-widths="500px  19rem   25">
             <div id="test">
                 <div id="dimensions">
                     <span id="dim-x"></span>x<span id="dim-y"></span>
@@ -107,8 +107,9 @@
             var container = $("#container");
 
             var elq = new Elq();
+
             elq.use(elqBreakpoints, {
-                defaultUnit: "px"
+                defaultUnit: "em"
             });
             elq.use(elqMirror);
             elq.start($("[elq]"));
