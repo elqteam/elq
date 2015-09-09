@@ -9,6 +9,16 @@ BP_UNITS.PX = "px";
 BP_UNITS.EM = "em";
 BP_UNITS.REM = "rem";
 
+function isUnitTypeValid(val) {
+    for(var prop in BP_UNITS) {
+        if(BP_UNITS.hasOwnProperty(prop) && BP_UNITS[prop] === val) {
+            return true;   
+        }
+    }
+    return false;
+}
+
+
 function Breakpoint(string, value, valuePx, unit, element) {
     var bp = {};
     bp.string = string; // Can be either just value as a string or value + unit
@@ -59,6 +69,7 @@ function sortBreakpoints(breakpoints) {
     });
 }
 
+
 module.exports = {
     getName: function() {
         return "elq-breakpoints";
@@ -79,6 +90,10 @@ module.exports = {
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
 
+        if(!isUnitTypeValid(globalOptions.defaultUnit)) {
+            reporter.error("The given default unit is not recognized: ", globalOptions.defaultUnit); 
+        }
+
         function start(elements) {
             function onElementResize(batchUpdater, element) {
                 //Read breakpoints by the format elq-breakpoints-widths="px300 500em 200 ...".
@@ -96,10 +111,20 @@ module.exports = {
 
                         // var res = str.match(/^[0-9]*/g);
                         breakpoints = breakpoints.map( function(breakpointString) {
-                            var stringValue = breakpointString.match(/[0-9]+/g)[0]; // a breakpoint value must exist
-                            var value = parseFloat(stringValue);
-                            var unitMatch = breakpointString.match(/[a-zA-Z]+/g); // the unit is allowed to be omitted
+                            var valueMatch = breakpointString.match(/^([0-9]+)/g); 
+                            // a breakpoint value must exist
+                            if(!valueMatch) {
+                                reporter.error("Elq breakpoint found with invalid input value: ", breakpointString);
+                            }
+
+                            var unitMatch = breakpointString.match(/([a-zA-Z]+)$/g); // the unit is allowed to be omitted
                             var unit =  (unitMatch) ? unitMatch[0] : globalOptions.defaultUnit;
+
+                            if(!isUnitTypeValid(unit)) {
+                                reporter.error("Elq breakpoint found with invalid unit: ", unit); 
+                            }
+
+                            var value = parseFloat(valueMatch[0]);
                             var valuePx = breakpointPixelValueConverters[unit](value, element);
 
                             return Breakpoint(breakpointString, value, valuePx, unit, element);
