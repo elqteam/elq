@@ -4,6 +4,51 @@ var forEach = require("lodash.foreach");
 var unique = require("lodash.uniq");
 var filter = require("lodash.filter");
 
+var BP_UNITS = {};
+BP_UNITS.PX = "px";
+BP_UNITS.EM = "em";
+BP_UNITS.REM = "rem";
+
+function Breakpoint(string, value, unit, element) {
+    var bp = {};
+    bp.string = string;
+    bp.value = value;
+    bp.unit = unit;
+    bp.element = element;
+    return bp;
+}
+
+function uniqueBreakpoint(bp) {
+    return bp.string;
+}
+
+function getElementFontSize(element) {
+    return parseFloat(getComputedStyle(element).fontSize);
+}
+
+var breakpointValueCalculators = [];
+
+breakpointValueCalculators[BP_UNITS.PX] = function(bp) {
+    return bp.value;
+}
+
+breakpointValueCalculators[BP_UNITS.REM] = function(bp) {
+    function getRootElementFontSize() {
+        return getElementFontSize(document.documentElement);
+    }
+    function remValToPxVal(value) {
+        return bp.value * getRootElementFontSize();
+    }
+    return remValToPxVal(bp.value);
+}
+
+breakpointValueCalculators[BP_UNITS.EM] = function(bp) {
+    function emValToPxVal(value) {
+        return bp.value * getElementFontSize(bp.element);
+    }
+    return emValToPxVal(bp.value);
+}
+
 module.exports = {
     getName: function() {
         return "elq-breakpoints";
@@ -26,7 +71,8 @@ module.exports = {
 
         function start(elements) {
             function onElementResize(batchUpdater, element) {
-                //Read breakpoints by the format elq-breakpoints-widths="300 500 ...".
+                //Read breakpoints by the format elq-breakpoints-widths="px300 500em 200 ...".
+                //The returned breakpoint objects have a value (ex. '300') and a unit (ex. 'px')
                 function getBreakpoints(element, dimension) {
                     function getFromMainAttr(element, dimension) {
                         var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
@@ -37,17 +83,28 @@ module.exports = {
 
                         breakpoints = breakpoints.replace(/\s+/g, " ").trim();
                         breakpoints = breakpoints.split(" ");
-                        return breakpoints.map(function(value) {
-                            return parseInt(value, 10);
+
+                        // var res = str.match(/^[0-9]*/g);
+                        breakpoints = breakpoints.map( function(breakpointString) {
+                            var value = breakpointString.match(/[0-9]+/g)[0]; // a breakpoint value must exist
+                            var unitMatch = breakpointString.match(/[a-zA-Z]+/g); // the unit is allowed to be omitted
+                            var unit =  (unitMatch) ? unitMatch[0] : globalOptions.defaultUnit;
+
+                            return Breakpoint(breakpointString, value, unit, element);
+                        });
+                        return breakpoints;
+                    }
+
+                    // Sort for the visual aspect of having the classes in order in the htm
+                    function sortBreakpoints(breakpoints) {
+                        return breakpoints.sort(function(a, b) {
+                            return a - b;
                         });
                     }
 
-                    var breakpoints = [];
-                    breakpoints = breakpoints.concat(getFromMainAttr(element, dimension));
-                    breakpoints = unique(breakpoints);
-                    breakpoints = breakpoints.sort(function(a, b) {
-                        return a - b;
-                    });
+                    var breakpoints = getFromMainAttr(element, dimension);
+                    breakpoints = unique(breakpoints, uniqueBreakpoint);
+                    // breakpoints = sortBreakpoints(breakpoints);
                     return breakpoints;
                 }
 
@@ -71,7 +128,7 @@ module.exports = {
                     return classes;
                 }
 
-                var widthBreakpoints = getBreakpoints(element, "width");
+                var widthBreakpoints = getBreakpoints(element, "width"); // Should return em, rem, or px in order.
                 var heightBreakpoints = getBreakpoints(element, "height");
 
                 var width = element.offsetWidth;

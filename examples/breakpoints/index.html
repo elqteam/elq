@@ -42,19 +42,36 @@
             display: block;
             font-family: monospace;
         }
-
+/*
         #mirror.elq-max-width-500px {
             color: blue;
         }
 
         #mirror.elq-min-width-500px {
             color: red;
+        }*/
+
+        #mirror.elq-max-width-300px {
+            color:blue;
         }
+
+        #mirror.elq-max-width-25em {
+            color:green;
+        }
+
+        #mirror.elq-max-width-500px {
+            color:yellow;
+        }
+
+        #mirror.elq-min-width-500px {
+            color:red;
+        }
+
     </style>
 </head>
 <body>
     <div id="aligner">
-        <div id="container" elq elq-breakpoints elq-breakpoints-widths="500">
+        <div id="container" elq elq-breakpoints elq-breakpoints-widths="500px  300   25em  300">
             <div id="test">
                 <div id="dimensions">
                     <span id="dim-x"></span>x<span id="dim-y"></span>
