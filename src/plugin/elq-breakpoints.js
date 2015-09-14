@@ -60,35 +60,32 @@ module.exports = {
                         return parseFloat(getComputedStyle(element).fontSize.replace("px", ""));
                     }
 
-                    var breakpointPixelValueConverters = [];
+                    var breakpointPixelValueConverters = {};
 
-                    breakpointPixelValueConverters[BP_UNITS.PX] = function(value) {
+                    breakpointPixelValueConverters[BP_UNITS.PX] = function (value) {
                         return value;
                     };
 
-                    var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times
-                    breakpointPixelValueConverters[BP_UNITS.REM] = function(value) {
+                    var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same resize of this element.
+                    breakpointPixelValueConverters[BP_UNITS.REM] = function (value) {
                         function getRootElementFontSize() {
-                            if(!cachedRootFontSize) {
+                            if (!cachedRootFontSize) {
                                 cachedRootFontSize = getElementFontSizeInPixels(document.documentElement);
                             }
                             return cachedRootFontSize;
                         }
-                        function remValToPxVal() {
-                            return value * getRootElementFontSize();
-                        }
-                        return remValToPxVal();
+                        return value * getRootElementFontSize();
                     };
 
-                    var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times
-                    breakpointPixelValueConverters[BP_UNITS.EM] = function(value) {
-                        function emValToPxVal() {
-                            if(!cachedElementFontSize) {
+                    var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same resize of this element.
+                    breakpointPixelValueConverters[BP_UNITS.EM] = function (value) {
+                        function getElementFontSize() {
+                            if (!cachedElementFontSize) {
                                 cachedElementFontSize = getElementFontSizeInPixels(element);
                             }
-                            return value * cachedElementFontSize;
+                            return cachedElementFontSize;
                         }
-                        return emValToPxVal();
+                        return value * getElementFontSize();
                     };
 
                     function getFromMainAttr(element, dimension) {
@@ -104,12 +101,12 @@ module.exports = {
                         breakpoints = breakpoints.map(function (breakpointString) {
                             var valueMatch = breakpointString.match(/^([0-9]+)/g);
                             // a breakpoint value must exist
-                            if(!valueMatch) {
-                                reporter.error("Elq breakpoint found with invalid input value: ", breakpointString);
+                            if (!valueMatch) {
+                                reporter.error("Invalid breakpoint: " + breakpointString + " for element " + element);
                             }
 
                             var unitMatch = breakpointString.match(/([a-zA-Z]+)$/g); // the unit is allowed to be omitted
-                            var unit =  (unitMatch) ? unitMatch[0] : defaultUnit;
+                            var unit = unitMatch ? unitMatch[0] : defaultUnit;
 
                             if(!isUnitTypeValid(unit)) {
                                 reporter.error("Elq breakpoint found with invalid unit: ", unit);
