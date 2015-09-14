@@ -39,7 +39,7 @@ module.exports = {
         var currentElementBreakpointClasses = {};
 
         if(!isUnitTypeValid(defaultUnit)) {
-            reporter.error("The given default unit is not recognized: ", defaultUnit);
+            reporter.error("Invalid default unit: " + defaultUnit);
         }
 
         function start(elements) {
