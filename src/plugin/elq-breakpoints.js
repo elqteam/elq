@@ -102,14 +102,14 @@ module.exports = {
                             var valueMatch = breakpointString.match(/^([0-9]+)/g);
                             // a breakpoint value must exist
                             if (!valueMatch) {
-                                reporter.error("Invalid breakpoint: " + breakpointString + " for element " + element);
+                                reporter.error("Invalid breakpoint: " + breakpointString + " for element ", element);
                             }
 
                             var unitMatch = breakpointString.match(/([a-zA-Z]+)$/g); // the unit is allowed to be omitted
                             var unit = unitMatch ? unitMatch[0] : defaultUnit;
 
-                            if(!isUnitTypeValid(unit)) {
-                                reporter.error("Elq breakpoint found with invalid unit: ", unit);
+                            if (!isUnitTypeValid(unit)) {
+                                reporter.error("Elq breakpoint found with invalid unit: " + unit + " for element ", element);
                             }
 
                             var value = parseFloat(valueMatch[0]);
