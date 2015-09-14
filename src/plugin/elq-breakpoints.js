@@ -29,11 +29,11 @@ module.exports = {
         return true; //TODO: Check elq version.
     },
     make: function(elq, globalOptions) {
-        var defaultUnit             = globalOptions.defaultUnit || "px";
-        var reporter                = elq.reporter;
-        var idHandler               = elq.idHandler;
-        var cycleDetector           = elq.cycleDetector;
-        var batchUpdater            = elq.createBatchUpdater();
+        var defaultUnit     = globalOptions.defaultUnit || "px";
+        var reporter        = elq.reporter;
+        var idHandler       = elq.idHandler;
+        var cycleDetector   = elq.cycleDetector;
+        var batchUpdater    = elq.createBatchUpdater();
 
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
