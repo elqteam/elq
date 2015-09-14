@@ -56,8 +56,8 @@ module.exports = {
                         return bp;
                     }
 
-                    function getElementFontSize(element) {
-                        return parseFloat(getComputedStyle(element).fontSize);
+                    function getElementFontSizeInPixels(element) {
+                        return parseFloat(getComputedStyle(element).fontSize.replace("px", ""));
                     }
 
                     var breakpointPixelValueConverters = [];
@@ -70,7 +70,7 @@ module.exports = {
                     breakpointPixelValueConverters[BP_UNITS.REM] = function(value) {
                         function getRootElementFontSize() {
                             if(!cachedRootFontSize) {
-                                cachedRootFontSize = getElementFontSize(document.documentElement);
+                                cachedRootFontSize = getElementFontSizeInPixels(document.documentElement);
                             }
                             return cachedRootFontSize;
                         }
@@ -84,7 +84,7 @@ module.exports = {
                     breakpointPixelValueConverters[BP_UNITS.EM] = function(value) {
                         function emValToPxVal() {
                             if(!cachedElementFontSize) {
-                                cachedElementFontSize = getElementFontSize(element);
+                                cachedElementFontSize = getElementFontSizeInPixels(element);
                             }
                             return value * cachedElementFontSize;
                         }
