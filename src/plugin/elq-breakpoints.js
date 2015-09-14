@@ -44,7 +44,7 @@ module.exports = {
 
         function start(elements) {
             function onElementResize(batchUpdater, element) {
-                //Read breakpoints by the format elq-breakpoints-widths="px300 500em 200 ...".
+                //Read breakpoints by the format elq-breakpoints-widths="300px 500em 200rem 100 ...".
                 function getBreakpoints(element, dimension) {
                     function Breakpoint(string, value, valuePx, unit, element) {
                         var bp = {};
