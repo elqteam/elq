@@ -63,7 +63,7 @@
 </head>
 <body>
     <div id="aligner">
-        <div id="container" elq elq-breakpoints-widths="300 500">
+        <div id="container" elq elq-breakpoints elq-breakpoints-widths="300 500">
             <div id="test">
                 <div id="dimensions">
                     <span id="dim-x"></span>x<span id="dim-y"></span>
@@ -95,9 +95,7 @@
             var container = $("#container");
 
             var elq = Elq();
-            elq.use(elqBreakpoints, {
-                defaultUnit: "px"
-            });
+            elq.use(elqBreakpoints);
             elq.use(elqMirror);
             elq.start($("[elq]"));
 
