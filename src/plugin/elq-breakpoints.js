@@ -29,7 +29,7 @@ module.exports = {
         return true; //TODO: Check elq version.
     },
     make: function(elq, globalOptions) {
-        globalOptions.defaultUnit   = globalOptions.defaultUnit || "px";
+        var defaultUnit             = globalOptions.defaultUnit || "px";
         var reporter                = elq.reporter;
         var idHandler               = elq.idHandler;
         var cycleDetector           = elq.cycleDetector;
@@ -38,8 +38,8 @@ module.exports = {
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
 
-        if(!isUnitTypeValid(globalOptions.defaultUnit)) {
-            reporter.error("The given default unit is not recognized: ", globalOptions.defaultUnit);
+        if(!isUnitTypeValid(defaultUnit)) {
+            reporter.error("The given default unit is not recognized: ", defaultUnit);
         }
 
         function start(elements) {
@@ -109,7 +109,7 @@ module.exports = {
                             }
 
                             var unitMatch = breakpointString.match(/([a-zA-Z]+)$/g); // the unit is allowed to be omitted
-                            var unit =  (unitMatch) ? unitMatch[0] : globalOptions.defaultUnit;
+                            var unit =  (unitMatch) ? unitMatch[0] : defaultUnit;
 
                             if(!isUnitTypeValid(unit)) {
                                 reporter.error("Elq breakpoint found with invalid unit: ", unit);
