@@ -64,7 +64,7 @@ module.exports = {
 
                     breakpointPixelValueConverters[BP_UNITS.PX] = function(value) {
                         return value;
-                    }
+                    };
 
                     var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times
                     breakpointPixelValueConverters[BP_UNITS.REM] = function(value) {
@@ -78,7 +78,7 @@ module.exports = {
                             return value * getRootElementFontSize();
                         }
                         return remValToPxVal();
-                    }
+                    };
 
                     var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times
                     breakpointPixelValueConverters[BP_UNITS.EM] = function(value) {
@@ -89,7 +89,7 @@ module.exports = {
                             return value * cachedElementFontSize;
                         }
                         return emValToPxVal();
-                    }
+                    };
 
                     function getFromMainAttr(element, dimension) {
                         var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
