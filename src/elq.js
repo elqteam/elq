@@ -21,7 +21,7 @@ module.exports = function Elq(options) {
     var cycleDetector           = CycleDetector(idHandler);
     var pluginHandler           = PluginHandler(reporter);
     var elementResizeDetector   = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
-    var createBatchUpdater      = createBatchUpdaterWithDefaultOptions({ reporter: reporter });
+    var BatchUpdater            = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
     function start(elements) {
         var elementsArray = elements;
@@ -63,7 +63,7 @@ module.exports = function Elq(options) {
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.createBatchUpdater  = createBatchUpdater; //TODO: Rename to batch processor.
+    elq.BatchUpdater        = BatchUpdater;
     elq.getPlugin           = pluginHandler.get;
 
     return publicElq;
@@ -89,7 +89,7 @@ function copy(o) {
     return c;
 }
 
-function createBatchUpdaterWithDefaultOptions(globalOptions) {
+function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
     globalOptions = globalOptions || {};
 
     function createBatchUpdaterOptionsProxy(options) {

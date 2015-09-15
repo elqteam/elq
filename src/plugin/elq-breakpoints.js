@@ -36,7 +36,7 @@ module.exports = {
         var reporter        = elq.reporter;
         var idHandler       = elq.idHandler;
         var cycleDetector   = elq.cycleDetector;
-        var batchUpdater    = elq.createBatchUpdater();
+        var batchUpdater    = elq.BatchUpdater();
 
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
@@ -201,7 +201,7 @@ module.exports = {
 
             //Before listening to each element (which is a heavy task) it is important to apply the right classes
             //to the elements so that a correct render can occur before all objects are injected to the elements.
-            var manualBatchUpdater = elq.createBatchUpdater({ async: false, auto: false });
+            var manualBatchUpdater = elq.BatchUpdater({ async: false, auto: false });
             forEach(elements, function onElementResizeLoop(element) {
                 onElementResize(manualBatchUpdater, element);
             });
