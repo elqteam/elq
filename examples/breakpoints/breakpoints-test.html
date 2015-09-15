@@ -129,9 +129,7 @@
 
             $(function onDomReady() {
                 var elq = Elq();
-                elq.use(elqBreakpoints, {
-                    postfix: ""
-                });
+                elq.use(elqBreakpoints);
                 elq.use(elqMirror);
                 elq.start($("[elq]"));
             });
