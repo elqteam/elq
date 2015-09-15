@@ -1,5 +1,6 @@
 "use strict";
 
+var packageJson = require("../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
 var forEach = require("lodash.forEach");
 var partial = require("lodash.partial");
 
@@ -10,11 +11,13 @@ module.exports = {
         return "elq-mirror";
     },
     getVersion: function() {
-        return "0.1.0";
+        return packageJson.version;
     },
 
-    isCompatible: function() {
-        return true; //TODO: Check elq version.
+    isCompatible: function(elq) {
+        var versionParts = elq.getVersion().split(".");
+        var lesser = parseInt(versionParts[1]);
+        return lesser >= 3;
     },
     make: function(elq) {
         function start(elements) {
