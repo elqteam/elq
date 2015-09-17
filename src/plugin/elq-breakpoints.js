@@ -31,14 +31,21 @@ module.exports = {
         var lesser = parseInt(versionParts[1]);
         return lesser >= 3;
     },
-
     make: function (elq, options) {
-        var defaultUnit             = options.defaultUnit || "px";
-        var cycleDetection          = (options.cycleDetection !== undefined) ? (options.cycleDetection) : true;
         var cycleDetector           = elq.cycleDetector;
         var reporter                = elq.reporter;
         var idHandler               = elq.idHandler;
         var batchUpdater            = elq.BatchUpdater();
+
+        var defaultUnit             = options.defaultUnit || "px";
+        var cycleDetection          = !!cycleDetector; // Default is 'true' when there's a cycleDetector available.
+
+        if (options.cycleDetection !== undefined) {
+            if (options.cycleDetection && !cycleDetector) {
+                reporter.error("Elq's cycleDetector subsystem is required when option cycleDetection is enabled.");
+            }
+            cycleDetection = !!options.cycleDetection;
+        }
 
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
