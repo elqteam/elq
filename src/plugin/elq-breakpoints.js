@@ -261,15 +261,15 @@ module.exports = {
         }
 
         function getElementOptions(element) {
-            var elOptions = {};
+            var elementOptions = {};
 
-            var elOptionsString = element.getAttribute("elq-breakpoints") || "";
-            elOptionsString = elOptionsString.toLowerCase();
+            var elementOptionsString = element.getAttribute("elq-breakpoints") || "";
+            elementOptionsString = elementOptionsString.toLowerCase();
 
-            elOptions.noclasses = !!~elOptionsString.indexOf("noclasses");
-            elOptions.notcyclic = !!~elOptionsString.indexOf("notcyclic");
+            elementOptions.noclasses = !!~elementOptionsString.indexOf("noclasses");
+            elementOptions.notcyclic = !!~elementOptionsString.indexOf("notcyclic");
 
-            return elOptions;
+            return elementOptions;
         }
 
         return {
