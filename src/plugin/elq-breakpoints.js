@@ -40,6 +40,10 @@ module.exports = {
         var defaultUnit             = options.defaultUnit || "px";
         var cycleDetection          = !!cycleDetector; // Default is 'true' when there's a cycleDetector available.
 
+        if (!isUnitTypeValid(defaultUnit)) {
+            reporter.error("Invalid default unit: " + defaultUnit);
+        }
+
         if (options.cycleDetection !== undefined) {
             if (options.cycleDetection && !cycleDetector) {
                 reporter.error("Elq's cycleDetector subsystem is required when option cycleDetection is enabled.");
@@ -49,10 +53,6 @@ module.exports = {
 
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
-
-        if (!isUnitTypeValid(defaultUnit)) {
-            reporter.error("Invalid default unit: " + defaultUnit);
-        }
 
         function start(elements) {
             function onElementResize(batchUpdater, element) {
