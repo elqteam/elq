@@ -1,7 +1,7 @@
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
-    if(!idHandler) {
+    if (!idHandler) {
         throw new Error("IdHandler dependency required.");
     }
 
@@ -21,7 +21,7 @@ module.exports = function CycleDetector(idHandler, options) {
             time: time
         };
 
-        if(!elements[id]) {
+        if (!elements[id]) {
             elements[id] = [update];
             return false;
         }
@@ -30,20 +30,20 @@ module.exports = function CycleDetector(idHandler, options) {
 
         var cycles = 0;
 
-        for(var i = updates.length - 1; i >= 0; i--) {
+        for (var i = updates.length - 1; i >= 0; i--) {
             var prevUpdate = updates[i];
 
-            if(update.time - prevUpdate.time > options.timeBetweenCyclesAllowed) {
+            if (update.time - prevUpdate.time > options.timeBetweenCyclesAllowed) {
                 elements[id] = updates.slice(i + 1, updates.length);
                 elements[id].push(update);
                 return false;
             }
 
-            if(prevUpdate.classes === update.classes) {
+            if (prevUpdate.classes === update.classes) {
                 cycles++;
             }
 
-            if(cycles > options.numCyclesAllowed) {
+            if (cycles > options.numCyclesAllowed) {
                 elements[id].push(update);
                 return true;
             }

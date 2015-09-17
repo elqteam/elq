@@ -7,20 +7,20 @@ var packageJson = require("../package.json");
 function createDummyPlugin(name, make) {
     var makeFunction = make;
 
-    if(!_.isFunction(make)) {
-        makeFunction = function() {
+    if (!_.isFunction(make)) {
+        makeFunction = function () {
             return make;
         };
     }
 
     var dummyPlugin = {
-        getName: function() {
+        getName: function () {
             return name;
         },
-        getVersion: function() {
+        getVersion: function () {
             return "1.33.7";
         },
-        isCompatible: function() {
+        isCompatible: function () {
             return true;
         },
         make: makeFunction
@@ -29,22 +29,22 @@ function createDummyPlugin(name, make) {
     return dummyPlugin;
 }
 
-describe("elq", function() {
-    describe("Public API", function() {
-        it("getName should return the name of the isntance", function() {
+describe("elq", function () {
+    describe("Public API", function () {
+        it("getName should return the name of the isntance", function () {
             var elq = Elq();
             var name = elq.getName();
             expect(name).toEqual(packageJson.name); //TODO: This should be checked against the package.json file.
         });
 
-        it("getVersion should return the version of the instance", function() {
+        it("getVersion should return the version of the instance", function () {
             var elq = Elq();
             var version = elq.getVersion();
             expect(version).toEqual(packageJson.version); //TODO: This should be checked against the package.json file.
         });
 
-        describe("use", function() {
-            it("should be able to register plugins", function() {
+        describe("use", function () {
+            it("should be able to register plugins", function () {
                 function checkPluginApi(elq) {
                     expect(elq.getVersion).toEqual(jasmine.any(Function));
                     expect(elq.getName).toEqual(jasmine.any(Function));
@@ -63,20 +63,20 @@ describe("elq", function() {
                 var myPluginInstance;
 
                 var myPlugin = {
-                    getName: function() {
+                    getName: function () {
                         return "my-plugin";
                     },
-                    getVersion: function() {
+                    getVersion: function () {
                         return "9.1.4";
                     },
-                    isCompatible: function(elq) {
+                    isCompatible: function (elq) {
                         checkPluginApi(elq);
                         return true;
                     },
-                    make: function(elq, options) {
+                    make: function (elq, options) {
                         checkPluginApi(elq);
                         return {
-                            foo: function() {
+                            foo: function () {
                                 options = options || {};
                                 return elq.getName() + options.test;
                             }
@@ -116,17 +116,17 @@ describe("elq", function() {
                         error: function noop() {} //Squelch reporter error output.
                     }
                 });
-                myPlugin.isCompatible = function() {
+                myPlugin.isCompatible = function () {
                     return false;
                 };
-                expect(function() {
+                expect(function () {
                     myPluginInstance = elq.use(myPlugin);
                 }).toThrow();
             });
         });
 
-        describe("using", function() {
-            it("should tell if a plugin is being used or not, by string or plugin definition", function() {
+        describe("using", function () {
+            it("should tell if a plugin is being used or not, by string or plugin definition", function () {
                 var myPlugin = createDummyPlugin("my-plugin", {});
                 var elq = Elq();
                 expect(elq.using(myPlugin)).toEqual(false);
@@ -137,17 +137,17 @@ describe("elq", function() {
             });
         });
 
-        describe("start", function() {
-            it("should call all plugins that have a start method", function() {
+        describe("start", function () {
+            it("should call all plugins that have a start method", function () {
                 var elq;
                 var elements;
 
                 var myPlugin = createDummyPlugin("my-plugin", {
-                    start: function() {}
+                    start: function () {}
                 });
 
                 var myOtherPlugin = createDummyPlugin("my-other-plugin", {
-                    start: function() {}
+                    start: function () {}
                 });
 
                 var myOtherExtraPlugin = createDummyPlugin("my-other-extra-plugin", {});
@@ -205,7 +205,7 @@ describe("elq", function() {
                 myPluginInstance.start.calls.reset();
                 myOtherPluginInstance.start.calls.reset();
 
-                elq.start({length: 0});
+                elq.start({ length: 0 });
                 expect(myPluginInstance.start).not.toHaveBeenCalled();
                 expect(myOtherPluginInstance.start).not.toHaveBeenCalled();
                 myPluginInstance.start.calls.reset();
@@ -213,13 +213,13 @@ describe("elq", function() {
             });
         });
 
-        it("listenTo should be defined", function() {
+        it("listenTo should be defined", function () {
             var elq = Elq();
             //Not tested more since this is a delegated function to the element-resize-detector project.
             expect(elq.listenTo).toEqual(jasmine.any(Function));
         });
     });
 
-    describe("Plugin API", function() {
+    describe("Plugin API", function () {
     });
 });

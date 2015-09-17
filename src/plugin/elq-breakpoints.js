@@ -11,8 +11,8 @@ BP_UNITS.EM = "em";
 BP_UNITS.REM = "rem";
 
 function isUnitTypeValid(val) {
-    for(var prop in BP_UNITS) {
-        if(BP_UNITS.hasOwnProperty(prop) && BP_UNITS[prop] === val) {
+    for (var prop in BP_UNITS) {
+        if (BP_UNITS.hasOwnProperty(prop) && BP_UNITS[prop] === val) {
             return true;
         }
     }
@@ -20,18 +20,18 @@ function isUnitTypeValid(val) {
 }
 
 module.exports = {
-    getName: function() {
+    getName: function () {
         return "elq-breakpoints";
     },
-    getVersion: function() {
+    getVersion: function () {
         return packageJson.version;
     },
-    isCompatible: function(elq) {
+    isCompatible: function (elq) {
         var versionParts = elq.getVersion().split(".");
         var lesser = parseInt(versionParts[1]);
         return lesser >= 3;
     },
-    make: function(elq, globalOptions) {
+    make: function (elq, globalOptions) {
         var defaultUnit     = globalOptions.defaultUnit || "px";
         var reporter        = elq.reporter;
         var idHandler       = elq.idHandler;
@@ -41,7 +41,7 @@ module.exports = {
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
 
-        if(!isUnitTypeValid(defaultUnit)) {
+        if (!isUnitTypeValid(defaultUnit)) {
             reporter.error("Invalid default unit: " + defaultUnit);
         }
 
@@ -94,7 +94,7 @@ module.exports = {
                     function getFromMainAttr(element, dimension) {
                         var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
 
-                        if(!breakpoints) {
+                        if (!breakpoints) {
                             return [];
                         }
 
@@ -131,7 +131,7 @@ module.exports = {
                     }
 
                     function sortBreakpoints(breakpoints) {
-                        return breakpoints.sort(function(bp1, bp2) {
+                        return breakpoints.sort(function (bp1, bp2) {
                             return bp1.valuePx - bp2.valuePx;
                         });
                     }
@@ -146,14 +146,14 @@ module.exports = {
                 function getClasses(breakpoints, dimension, value) {
                     var classes = [];
 
-                    if(!breakpoints.length) {
+                    if (!breakpoints.length) {
                         return classes;
                     }
 
-                    breakpoints.forEach(function(breakpoint) {
+                    breakpoints.forEach(function (breakpoint) {
                         var dir = "max";
 
-                        if(value >= breakpoint.valuePx) {
+                        if (value >= breakpoint.valuePx) {
                             dir = "min";
                         }
 
@@ -177,18 +177,18 @@ module.exports = {
                 var options = getOptions(element);
 
                 batchUpdater.update(id, function mutateElementBreakpointClasses() {
-                    if(currentElementBreakpointClasses[id] !== breakpointClasses) {
-                        if(cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                    if (currentElementBreakpointClasses[id] !== breakpointClasses) {
+                        if (cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
                             reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
                             return;
                         }
 
-                        if(!options.noclasses) {
+                        if (!options.noclasses) {
                             updateBreakpointClasses(element, breakpointClasses);
                         }
 
                         currentElementBreakpointClasses[id] = breakpointClasses;
-                        forEach(elementBreakpointsListeners[id], function(listener) {
+                        forEach(elementBreakpointsListeners[id], function (listener) {
                             listener(element);
                         });
                     }

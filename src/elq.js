@@ -30,7 +30,7 @@ module.exports = function Elq(options) {
             return;
         }
 
-        if(elements.length === undefined) {
+        if (elements.length === undefined) {
             elementsArray = [elements];
         }
 
@@ -80,8 +80,8 @@ function getName() {
 function copy(o) {
     var c = {};
 
-    for(var key in o) {
-        if(o.hasOwnProperty(key)) {
+    for (var key in o) {
+        if (o.hasOwnProperty(key)) {
             c[key] = o[key];
         }
     }
@@ -95,8 +95,8 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
     function createBatchUpdaterOptionsProxy(options) {
         options = options || globalOptions;
 
-        for(var prop in globalOptions) {
-            if(globalOptions.hasOwnProperty(prop) && !options.hasOwnProperty(prop)) {
+        for (var prop in globalOptions) {
+            if (globalOptions.hasOwnProperty(prop) && !options.hasOwnProperty(prop)) {
                 options[prop] = globalOptions[prop];
             }
         }

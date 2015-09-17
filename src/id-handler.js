@@ -1,6 +1,6 @@
 "use strict";
 
-module.exports = function(idGenerator) {
+module.exports = function (idGenerator) {
     var ID_PROP_NAME = "_erdTargetId";
 
     /**
@@ -11,7 +11,7 @@ module.exports = function(idGenerator) {
      * @returns {string|number} The id of the element.
      */
     function getId(element, readonly) {
-        if(!readonly && !hasId(element)) {
+        if (!readonly && !hasId(element)) {
             setId(element);
         }
 

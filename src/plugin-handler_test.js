@@ -16,16 +16,16 @@ describe("PluginHandler", function () {
             var pluginHandler = PluginHandler(reporter);
 
             var plugin = {
-                getName: function() {
+                getName: function () {
                     return "test";
                 },
-                getVersion: function() {
+                getVersion: function () {
                     return "0.1.0";
                 },
-                isCompatible: function() {
+                isCompatible: function () {
                     return true;
                 },
-                make: function() {
+                make: function () {
                     return {};
                 }
             };

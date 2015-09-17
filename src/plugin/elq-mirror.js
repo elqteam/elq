@@ -7,27 +7,27 @@ var partial = require("lodash.partial");
 var elqBreakpointsPlugin = require("./elq-breakpoints.js");
 
 module.exports = {
-    getName: function() {
+    getName: function () {
         return "elq-mirror";
     },
-    getVersion: function() {
+    getVersion: function () {
         return packageJson.version;
     },
 
-    isCompatible: function(elq) {
+    isCompatible: function (elq) {
         var versionParts = elq.getVersion().split(".");
         var lesser = parseInt(versionParts[1]);
         return lesser >= 3;
     },
-    make: function(elq) {
+    make: function (elq) {
         function start(elements) {
             var elqBreakpoints = elq.getPlugin(elqBreakpointsPlugin);
 
             function getElqParentElement(mirrorElement) {
                 var currentElement = mirrorElement.parentNode;
 
-                while(currentElement && currentElement.hasAttribute) {
-                    if(currentElement.hasAttribute("elq-breakpoints")) {
+                while (currentElement && currentElement.hasAttribute) {
+                    if (currentElement.hasAttribute("elq-breakpoints")) {
                         return currentElement;
                     }
 
@@ -45,15 +45,15 @@ module.exports = {
                 elqBreakpoints.updateBreakpointClasses(destinationElement, breakpointClasses);
             }
 
-            if(!elqBreakpoints) {
+            if (!elqBreakpoints) {
                 throw new Error("The elq-mirror plugin requires the elq-breakpoints plugin.");
             }
 
-            forEach(elements, function(mirrorElement) {
-                if(mirrorElement.hasAttribute("elq-mirror")) {
+            forEach(elements, function (mirrorElement) {
+                if (mirrorElement.hasAttribute("elq-mirror")) {
                     var sourceElement = getElqParentElement(mirrorElement);
 
-                    if(!sourceElement) {
+                    if (!sourceElement) {
                         throw new Error("There is no parent elq-breakpoints element to mirror.");
                     }
 

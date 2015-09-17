@@ -1,7 +1,6 @@
 {
     "requireCurlyBraces": ["if", "else", "for", "while", "do", "switch", "try", "catch"],
-    "requireSpaceAfterKeywords": ["else", "do", "switch", "try"],
-    "disallowSpaceAfterKeywords": ["if", "for", "while", "catch"],
+    "requireSpaceAfterKeywords": ["else", "do", "switch", "try", "if", "for", "while", "catch"],
     "requireSpaceBeforeBlockStatements": true,
     "requireSpacesInConditionalExpression": {
         "afterTest": true,
@@ -12,13 +11,8 @@
     "requireSpacesInFunctionExpression": {
         "beforeOpeningCurlyBrace": true
     },
-    "disallowSpacesInFunctionExpression": {
-        "beforeOpeningRoundBrace": true
-    },
     "requireSpacesInAnonymousFunctionExpression": {
-        "beforeOpeningCurlyBrace": true
-    },
-    "disallowSpacesInAnonymousFunctionExpression": {
+        "beforeOpeningCurlyBrace": true,
         "beforeOpeningRoundBrace": true
     },
     "requireSpacesInNamedFunctionExpression": {
@@ -29,9 +23,6 @@
     },
     "requireSpacesInFunctionDeclaration": {
         "beforeOpeningCurlyBrace": true
-    },
-    "disallowSpacesInFunctionDeclaration": {
-        "beforeOpeningRoundBrace": true
     },
     "disallowMultipleVarDecl": true,
     "requireBlocksOnNewline": true,
@@ -61,11 +52,5 @@
     "requireLineFeedAtFileEnd": true,
     "requireCapitalizedConstructors": true,
     "safeContextKeyword": ["self"],
-    "requireDotNotation": true,
-    "disallowYodaConditions": true,
-    "validateJSDoc": {
-        "checkParamNames": true,
-        "checkRedundantParams": true,
-        "requireParamTypes": true
-    }
+    "requireDotNotation": true
 }

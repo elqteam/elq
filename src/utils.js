@@ -7,7 +7,7 @@ utils.getOption = getOption;
 function getOption(options, name, defaultValue) {
     var value = options[name];
 
-    if((value === undefined || value === null) && defaultValue !== undefined) {
+    if ((value === undefined || value === null) && defaultValue !== undefined) {
         return defaultValue;
     }
 

@@ -7,7 +7,7 @@
  * @public
  * @param {boolean} quiet Tells if the reporter should be quiet or not.
  */
-module.exports = function(quiet) {
+module.exports = function (quiet) {
     function noop() {
         //Does nothing.
     }
@@ -18,9 +18,9 @@ module.exports = function(quiet) {
         error: noop
     };
 
-    if(!quiet && window.console) {
-        var attachFunction = function(reporter, name) {
-            reporter[name] = function() {
+    if (!quiet && window.console) {
+        var attachFunction = function (reporter, name) {
+            reporter[name] = function () {
                 console[name].apply(console, arguments);
             };
         };

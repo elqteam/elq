@@ -16,7 +16,7 @@ _.bind          = require("lodash.bind");
  * @param {Reporter} reporter Reporter instance that will be used for reporting errors.
  */
 module.exports = function PluginHandler(reporter) {
-    if(!reporter) {
+    if (!reporter) {
         throw new Error("Reporter dependency required.");
     }
 
@@ -34,13 +34,13 @@ module.exports = function PluginHandler(reporter) {
         options = options || {};
 
         function checkPluginMethod(method) {
-            if(!_.isFunction(plugin[method])) {
+            if (!_.isFunction(plugin[method])) {
                 reporter.error("Plugin must provide the " + method + " method. Plugin: ", plugin);
                 throw new Error("Invalid plugin: missing method");
             }
         }
 
-        if(!_.isObject(plugin)) {
+        if (!_.isObject(plugin)) {
             reporter.error("Plugin must be an object. Plugin: ", plugin);
             throw new Error("Invalid plugin: not an object");
         }
@@ -50,14 +50,14 @@ module.exports = function PluginHandler(reporter) {
         checkPluginMethod("isCompatible");
         checkPluginMethod("make");
 
-        if(!plugin.isCompatible(target)) {
+        if (!plugin.isCompatible(target)) {
             reporter.error("Plugin " + plugin.getName() + ":" + plugin.getVersion() + " is incompatible with " + target.getName() + ":" + target.getVersion());
             throw new Error("Incompatible plugin");
         }
 
         var name = plugin.getName();
 
-        if(plugins[name]) {
+        if (plugins[name]) {
             throw new Error("Plugin " + name + " is already being used.");
         }
 
@@ -75,7 +75,7 @@ module.exports = function PluginHandler(reporter) {
     function isRegistered(plugin) {
         var name = _.isObject(plugin) ? plugin.getName() : plugin;
 
-        if(!_.isString(name)) {
+        if (!_.isString(name)) {
             return false;
         }
 
@@ -119,7 +119,7 @@ module.exports = function PluginHandler(reporter) {
      * @param {Array} args The arguments array to be applied to all plugin methods.
      */
     function callMethods(method, args) {
-        getMethods(method).forEach(function(pluginMethod) {
+        getMethods(method).forEach(function (pluginMethod) {
             pluginMethod.apply(null, args);
         });
     }
