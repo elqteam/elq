@@ -32,9 +32,9 @@ module.exports = {
         return lesser >= 3;
     },
 
-    make: function (elq, globalOptions) {
-        var defaultUnit             = globalOptions.defaultUnit || "px";
-        var cycleDetection          = (globalOptions.cycleDetection !== undefined) ? (globalOptions.cycleDetection) : true;
+    make: function (elq, options) {
+        var defaultUnit             = options.defaultUnit || "px";
+        var cycleDetection          = (options.cycleDetection !== undefined) ? (options.cycleDetection) : true;
         var cycleDetector           = elq.cycleDetector;
         var reporter                = elq.reporter;
         var idHandler               = elq.idHandler;
@@ -176,16 +176,16 @@ module.exports = {
                 var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
 
                 var id = idHandler.get(element);
-                var options = getOptions(element);
+                var elementOptions = getElementOptions(element);
 
                 batchUpdater.update(id, function mutateElementBreakpointClasses() {
                     if (currentElementBreakpointClasses[id] !== breakpointClasses) {
-                        if (cycleDetection && !options.notcyclic && cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                        if (cycleDetection && !elementOptions.notcyclic && cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
                             reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
                             return;
                         }
 
-                        if (!options.noclasses) {
+                        if (!elementOptions.noclasses) {
                             updateBreakpointClasses(element, breakpointClasses);
                         }
 
@@ -253,16 +253,16 @@ module.exports = {
             element.className = classes;
         }
 
-        function getOptions(element) {
-            var options = {};
+        function getElementOptions(element) {
+            var elOptions = {};
 
-            var optionsString = element.getAttribute("elq-breakpoints") || "";
-            optionsString = optionsString.toLowerCase();
+            var elOptionsString = element.getAttribute("elq-breakpoints") || "";
+            elOptionsString = elOptionsString.toLowerCase();
 
-            options.noclasses =  !!~optionsString.indexOf("noclasses");
-            options.notcyclic = !!~optionsString.indexOf("notcyclic");
+            elOptions.noclasses = !!~elOptionsString.indexOf("noclasses");
+            elOptions.notcyclic = !!~elOptionsString.indexOf("notcyclic");
 
-            return options;
+            return elOptions;
         }
 
         return {
