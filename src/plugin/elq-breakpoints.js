@@ -180,7 +180,7 @@ module.exports = {
 
                 batchUpdater.update(id, function mutateElementBreakpointClasses() {
                     if (currentElementBreakpointClasses[id] !== breakpointClasses) {
-                        if (cycleDetection && cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                        if (cycleDetection && !options.notcyclic && cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
                             reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
                             return;
                         }
@@ -260,6 +260,7 @@ module.exports = {
             optionsString = optionsString.toLowerCase();
 
             options.noclasses =  !!~optionsString.indexOf("noclasses");
+            options.notcyclic = !!~optionsString.indexOf("notcyclic");
 
             return options;
         }
