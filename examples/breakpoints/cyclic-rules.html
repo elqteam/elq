@@ -95,7 +95,9 @@
             var container = $("#container");
 
             var elq = Elq();
-            elq.use(elqBreakpoints);
+            elq.use(elqBreakpoints, {
+                cycleDetection: false
+            });
             elq.use(elqMirror);
             elq.start($("[elq]"));
 

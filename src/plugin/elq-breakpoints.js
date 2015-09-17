@@ -31,12 +31,14 @@ module.exports = {
         var lesser = parseInt(versionParts[1]);
         return lesser >= 3;
     },
+
     make: function (elq, globalOptions) {
-        var defaultUnit     = globalOptions.defaultUnit || "px";
-        var reporter        = elq.reporter;
-        var idHandler       = elq.idHandler;
-        var cycleDetector   = elq.cycleDetector;
-        var batchUpdater    = elq.BatchUpdater();
+        var defaultUnit             = globalOptions.defaultUnit || "px";
+        var cycleDetection          = (globalOptions.cycleDetection !== undefined) ? (globalOptions.cycleDetection) : true;
+        var cycleDetector           = elq.cycleDetector;
+        var reporter                = elq.reporter;
+        var idHandler               = elq.idHandler;
+        var batchUpdater            = elq.BatchUpdater();
 
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
@@ -178,7 +180,7 @@ module.exports = {
 
                 batchUpdater.update(id, function mutateElementBreakpointClasses() {
                     if (currentElementBreakpointClasses[id] !== breakpointClasses) {
-                        if (cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                        if (cycleDetection && cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
                             reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
                             return;
                         }
