@@ -23,3 +23,31 @@ There are numerous JavaScript libraries that enable element queries in different
 
 Read the Master's Thesis for more details.
 
+# Docs
+
+## elq-breakpoints
+
+```
+// With default options.
+elq.use(elqBreakpoints);
+
+// With custom options.
+elq.use(elqBreakpoints, {
+  ...
+});
+```
+
+### Options
+
+#### cycleDetection
+Type: `Boolean`  
+Default: `true`
+
+When enabled, the cycle detection system tries to detect cyclic rules and breaks them if needed. When a cycle is detected, a console warning is printed. This may be helpful during development to catch cycles.
+
+#### defaultUnit
+Type `String`  
+Valid values: `"px"` `"em"` `"rem"`  
+Default: `"px"`
+
+Sets the default unit for all breakpoints that do not have a unit postfix. For instance, if defaultUnit is set to `"em"`, the breakpoint `300` is interpreted as `300em` while breakpoint `500px` is still interpreted as `500px`.
