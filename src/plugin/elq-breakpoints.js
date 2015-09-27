@@ -31,19 +31,28 @@ module.exports = {
         var lesser = parseInt(versionParts[1]);
         return lesser >= 3;
     },
-    make: function (elq, globalOptions) {
-        var defaultUnit     = globalOptions.defaultUnit || "px";
-        var reporter        = elq.reporter;
-        var idHandler       = elq.idHandler;
-        var cycleDetector   = elq.cycleDetector;
-        var batchUpdater    = elq.BatchUpdater();
+    make: function (elq, options) {
+        var cycleDetector           = elq.cycleDetector;
+        var reporter                = elq.reporter;
+        var idHandler               = elq.idHandler;
+        var batchUpdater            = elq.BatchUpdater();
 
-        var elementBreakpointsListeners = {};
-        var currentElementBreakpointClasses = {};
+        var defaultUnit             = options.defaultUnit || "px";
+        var cycleDetection          = !!cycleDetector; // Default is 'true' when there's a cycleDetector available.
 
         if (!isUnitTypeValid(defaultUnit)) {
             reporter.error("Invalid default unit: " + defaultUnit);
         }
+
+        if (options.cycleDetection !== undefined) {
+            if (options.cycleDetection && !cycleDetector) {
+                reporter.error("Elq's cycleDetector subsystem is required when option cycleDetection is enabled.");
+            }
+            cycleDetection = !!options.cycleDetection;
+        }
+
+        var elementBreakpointsListeners = {};
+        var currentElementBreakpointClasses = {};
 
         function start(elements) {
             function onElementResize(batchUpdater, element) {
@@ -174,16 +183,16 @@ module.exports = {
                 var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
 
                 var id = idHandler.get(element);
-                var options = getOptions(element);
+                var elementOptions = getElementOptions(element);
 
                 batchUpdater.update(id, function mutateElementBreakpointClasses() {
                     if (currentElementBreakpointClasses[id] !== breakpointClasses) {
-                        if (cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                        if (cycleDetection && !elementOptions.notcyclic && cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
                             reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
                             return;
                         }
 
-                        if (!options.noclasses) {
+                        if (!elementOptions.noclasses) {
                             updateBreakpointClasses(element, breakpointClasses);
                         }
 
@@ -251,15 +260,16 @@ module.exports = {
             element.className = classes;
         }
 
-        function getOptions(element) {
-            var options = {};
+        function getElementOptions(element) {
+            var elementOptions = {};
 
-            var optionsString = element.getAttribute("elq-breakpoints") || "";
-            optionsString = optionsString.toLowerCase();
+            var elementOptionsString = element.getAttribute("elq-breakpoints") || "";
+            elementOptionsString = elementOptionsString.toLowerCase();
 
-            options.noclasses =  !!~optionsString.indexOf("noclasses");
+            elementOptions.noclasses = !!~elementOptionsString.indexOf("noclasses");
+            elementOptions.notcyclic = !!~elementOptionsString.indexOf("notcyclic");
 
-            return options;
+            return elementOptions;
         }
 
         return {
