@@ -95,11 +95,9 @@
             var container = $("#container");
 
             var elq = Elq();
-            elq.use(elqBreakpoints);
-            elq.use(elqMirror);
             elq.start($("[elq]"));
 
-            elq.listenTo(container[0], updateElement);
+            elq.listenTo(container[0], "resize", updateElement);
             updateElement(container[0]);
 
             container.click(function() {

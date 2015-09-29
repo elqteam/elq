@@ -6,8 +6,8 @@ module.exports = function CycleDetector(idHandler, options) {
     }
 
     options = options || {};
-    options.numCyclesAllowed = options.numCyclesAllowed || 0;
-    options.timeBetweenCyclesAllowed = options.timeBetweenCyclesAllowed || 300;
+    options.numCyclesAllowed = options.numCyclesAllowed || 1;
+    options.timeBetweenCyclesAllowed = options.timeBetweenCyclesAllowed || 100;
 
     var elements = {};
 

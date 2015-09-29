@@ -62,7 +62,7 @@ module.exports = function Elq(options) {
         var breakpointStatesHash = JSON.stringify(breakpointStates);
 
         if (element.elq.currentBreakpointStatesHash !== breakpointStatesHash) {
-            // TODO: These should be read from the element instead.
+            // TODO: This should be read from the a global option.
             var cycleDetection = true;
 
             if (cycleDetection && element.elq.cycleCheck) {
