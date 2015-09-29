@@ -30,6 +30,11 @@ module.exports = {
             // All elq-breakpoints elements need to detect resizes and also update breakpoints.
             element.elq.resizeDetection = true;
             element.elq.updateBreakpoints = true;
+
+            // Enable serialization unless some other system explicitly has disabled it.
+            if (element.elq.serialize !== false) {
+                element.elq.serialize = true;
+            }
         }
 
         function getBreakpoints(element) {

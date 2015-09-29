@@ -76,7 +76,9 @@ module.exports = function Elq(options) {
 
             element.elq.currentBreakpointStatesHash = breakpointStatesHash;
 
-            pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates, elementOptions]);
+            if (element.elq.serialize) {
+                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates, elementOptions]);
+            }
 
             notifyListeners(element, "breakpointStatesChanged", [element, breakpointStates]);
         }

@@ -34,6 +34,12 @@ module.exports = {
                 return;
             }
 
+            if (element.hasAttribute("elq-breakpoints")) {
+                // An element can be a mirror and a breakpoints element at the same time, but then the mirror serialization overrides the breakpoints serialization.
+                // Therefore, serialization must be disable for such elements.
+                element.elq.serialize = false;
+            }
+
             var breakpointElement = getElqParentElement(element);
 
             elq.listenTo(breakpointElement, "breakpointStatesChanged", function mirrorNewBreakpointStates(breakpointElement, newBreakpointStates) {
