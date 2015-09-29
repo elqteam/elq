@@ -73,8 +73,6 @@
 
     <script src="../../node_modules/jquery/dist/jquery.min.js"></script>
     <script src="../../build/elq.js"></script>
-    <script src="../../build/elq-breakpoints.js"></script>
-    <script src="../../build/elq-mirror.js"></script>
     <script>
         $(function() {
             function updateElement(element) {
@@ -90,12 +88,10 @@
 
             var container = $("#container");
 
-            var elq = new Elq();
-
-            elq.use(elqBreakpoints, {
+            var elq = new Elq({
                 defaultUnit: "em"
             });
-            elq.use(elqMirror);
+
             elq.start($("[elq]"));
 
             elq.listenTo(container[0], updateElement);
