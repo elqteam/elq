@@ -100,6 +100,15 @@ module.exports = function (grunt) {
                     singleRun: true
                 }
             }
+        },
+        watch: {
+            scripts: {
+                files: ["**/*.js"],
+                tasks: ["build"],
+                options: {
+                    spawn: false
+                }
+            }
         }
     };
 
