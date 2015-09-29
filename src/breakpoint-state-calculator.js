@@ -21,22 +21,18 @@ module.exports = function BreakpointStateCalculator() {
             var dimension = breakpoint.dimension;
             var elementValue = dimensionValues[dimension];
 
-            var equal = false;
-            var above = false;
+            var over = false;
             var under = false;
 
-            if (breakpoint.pixelValue > elementValue) {
-                above = true;
-            } else if (breakpoint.pixelValue < elementValue) {
+            if (elementValue > breakpoint.pixelValue) {
+                over = true;
+            } else if (elementValue < breakpoint.pixelValue) {
                 under = true;
-            } else {
-                equal = true;
             }
 
             var breakpointState = {
                 breakpoint: breakpoint,
-                equal: equal,
-                above: above,
+                over: over,
                 under: under
             };
 
