@@ -72,13 +72,10 @@ module.exports = function Elq(options) {
                 breakpointSerializer.serializeBreakpointStates(element, breakpointStates);
             }
 
-            // TODO: Notify listerns of the element that it has changed breakpoints state.
+            // TODO: Notify listeners of the element that it has changed breakpoints state.
             // forEach(elementBreakpointsListeners[id], function (listener) {
             //     listener(element);
             // });
-            console.log("Updated", element);
-        } else {
-            console.log("Ignored", element);
         }
     }
 

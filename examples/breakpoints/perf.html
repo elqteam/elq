@@ -45,8 +45,6 @@
 
     <script src="../../node_modules/jquery/dist/jquery.min.js"></script>
     <script src="../../build/elq.js"></script>
-    <script src="../../build/elq-breakpoints.js"></script>
-    <script src="../../build/elq-mirror.js"></script>
     <script>
         var alignerWidth = 100;
 
@@ -82,8 +80,6 @@
 
         $(function onDomReady() {
             var elq = Elq();
-            elq.use(elqBreakpoints);
-            elq.use(elqMirror);
             elq.start($("[elq]"));
         });
     </script>
