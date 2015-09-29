@@ -66,7 +66,6 @@ module.exports = function Elq(options) {
             var cycleDetection = true;
 
             if (cycleDetection && element.elq.cycleCheck) {
-                console.log("cycle check", element);
                 if (cycleDetector.isUpdateCyclic(element, breakpointStatesHash)) {
                     reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
                     return;
