@@ -4,7 +4,7 @@ var packageJson = require("../../package.json"); // In the future this plugin mi
 var forEach = require("lodash.forEach");
 var partial = require("lodash.partial");
 
-var elqBreakpointsPlugin = require("./elq-breakpoints.js");
+var elqBreakpointsPlugin = require("./elq-breakpoints/elq-breakpoints.js");
 
 module.exports = {
     getName: function () {

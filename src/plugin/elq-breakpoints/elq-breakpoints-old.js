@@ -29,7 +29,7 @@ module.exports = {
     isCompatible: function (elq) {
         var versionParts = elq.getVersion().split(".");
         var lesser = parseInt(versionParts[1]);
-        return lesser >= 3;
+        return lesser === 3;
     },
     make: function (elq, options) {
         var cycleDetector           = elq.cycleDetector;

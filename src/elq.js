@@ -11,10 +11,12 @@ var Reporter                    = require("./reporter");
 var IdGenerator                 = require("./id-generator");
 var IdHandler                   = require("./id-handler");
 var CycleDetector               = require("./cycle-detector");
-var BreakpointParser            = require("./breakpoint-parser");
 var BreakpointStateCalculator   = require("./breakpoint-state-calculator");
-var BreakpointStateSerializer   = require("./breakpoint-state-serializer");
 var StyleResolver               = require("./style-resolver");
+
+// Core plugins
+var elqBreakpoints              = require("./plugin/elq-breakpoints/elq-breakpoints.js");
+var elqMinMaxSerializer         = require("./plugin/elq-minmax-serializer/elq-minmax-serializer.js");
 
 module.exports = function Elq(options) {
     options = options || {};
@@ -27,18 +29,18 @@ module.exports = function Elq(options) {
     var cycleDetector               = CycleDetector(idHandler);
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
-    var breakpointParser            = BreakpointParser({ reporter: reporter, defaultUnit: defaultUnit, styleResolver: styleResolver });
     var breakpointStateCalculator   = BreakpointStateCalculator();
-    var breakpointSerializer        = BreakpointStateSerializer();
     var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
     var batchUpdater                = BatchUpdater();
 
     function updateBreakpoints(element, batchProcessor) {
-        var breakpoints = breakpointParser.parseBreakpoints(element);
+        var breakpoints = [];
 
-        // TODO: Let plugins parse breakpoints also.
+        forEach(pluginHandler.getMethods("getBreakpoints"), function (getBreakpoints) {
+            breakpoints = breakpoints.concat(getBreakpoints(element));
+        });
 
         // Filter so that we only got unique breakpoints.
         breakpoints = unique(breakpoints, function uniqueFunction(bp) {
@@ -46,8 +48,6 @@ module.exports = function Elq(options) {
         });
 
         var breakpointStates = breakpointStateCalculator.getBreakpointStates(element, breakpoints);
-
-        // TODO: Here it should be checked if the breakpoints have changed since last time.
 
         // TODO: This should instead be hashed. Also, maybe there is a more effective way of doing this.
         var breakpointStatesHash = JSON.stringify(breakpointStates);
@@ -67,10 +67,7 @@ module.exports = function Elq(options) {
 
             element.elq.currentBreakpointStatesHash = breakpointStatesHash;
 
-            if (!elementOptions.noclasses) {
-                // TODO: Let plugins serialize breakpoints also.
-                breakpointSerializer.serializeBreakpointStates(element, breakpointStates);
-            }
+            pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates, elementOptions]);
 
             // TODO: Notify listeners of the element that it has changed breakpoints state.
             // forEach(elementBreakpointsListeners[id], function (listener) {
@@ -147,6 +144,14 @@ module.exports = function Elq(options) {
     elq.cycleDetector       = cycleDetector;
     elq.BatchUpdater        = BatchUpdater;
     elq.getPlugin           = pluginHandler.get;
+
+    // Register core plugins
+
+    elq.use(elqBreakpoints, {
+        defaultUnit: defaultUnit
+    });
+
+    elq.use(elqMinMaxSerializer);
 
     return publicElq;
 };
