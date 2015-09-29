@@ -63,21 +63,20 @@ module.exports = function Elq(options) {
 
         if (element.elq.currentBreakpointStatesHash !== breakpointStatesHash) {
             // TODO: These should be read from the element instead.
-            var cycleDetection = false;
-            var elementOptions = {
-                notcyclic: false,
-                noclasses: false
-            };
+            var cycleDetection = true;
 
-            if (cycleDetection && !elementOptions.notcyclic && cycleDetector.isUpdateCyclic(element, breakpointStatesHash)) {
-                reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
-                return;
+            if (cycleDetection && element.elq.cycleCheck) {
+                console.log("cycle check", element);
+                if (cycleDetector.isUpdateCyclic(element, breakpointStatesHash)) {
+                    reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
+                    return;
+                }
             }
 
             element.elq.currentBreakpointStatesHash = breakpointStatesHash;
 
             if (element.elq.serialize) {
-                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates, elementOptions]);
+                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]);
             }
 
             notifyListeners(element, "breakpointStatesChanged", [element, breakpointStates]);

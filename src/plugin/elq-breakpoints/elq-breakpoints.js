@@ -35,6 +35,15 @@ module.exports = {
             if (element.elq.serialize !== false) {
                 element.elq.serialize = true;
             }
+
+            if (element.getAttribute("elq-breakpoints").indexOf("notcyclic") !== -1) {
+                element.elq.cycleCheck = false;
+            } else {
+                // Enable cycle check unless some other system explicitly has disabled it.
+                if (element.elq.cycleCheck !== false) {
+                    element.elq.cycleCheck = true;
+                }
+            }
         }
 
         function getBreakpoints(element) {

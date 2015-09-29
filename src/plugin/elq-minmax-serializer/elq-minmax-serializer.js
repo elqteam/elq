@@ -17,12 +17,8 @@ module.exports = {
     make: function (elq, options) {
         var breakpointSerializer = BreakpointStateSerializer();
 
-        function serializeBreakpointStates(element, breakpointStates, options) {
-            options = options || {};
-
-            if (!options.noclasses) {
-                breakpointSerializer.serializeBreakpointStates(element, breakpointStates);
-            }
+        function serializeBreakpointStates(element, breakpointStates) {
+            breakpointSerializer.serializeBreakpointStates(element, breakpointStates);
         }
 
         return {
