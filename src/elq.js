@@ -17,6 +17,7 @@ var StyleResolver               = require("./style-resolver");
 // Core plugins
 var elqBreakpoints              = require("./plugin/elq-breakpoints/elq-breakpoints.js");
 var elqMinMaxSerializer         = require("./plugin/elq-minmax-serializer/elq-minmax-serializer.js");
+var elqMirror                   = require("./plugin/elq-mirror/elq-mirror.js");
 
 module.exports = function Elq(options) {
     options = options || {};
@@ -34,6 +35,14 @@ module.exports = function Elq(options) {
     var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
     var batchUpdater                = BatchUpdater();
+
+    function notifyListeners(element, event, args) {
+        var listeners = element.elq.listeners[event] || [];
+
+        forEach(listeners, function (callback) {
+            callback.apply(null, args);
+        });
+    }
 
     function updateBreakpoints(element, batchProcessor) {
         var breakpoints = [];
@@ -54,7 +63,7 @@ module.exports = function Elq(options) {
 
         if (element.elq.currentBreakpointStatesHash !== breakpointStatesHash) {
             // TODO: These should be read from the element instead.
-            var cycleDetection = true;
+            var cycleDetection = false;
             var elementOptions = {
                 notcyclic: false,
                 noclasses: false
@@ -69,10 +78,7 @@ module.exports = function Elq(options) {
 
             pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates, elementOptions]);
 
-            // TODO: Notify listeners of the element that it has changed breakpoints state.
-            // forEach(elementBreakpointsListeners[id], function (listener) {
-            //     listener(element);
-            // });
+            notifyListeners(element, "breakpointStatesChanged", [element, breakpointStates]);
         }
     }
 
@@ -96,35 +102,67 @@ module.exports = function Elq(options) {
             });
         }
 
-        // Extract elq elements by plugins.
+        if (!elements.length) {
+            return;
+        }
 
-        // if (elementsArray.length) {
-        //     pluginHandler.callMethods("start", [elementsArray]);
-        // }
+        forEach(elements, function (element) {
+            element.elq = element.elq || {
+                listeners: {},
+                updateBreakpoints: false,
+                resizeDetection: false
+            };
+            pluginHandler.callMethods("start", [element]);
+        });
 
         var manualBatchUpdater = BatchUpdater({ async: false, auto: false });
 
         //Before listening to each element (which is a heavy task) it is important to apply the right classes
         //to the elements so that a correct render can occur before the installation.
         forEach(elements, function (element) {
-            element.elq = element.elq || {};
-            updateBreakpoints(element, manualBatchUpdater);
+            if (element.elq.updateBreakpoints) {
+                updateBreakpoints(element, manualBatchUpdater);
+            }
         });
 
         function onElementResizeProxy(element) {
-            return updateBreakpoints(element, batchUpdater);
+            notifyListeners(element, "resize", [element]);
+
+            if (element.elq.updateBreakpoints) {
+                updateBreakpoints(element, batchUpdater);
+            }
         }
 
         forEach(elements, function listenToLoop(element) {
-            elementResizeDetector.listenTo({
-                callOnAdd: true, // TODO: Shouldn't this be false?
-                batchUpdater: batchUpdater
-            }, element, onElementResizeProxy);
+            if (element.elq.resizeDetection) {
+                elementResizeDetector.listenTo({
+                    callOnAdd: true, // TODO: Shouldn't this be false?
+                    batchUpdater: batchUpdater
+                }, element, onElementResizeProxy);
+            }
         });
 
         //Force everything currently in the batch to execute synchronously.
         //Important that his is done after the listenToLoop since it reads the DOM style and the batch will write to the DOM.
         manualBatchUpdater.force();
+    }
+
+    function listenTo(element, event, callback) {
+        if (!element.elq) {
+            // TODO: This could perhaps be removed, so that it is possible to add listeners before starting elements.
+            return reporter.error("Can only listen to events of elq elements. Call 'start' before listening.");
+        }
+
+        // TODO: If event is "resize" but the element is current element.elq.resizeDetection = false,
+        // it would perhaps be nice to start listening to this element.
+
+        var listeners = element.elq.listeners;
+
+        if (!listeners[event]) {
+            listeners[event] = [];
+        }
+
+        listeners[event].push(callback);
     }
 
     //Public
@@ -133,7 +171,7 @@ module.exports = function Elq(options) {
     elq.use                 = partial(pluginHandler.register, elq);
     elq.using               = pluginHandler.isRegistered;
     elq.start               = start;
-    elq.listenTo            = elementResizeDetector.listenTo;
+    elq.listenTo            = listenTo;
 
     //Create an object copy of the currently attached API methods, that will be exposed as the public API.
     var publicElq           = copy(elq);
@@ -143,7 +181,7 @@ module.exports = function Elq(options) {
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
     elq.BatchUpdater        = BatchUpdater;
-    elq.getPlugin           = pluginHandler.get;
+    elq.pluginHandler       = pluginHandler;
 
     // Register core plugins
 
@@ -152,6 +190,7 @@ module.exports = function Elq(options) {
     });
 
     elq.use(elqMinMaxSerializer);
+    elq.use(elqMirror);
 
     return publicElq;
 };

@@ -18,6 +18,8 @@ module.exports = {
         var breakpointSerializer = BreakpointStateSerializer();
 
         function serializeBreakpointStates(element, breakpointStates, options) {
+            options = options || {};
+
             if (!options.noclasses) {
                 breakpointSerializer.serializeBreakpointStates(element, breakpointStates);
             }

@@ -22,11 +22,22 @@ module.exports = {
             styleResolver: styleResolver
         });
 
+        function start(element) {
+            if (!element.hasAttribute("elq-breakpoints")) {
+                return;
+            }
+
+            // All elq-breakpoints elements need to detect resizes and also update breakpoints.
+            element.elq.resizeDetection = true;
+            element.elq.updateBreakpoints = true;
+        }
+
         function getBreakpoints(element) {
             return breakpointsParser.parseBreakpoints(element);
         }
 
         return {
+            start: start,
             getBreakpoints: getBreakpoints
         };
     }
