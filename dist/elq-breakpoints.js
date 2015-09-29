@@ -3989,79 +3989,229 @@ module.exports = isIterateeCall;
 },{}],84:[function(require,module,exports){
 arguments[4][64][0].apply(exports,arguments)
 },{"dup":64}],85:[function(require,module,exports){
+module.exports={
+  "name": "elq",
+  "description": "Element media queries framework. Solution to modular responsive components.",
+  "homepage": "https://github.com/wnr/elq",
+  "version": "0.3.0",
+  "private": false,
+  "license": "MIT",
+  "devDependencies": {
+    "load-grunt-tasks": "^3.0.0",
+    "grunt": "^0.4.5",
+    "grunt-banner": "^0.3.1",
+    "grunt-browserify": "^3.3.0",
+    "grunt-contrib-jshint": "^0.11.0",
+    "grunt-jscs": "^1.2.0",
+    "grunt-karma": "^0.10.1",
+    "jasmine-core": "^2.2.0",
+    "jasmine-expect": "^2.0.0-beta1",
+    "jasmine-jquery": "^2.0.6",
+    "jquery": "^1.11.2",
+    "karma": "^0.12.31",
+    "karma-chrome-launcher": "^0.1.7",
+    "karma-firefox-launcher": "^0.1.4",
+    "karma-jasmine": "^0.3.5",
+    "karma-safari-launcher": "^0.1.1",
+    "karma-sauce-launcher": "^0.2.10",
+    "lodash": "^3.3.1"
+  },
+  "dependencies": {
+    "element-resize-detector": "^0.3.5",
+    "batch-updater": "^0.1.0",
+    "lodash.filter": "^2.4.1",
+    "lodash.foreach": "^3.0.1",
+    "lodash.isfunction": "^2.4.1",
+    "lodash.isobject": "^2.4.1",
+    "lodash.isstring": "^2.4.1",
+    "lodash.map": "^3.0.0",
+    "lodash.partialright": "^2.4.1",
+    "lodash.uniq": "^3.0.0",
+    "lodash.bind": "^3.1.0",
+    "lodash.partial": "^3.1.0"
+  },
+  "scripts": {
+    "build": "grunt build",
+    "dist": "grunt dist",
+    "test": "grunt test"
+  }
+}
+
+},{}],86:[function(require,module,exports){
 "use strict";
 
 module.exports = require("./elq-breakpoints");
 
-},{"./elq-breakpoints":86}],86:[function(require,module,exports){
+},{"./elq-breakpoints":87}],87:[function(require,module,exports){
 "use strict";
 
+var packageJson = require("../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
 var forEach = require("lodash.foreach");
 var unique = require("lodash.uniq");
 var filter = require("lodash.filter");
 
+var BP_UNITS = {};
+BP_UNITS.PX = "px";
+BP_UNITS.EM = "em";
+BP_UNITS.REM = "rem";
+
+function isUnitTypeValid(val) {
+    for (var prop in BP_UNITS) {
+        if (BP_UNITS.hasOwnProperty(prop) && BP_UNITS[prop] === val) {
+            return true;
+        }
+    }
+    return false;
+}
+
 module.exports = {
-    getName: function() {
+    getName: function () {
         return "elq-breakpoints";
     },
-    getVersion: function() {
-        return "0.1.0";
+    getVersion: function () {
+        return packageJson.version;
     },
-    isCompatible: function() {
-        return true; //TODO: Check elq version.
+    isCompatible: function (elq) {
+        var versionParts = elq.getVersion().split(".");
+        var lesser = parseInt(versionParts[1]);
+        return lesser >= 3;
     },
-    make: function(elq, globalOptions) {
-        globalOptions.defaultUnit   = globalOptions.defaultUnit || "px";
+    make: function (elq, options) {
+        var cycleDetector           = elq.cycleDetector;
         var reporter                = elq.reporter;
         var idHandler               = elq.idHandler;
-        var cycleDetector           = elq.cycleDetector;
-        var batchUpdater            = elq.createBatchUpdater();
+        var batchUpdater            = elq.BatchUpdater();
+
+        var defaultUnit             = options.defaultUnit || "px";
+        var cycleDetection          = !!cycleDetector; // Default is 'true' when there's a cycleDetector available.
+
+        if (!isUnitTypeValid(defaultUnit)) {
+            reporter.error("Invalid default unit: " + defaultUnit);
+        }
+
+        if (options.cycleDetection !== undefined) {
+            if (options.cycleDetection && !cycleDetector) {
+                reporter.error("Elq's cycleDetector subsystem is required when option cycleDetection is enabled.");
+            }
+            cycleDetection = !!options.cycleDetection;
+        }
 
         var elementBreakpointsListeners = {};
         var currentElementBreakpointClasses = {};
 
         function start(elements) {
             function onElementResize(batchUpdater, element) {
-                //Read breakpoints by the format elq-breakpoints-widths="300 500 ...".
+                //Read breakpoints by the format elq-breakpoints-widths="300px 500em 200rem 100 ...".
                 function getBreakpoints(element, dimension) {
+                    function Breakpoint(string, value, valuePx, unit, element) {
+                        var bp = {};
+                        bp.string = string; // Can be either just value as a string or value + unit
+                        bp.value = value;
+                        bp.valuePx = valuePx;
+                        bp.unit = unit;
+                        bp.element = element;
+                        return bp;
+                    }
+
+                    function getElementFontSizeInPixels(element) {
+                        return parseFloat(getComputedStyle(element).fontSize.replace("px", ""));
+                    }
+
+                    var breakpointPixelValueConverters = {};
+
+                    breakpointPixelValueConverters[BP_UNITS.PX] = function (value) {
+                        return value;
+                    };
+
+                    var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same resize of this element.
+                    breakpointPixelValueConverters[BP_UNITS.REM] = function (value) {
+                        function getRootElementFontSize() {
+                            if (!cachedRootFontSize) {
+                                cachedRootFontSize = getElementFontSizeInPixels(document.documentElement);
+                            }
+                            return cachedRootFontSize;
+                        }
+                        return value * getRootElementFontSize();
+                    };
+
+                    var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same resize of this element.
+                    breakpointPixelValueConverters[BP_UNITS.EM] = function (value) {
+                        function getElementFontSize() {
+                            if (!cachedElementFontSize) {
+                                cachedElementFontSize = getElementFontSizeInPixels(element);
+                            }
+                            return cachedElementFontSize;
+                        }
+                        return value * getElementFontSize();
+                    };
+
                     function getFromMainAttr(element, dimension) {
                         var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
 
-                        if(!breakpoints) {
+                        if (!breakpoints) {
                             return [];
                         }
 
                         breakpoints = breakpoints.replace(/\s+/g, " ").trim();
                         breakpoints = breakpoints.split(" ");
-                        return breakpoints.map(function(value) {
-                            return parseInt(value, 10);
+
+                        breakpoints = breakpoints.map(function (breakpointString) {
+                            var valueMatch = breakpointString.match(/^([0-9]+)/g);
+                            // a breakpoint value must exist
+                            if (!valueMatch) {
+                                reporter.error("Invalid breakpoint: " + breakpointString + " for element ", element);
+                            }
+
+                            var unitMatch = breakpointString.match(/([a-zA-Z]+)$/g); // the unit is allowed to be omitted
+                            var unit = unitMatch ? unitMatch[0] : defaultUnit;
+
+                            if (!isUnitTypeValid(unit)) {
+                                reporter.error("Elq breakpoint found with invalid unit: " + unit + " for element ", element);
+                            }
+
+                            var value = parseFloat(valueMatch[0]);
+                            var valuePx = breakpointPixelValueConverters[unit](value);
+
+                            return Breakpoint(breakpointString, value, valuePx, unit, element);
+                        });
+                        return breakpoints;
+                    }
+
+                    function uniqueBreakpoints(breakpoints) {
+                        return unique(breakpoints, function uniqueFunction(bp) {
+                            // Can not simply take breakpoint.string since unit is allowed to be omitted
+                            return bp.value + bp.unit;
                         });
                     }
 
-                    var breakpoints = [];
-                    breakpoints = breakpoints.concat(getFromMainAttr(element, dimension));
-                    breakpoints = unique(breakpoints);
-                    breakpoints = breakpoints.sort(function(a, b) {
-                        return a - b;
-                    });
+                    function sortBreakpoints(breakpoints) {
+                        return breakpoints.sort(function (bp1, bp2) {
+                            return bp1.valuePx - bp2.valuePx;
+                        });
+                    }
+
+                    var breakpoints = getFromMainAttr(element, dimension);
+                    breakpoints = uniqueBreakpoints(breakpoints);
+                    // Sort for the visual aspect of having the classes in order in the html
+                    breakpoints = sortBreakpoints(breakpoints);
                     return breakpoints;
                 }
 
                 function getClasses(breakpoints, dimension, value) {
                     var classes = [];
 
-                    if(!breakpoints.length) {
+                    if (!breakpoints.length) {
                         return classes;
                     }
 
-                    breakpoints.forEach(function(breakpoint) {
+                    breakpoints.forEach(function (breakpoint) {
                         var dir = "max";
 
-                        if(value >= breakpoint) {
+                        if (value >= breakpoint.valuePx) {
                             dir = "min";
                         }
 
-                        classes.push("elq-" + dir + "-" + dimension + "-" + breakpoint + globalOptions.defaultUnit);
+                        classes.push("elq-" + dir + "-" + dimension + "-" + breakpoint.value + breakpoint.unit);
                     });
 
                     return classes;
@@ -4078,21 +4228,21 @@ module.exports = {
                 var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
 
                 var id = idHandler.get(element);
-                var options = getOptions(element);
+                var elementOptions = getElementOptions(element);
 
                 batchUpdater.update(id, function mutateElementBreakpointClasses() {
-                    if(currentElementBreakpointClasses[id] !== breakpointClasses) {
-                        if(cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
+                    if (currentElementBreakpointClasses[id] !== breakpointClasses) {
+                        if (cycleDetection && !elementOptions.notcyclic && cycleDetector.isUpdateCyclic(element, breakpointClasses)) {
                             reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
                             return;
                         }
 
-                        if(!options.noclasses) {
+                        if (!elementOptions.noclasses) {
                             updateBreakpointClasses(element, breakpointClasses);
                         }
 
                         currentElementBreakpointClasses[id] = breakpointClasses;
-                        forEach(elementBreakpointsListeners[id], function(listener) {
+                        forEach(elementBreakpointsListeners[id], function (listener) {
                             listener(element);
                         });
                     }
@@ -4105,7 +4255,7 @@ module.exports = {
 
             //Before listening to each element (which is a heavy task) it is important to apply the right classes
             //to the elements so that a correct render can occur before all objects are injected to the elements.
-            var manualBatchUpdater = elq.createBatchUpdater({ async: false, auto: false });
+            var manualBatchUpdater = elq.BatchUpdater({ async: false, auto: false });
             forEach(elements, function onElementResizeLoop(element) {
                 onElementResize(manualBatchUpdater, element);
             });
@@ -4143,7 +4293,7 @@ module.exports = {
             var classes = element.className;
 
             //Remove all old breakpoints.
-            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+" + globalOptions.defaultUnit, "g");
+            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+[a-zA-Z]+" , "g");
             classes = classes.replace(breakpointRegexp, "");
 
             //Add new classes
@@ -4155,15 +4305,16 @@ module.exports = {
             element.className = classes;
         }
 
-        function getOptions(element) {
-            var options = {};
+        function getElementOptions(element) {
+            var elementOptions = {};
 
-            var optionsString = element.getAttribute("elq-breakpoints") || "";
-            optionsString = optionsString.toLowerCase();
+            var elementOptionsString = element.getAttribute("elq-breakpoints") || "";
+            elementOptionsString = elementOptionsString.toLowerCase();
 
-            options.noclasses =  !!~optionsString.indexOf("noclasses");
+            elementOptions.noclasses = !!~elementOptionsString.indexOf("noclasses");
+            elementOptions.notcyclic = !!~elementOptionsString.indexOf("notcyclic");
 
-            return options;
+            return elementOptions;
         }
 
         return {
@@ -4175,5 +4326,5 @@ module.exports = {
     }
 };
 
-},{"lodash.filter":1,"lodash.foreach":57,"lodash.uniq":68}]},{},[85])(85)
+},{"../../package.json":85,"lodash.filter":1,"lodash.foreach":57,"lodash.uniq":68}]},{},[86])(86)
 });

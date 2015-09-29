@@ -481,9 +481,12 @@ module.exports = function(options) {
             var width           = parseSize(elementStyle.width);
             var height          = parseSize(elementStyle.height);
 
+            // Store the size of the element sync here, so that multiple scroll events may be ignored in the event listeners.
+            // Otherwise the if-check in handleScroll is useless.
+            storeCurrentSize(element, width, height);
+
             batchProcessor.add(function updateDetectorElements() {
                 updateChildSizes(element, width, height);
-                storeCurrentSize(element, width, height);
             });
 
             batchProcessor.add(1, function updateScrollbars() {
@@ -492,26 +495,21 @@ module.exports = function(options) {
             });
         };
 
+        function handleScroll() {
+            var style = getComputedStyle(element);
+            var width = parseSize(style.width);
+            var height = parseSize(style.height);
+
+            if (width !== element.lastWidth || height !== element.lastHeight) {
+                changed();
+            }
+        }
+
         var expand = getExpandElement(element);
         var shrink = getShrinkElement(element);
 
-        addEvent(expand, "scroll", function onExpand() {
-            var style = getComputedStyle(element);
-            var width = parseSize(style.width);
-            var height = parseSize(style.height);
-            if (width > element.lastWidth || height > element.lastHeight) {
-                changed();
-            }
-        });
-
-        addEvent(shrink, "scroll", function onShrink() {
-            var style = getComputedStyle(element);
-            var width = parseSize(style.width);
-            var height = parseSize(style.height);
-            if (width < element.lastWidth || height < element.lastHeight) {
-                changed();
-            }
-        });
+        addEvent(expand, "scroll", handleScroll);
+        addEvent(shrink, "scroll", handleScroll);
     }
 
     /**
@@ -5585,7 +5583,7 @@ module.exports={
     "lodash": "^3.3.1"
   },
   "dependencies": {
-    "element-resize-detector": "^0.3.0",
+    "element-resize-detector": "^0.3.5",
     "batch-updater": "^0.1.0",
     "lodash.filter": "^2.4.1",
     "lodash.foreach": "^3.0.1",
@@ -5609,7 +5607,7 @@ module.exports={
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
-    if(!idHandler) {
+    if (!idHandler) {
         throw new Error("IdHandler dependency required.");
     }
 
@@ -5629,7 +5627,7 @@ module.exports = function CycleDetector(idHandler, options) {
             time: time
         };
 
-        if(!elements[id]) {
+        if (!elements[id]) {
             elements[id] = [update];
             return false;
         }
@@ -5638,20 +5636,20 @@ module.exports = function CycleDetector(idHandler, options) {
 
         var cycles = 0;
 
-        for(var i = updates.length - 1; i >= 0; i--) {
+        for (var i = updates.length - 1; i >= 0; i--) {
             var prevUpdate = updates[i];
 
-            if(update.time - prevUpdate.time > options.timeBetweenCyclesAllowed) {
+            if (update.time - prevUpdate.time > options.timeBetweenCyclesAllowed) {
                 elements[id] = updates.slice(i + 1, updates.length);
                 elements[id].push(update);
                 return false;
             }
 
-            if(prevUpdate.classes === update.classes) {
+            if (prevUpdate.classes === update.classes) {
                 cycles++;
             }
 
-            if(cycles > options.numCyclesAllowed) {
+            if (cycles > options.numCyclesAllowed) {
                 elements[id].push(update);
                 return true;
             }
@@ -5691,7 +5689,7 @@ module.exports = function Elq(options) {
     var cycleDetector           = CycleDetector(idHandler);
     var pluginHandler           = PluginHandler(reporter);
     var elementResizeDetector   = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
-    var createBatchUpdater      = createBatchUpdaterWithDefaultOptions({ reporter: reporter });
+    var BatchUpdater            = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
     function start(elements) {
         var elementsArray = elements;
@@ -5700,7 +5698,7 @@ module.exports = function Elq(options) {
             return;
         }
 
-        if(elements.length === undefined) {
+        if (elements.length === undefined) {
             elementsArray = [elements];
         }
 
@@ -5733,7 +5731,7 @@ module.exports = function Elq(options) {
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.createBatchUpdater  = createBatchUpdater; //TODO: Rename to batch processor.
+    elq.BatchUpdater        = BatchUpdater;
     elq.getPlugin           = pluginHandler.get;
 
     return publicElq;
@@ -5750,8 +5748,8 @@ function getName() {
 function copy(o) {
     var c = {};
 
-    for(var key in o) {
-        if(o.hasOwnProperty(key)) {
+    for (var key in o) {
+        if (o.hasOwnProperty(key)) {
             c[key] = o[key];
         }
     }
@@ -5759,14 +5757,14 @@ function copy(o) {
     return c;
 }
 
-function createBatchUpdaterWithDefaultOptions(globalOptions) {
+function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
     globalOptions = globalOptions || {};
 
     function createBatchUpdaterOptionsProxy(options) {
         options = options || globalOptions;
 
-        for(var prop in globalOptions) {
-            if(globalOptions.hasOwnProperty(prop) && !options.hasOwnProperty(prop)) {
+        for (var prop in globalOptions) {
+            if (globalOptions.hasOwnProperty(prop) && !options.hasOwnProperty(prop)) {
                 options[prop] = globalOptions[prop];
             }
         }
@@ -5778,10 +5776,64 @@ function createBatchUpdaterWithDefaultOptions(globalOptions) {
 }
 
 },{"../package.json":107,"./cycle-detector":108,"./id-generator":110,"./id-handler":111,"./plugin-handler":113,"./reporter":114,"batch-updater":1,"element-resize-detector":9,"lodash.forEach":77,"lodash.partial":101}],110:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],111:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"dup":12}],112:[function(require,module,exports){
+"use strict";
+
+module.exports = function () {
+    var idCount = 1;
+
+    /**
+     * Generates a new unique id in the context.
+     * @public
+     * @returns {number} A unique id in the context.
+     */
+    function generate() {
+        return idCount++;
+    }
+
+    return {
+        generate: generate
+    };
+};
+
+},{}],111:[function(require,module,exports){
+"use strict";
+
+module.exports = function (idGenerator) {
+    var ID_PROP_NAME = "_erdTargetId";
+
+    /**
+     * Gets the resize detector id of the element. If the element does not have an id, one will be assigned to the element.
+     * @public
+     * @param {element} element The target element to get the id of.
+     * @param {boolean?} readonly An id will not be assigned to the element if the readonly parameter is true. Default is false.
+     * @returns {string|number} The id of the element.
+     */
+    function getId(element, readonly) {
+        if (!readonly && !hasId(element)) {
+            setId(element);
+        }
+
+        return element[ID_PROP_NAME];
+    }
+
+    function setId(element) {
+        var id = idGenerator.generate();
+
+        element[ID_PROP_NAME] = id;
+
+        return id;
+    }
+
+    function hasId(element) {
+        return element[ID_PROP_NAME] !== undefined;
+    }
+
+    return {
+        get: getId
+    };
+};
+
+},{}],112:[function(require,module,exports){
 "use strict";
 
 var Elq = require("./elq");
@@ -5807,7 +5859,7 @@ _.bind          = require("lodash.bind");
  * @param {Reporter} reporter Reporter instance that will be used for reporting errors.
  */
 module.exports = function PluginHandler(reporter) {
-    if(!reporter) {
+    if (!reporter) {
         throw new Error("Reporter dependency required.");
     }
 
@@ -5825,13 +5877,13 @@ module.exports = function PluginHandler(reporter) {
         options = options || {};
 
         function checkPluginMethod(method) {
-            if(!_.isFunction(plugin[method])) {
+            if (!_.isFunction(plugin[method])) {
                 reporter.error("Plugin must provide the " + method + " method. Plugin: ", plugin);
                 throw new Error("Invalid plugin: missing method");
             }
         }
 
-        if(!_.isObject(plugin)) {
+        if (!_.isObject(plugin)) {
             reporter.error("Plugin must be an object. Plugin: ", plugin);
             throw new Error("Invalid plugin: not an object");
         }
@@ -5841,14 +5893,14 @@ module.exports = function PluginHandler(reporter) {
         checkPluginMethod("isCompatible");
         checkPluginMethod("make");
 
-        if(!plugin.isCompatible(target)) {
+        if (!plugin.isCompatible(target)) {
             reporter.error("Plugin " + plugin.getName() + ":" + plugin.getVersion() + " is incompatible with " + target.getName() + ":" + target.getVersion());
             throw new Error("Incompatible plugin");
         }
 
         var name = plugin.getName();
 
-        if(plugins[name]) {
+        if (plugins[name]) {
             throw new Error("Plugin " + name + " is already being used.");
         }
 
@@ -5866,7 +5918,7 @@ module.exports = function PluginHandler(reporter) {
     function isRegistered(plugin) {
         var name = _.isObject(plugin) ? plugin.getName() : plugin;
 
-        if(!_.isString(name)) {
+        if (!_.isString(name)) {
             return false;
         }
 
@@ -5910,7 +5962,7 @@ module.exports = function PluginHandler(reporter) {
      * @param {Array} args The arguments array to be applied to all plugin methods.
      */
     function callMethods(method, args) {
-        getMethods(method).forEach(function(pluginMethod) {
+        getMethods(method).forEach(function (pluginMethod) {
             pluginMethod.apply(null, args);
         });
     }
@@ -5934,7 +5986,7 @@ module.exports = function PluginHandler(reporter) {
  * @public
  * @param {boolean} quiet Tells if the reporter should be quiet or not.
  */
-module.exports = function(quiet) {
+module.exports = function (quiet) {
     function noop() {
         //Does nothing.
     }
@@ -5945,9 +5997,9 @@ module.exports = function(quiet) {
         error: noop
     };
 
-    if(!quiet && window.console) {
-        var attachFunction = function(reporter, name) {
-            reporter[name] = function() {
+    if (!quiet && window.console) {
+        var attachFunction = function (reporter, name) {
+            reporter[name] = function () {
                 console[name].apply(console, arguments);
             };
         };
