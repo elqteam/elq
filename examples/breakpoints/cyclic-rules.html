@@ -94,7 +94,9 @@
 
             var container = $("#container");
 
-            var elq = Elq();
+            var elq = Elq({
+                cycleDetection: true
+            });
             elq.start($("[elq]"));
 
             elq.listenTo(container[0], "resize", updateElement);
