@@ -25,6 +25,7 @@ module.exports = function Elq(options) {
     var elq                         = {};
     var reporter                    = options.reporter || Reporter();
     var defaultUnit                 = options.defaultUnit || "px";
+    var cycleDetection              = options.cycleDetection || false;
     var idGenerator                 = IdGenerator();
     var idHandler                   = IdHandler(idGenerator);
     var cycleDetector               = CycleDetector(idHandler);
@@ -62,9 +63,6 @@ module.exports = function Elq(options) {
         var breakpointStatesHash = JSON.stringify(breakpointStates);
 
         if (element.elq.currentBreakpointStatesHash !== breakpointStatesHash) {
-            // TODO: This should be read from the a global option.
-            var cycleDetection = true;
-
             if (cycleDetection && element.elq.cycleCheck) {
                 if (cycleDetector.isUpdateCyclic(element, breakpointStatesHash)) {
                     reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
