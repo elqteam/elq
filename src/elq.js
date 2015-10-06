@@ -215,6 +215,7 @@ module.exports = function Elq(options) {
     elq.pluginHandler       = pluginHandler;
 
     // Register core plugins
+    // TODO: These should be registered at a higher level, such as index.js so that they can be omitted in a slim build.
 
     elq.use(elqBreakpoints, {
         defaultUnit: defaultUnit
