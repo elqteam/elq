@@ -19,6 +19,22 @@ module.exports = {
             // Therefore, serialization must be disable for mirror elements.
             mirrorElement.elq.serialize = false;
 
+            if (mirrorElement.elq.mirror) {
+                // This element is already mirroring an element.
+
+                if (mirrorElement.elq.mirror.targetId === targetElement.elq.id) {
+                    // It is the same object, do nothing.
+                    return;
+                } else {
+                    // A new object is to be mirrored. This is currently unsupported, but shall probably be supported in the future.
+                    elq.reporter.error("Cannot change mirror target.", mirrorElement);
+                }
+            }
+
+            mirrorElement.elq.mirror = {
+                targetId: targetElement.elq.id
+            };
+
             elq.listenTo(targetElement, "breakpointStatesChanged", function mirrorNewBreakpointStates(targetElement, newBreakpointStates) {
                 elq.pluginHandler.callMethods("serializeBreakpointStates", [mirrorElement, newBreakpointStates]);
             });
