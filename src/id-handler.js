@@ -31,6 +31,8 @@ module.exports = function (idGenerator) {
     }
 
     return {
-        get: getId
+        get: getId,
+        set: setId,
+        has: hasId
     };
 };

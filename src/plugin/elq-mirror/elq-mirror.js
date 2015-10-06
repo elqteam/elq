@@ -14,7 +14,7 @@ module.exports = {
         return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
     },
     make: function (elq) {
-        function mirrorElement(mirrorElement, targetElement) {
+        function mirror(mirrorElement, targetElement) {
             //TODO: This should be made more general. Perhaps another breakpoint-parsing plugin is being used.
             if (mirrorElement.hasAttribute("elq-breakpoints")) {
                 // An element can be a mirror and a breakpoints element at the same time, but then the mirror serialization overrides the breakpoints serialization.
@@ -49,12 +49,12 @@ module.exports = {
 
             var breakpointElement = getElqParentElement(element);
 
-            mirrorElement(element, breakpointElement);
+            mirror(element, breakpointElement);
         }
 
         return {
             start: start,
-            mirror: mirrorElement
+            mirror: mirror
         };
     }
 };

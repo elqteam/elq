@@ -36,7 +36,7 @@ describe("BreakpointStateCalculator", function () {
 
             var breakpointStates = breakpointStateCalculator.getBreakpointStates(element, breakpoints);
 
-            expect(breakpointStates.width.length).toEqual(3)
+            expect(breakpointStates.width.length).toEqual(3);
             expect(breakpointStates.width[0]).toEqual({
                 over: true,
                 under: false,

@@ -52,6 +52,10 @@ module.exports = function Elq(options) {
             breakpoints = breakpoints.concat(getBreakpoints(element) || []);
         });
 
+        if (!breakpoints.length) {
+            return;
+        }
+
         // Filter so that we only got unique breakpoints.
         breakpoints = unique(breakpoints, function uniqueFunction(bp) {
             return bp.dimension + bp.value + bp.type;
@@ -85,8 +89,13 @@ module.exports = function Elq(options) {
             element.elq = element.elq || {
                 listeners: {},
                 updateBreakpoints: false,
-                resizeDetection: false
+                resizeDetection: false,
+                id: idGenerator.generate()
             };
+        }
+
+        function isInited(element) {
+            return !!(element.elq && element.elq.id);
         }
 
         function toArray(collection) {
@@ -112,10 +121,25 @@ module.exports = function Elq(options) {
         // Convert collection to array for plugins.
         elements = toArray(elements);
 
+        // Get possible extra elements by plugins.
+        forEach(pluginHandler.getMethods("getExtraElements"), function (getExtraElements) {
+            forEach(elements, function (element) {
+                var extraElements = getExtraElements(element) || [];
+                elements.push.apply(elements, extraElements);
+            });
+        });
+
         // Add the elq object to all elements before starting them, since a plugin may need to listen to elements
         // that has not yet been started.
         forEach(elements, function (element) {
-            initElement(element);
+            if (!isInited(elements)) {
+                initElement(element);
+            }
+        });
+
+        // Filter out possible duplicates.
+        elements = unique(elements, function (element) {
+            return element.elq.id;
         });
 
         forEach(elements, function (element) {
