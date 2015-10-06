@@ -49,7 +49,7 @@ module.exports = function Elq(options) {
         var breakpoints = [];
 
         forEach(pluginHandler.getMethods("getBreakpoints"), function (getBreakpoints) {
-            breakpoints = breakpoints.concat(getBreakpoints(element));
+            breakpoints = breakpoints.concat(getBreakpoints(element) || []);
         });
 
         // Filter so that we only got unique breakpoints.
@@ -81,35 +81,44 @@ module.exports = function Elq(options) {
     }
 
     function start(elements) {
-        var elementsArray = elements;
-
-        if (!elementsArray) {
-            return;
-        }
-
-        if (elements.length === undefined) {
-            elementsArray = [elements];
-        }
-
-        // Convert collection to array for plugins.
-        if (!Array.isArray(elementsArray)) {
-            elementsArray = [];
-
-            forEach(elements, function (element) {
-                elementsArray.push(element);
-            });
-        }
-
-        if (!elements.length) {
-            return;
-        }
-
-        forEach(elements, function (element) {
+        function initElement(element) {
             element.elq = element.elq || {
                 listeners: {},
                 updateBreakpoints: false,
                 resizeDetection: false
             };
+        }
+
+        function toArray(collection) {
+            if (!Array.isArray(collection)) {
+                var array = [];
+                forEach(elements, function (element) {
+                    array.push(element);
+                });
+                return array;
+            } else {
+                return collection;
+            }
+        }
+
+        if (!elements) {
+            return;
+        }
+
+        if (elements.length === undefined) {
+            elements = [elements];
+        }
+
+        // Convert collection to array for plugins.
+        elements = toArray(elements);
+
+        // Add the elq object to all elements before starting them, since a plugin may need to listen to elements
+        // that has not yet been started.
+        forEach(elements, function (element) {
+            initElement(element);
+        });
+
+        forEach(elements, function (element) {
             pluginHandler.callMethods("start", [element]);
         });
 

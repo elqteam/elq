@@ -14,6 +14,19 @@ module.exports = {
         return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
     },
     make: function (elq) {
+        function mirrorElement(mirrorElement, targetElement) {
+            //TODO: This should be made more general. Perhaps another breakpoint-parsing plugin is being used.
+            if (mirrorElement.hasAttribute("elq-breakpoints")) {
+                // An element can be a mirror and a breakpoints element at the same time, but then the mirror serialization overrides the breakpoints serialization.
+                // Therefore, serialization must be disable for such elements.
+                mirrorElement.elq.serialize = false;
+            }
+
+            elq.listenTo(targetElement, "breakpointStatesChanged", function mirrorNewBreakpointStates(targetElement, newBreakpointStates) {
+                elq.pluginHandler.callMethods("serializeBreakpointStates", [mirrorElement, newBreakpointStates]);
+            });
+        }
+
         function start(element) {
             function getElqParentElement(mirrorElement) {
                 var currentElement = mirrorElement.parentNode;
@@ -34,21 +47,14 @@ module.exports = {
                 return;
             }
 
-            if (element.hasAttribute("elq-breakpoints")) {
-                // An element can be a mirror and a breakpoints element at the same time, but then the mirror serialization overrides the breakpoints serialization.
-                // Therefore, serialization must be disable for such elements.
-                element.elq.serialize = false;
-            }
-
             var breakpointElement = getElqParentElement(element);
 
-            elq.listenTo(breakpointElement, "breakpointStatesChanged", function mirrorNewBreakpointStates(breakpointElement, newBreakpointStates) {
-                elq.pluginHandler.callMethods("serializeBreakpointStates", [element, newBreakpointStates]);
-            });
+            mirrorElement(element, breakpointElement);
         }
 
         return {
-            start: start
+            start: start,
+            mirror: mirrorElement
         };
     }
 };
