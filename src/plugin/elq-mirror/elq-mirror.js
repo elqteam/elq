@@ -15,12 +15,9 @@ module.exports = {
     },
     make: function (elq) {
         function mirror(mirrorElement, targetElement) {
-            //TODO: This should be made more general. Perhaps another breakpoint-parsing plugin is being used.
-            if (mirrorElement.hasAttribute("elq-breakpoints")) {
-                // An element can be a mirror and a breakpoints element at the same time, but then the mirror serialization overrides the breakpoints serialization.
-                // Therefore, serialization must be disable for such elements.
-                mirrorElement.elq.serialize = false;
-            }
+            // Mirror serialization overrides any serializations since a mirror element may have breakpoints as well (that doesn't get serialized).
+            // Therefore, serialization must be disable for mirror elements.
+            mirrorElement.elq.serialize = false;
 
             elq.listenTo(targetElement, "breakpointStatesChanged", function mirrorNewBreakpointStates(targetElement, newBreakpointStates) {
                 elq.pluginHandler.callMethods("serializeBreakpointStates", [mirrorElement, newBreakpointStates]);
