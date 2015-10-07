@@ -6377,7 +6377,7 @@ module.exports = function Elq(options) {
         return !!(element.elq && element.elq.id);
     }
 
-    function start(elements) {
+    function activate(elements) {
         function toArray(collection) {
             if (!Array.isArray(collection)) {
                 var array = [];
@@ -6409,7 +6409,7 @@ module.exports = function Elq(options) {
             });
         });
 
-        // Add the elq object to all elements before starting them, since a plugin may need to listen to elements
+        // Add the elq object to all elements before activating them, since a plugin may need to listen to elements
         // that has not yet been started.
         forEach(elements, function (element) {
             if (!isInited(elements)) {
@@ -6423,7 +6423,7 @@ module.exports = function Elq(options) {
         });
 
         forEach(elements, function (element) {
-            pluginHandler.callMethods("start", [element]);
+            pluginHandler.callMethods("activate", [element]);
         });
 
         var manualBatchUpdater = BatchUpdater({ async: false, auto: false });
@@ -6496,7 +6496,7 @@ module.exports = function Elq(options) {
     elq.getName             = getName;
     elq.use                 = partial(pluginHandler.register, elq);
     elq.using               = pluginHandler.isRegistered;
-    elq.start               = start;
+    elq.activate            = activate;
     elq.listenTo            = listenTo;
 
     //Create an object copy of the currently attached API methods, that will be exposed as the public API.
@@ -6898,7 +6898,7 @@ module.exports = {
             styleResolver: styleResolver
         });
 
-        function start(element) {
+        function activate(element) {
             if (!element.hasAttribute("elq-breakpoints")) {
                 return;
             }
@@ -6927,7 +6927,7 @@ module.exports = {
         }
 
         return {
-            start: start,
+            activate: activate,
             getBreakpoints: getBreakpoints
         };
     }
@@ -7079,7 +7079,7 @@ module.exports = {
             });
         }
 
-        function start(element) {
+        function activate(element) {
             function getElqParentElement(mirrorElement) {
                 var currentElement = mirrorElement.parentNode;
 
@@ -7105,7 +7105,7 @@ module.exports = {
         }
 
         return {
-            start: start,
+            activate: activate,
             mirror: mirror
         };
     }
