@@ -33,50 +33,12 @@ module.exports = function (grunt) {
                     }
                 }
             },
-            breakpoints: {
-                src: "src/plugin/elq-breakpoints-index.js",
-                dest: "build/elq-breakpoints.js",
-                options: {
-                    browserifyOptions: {
-                        standalone: "elqBreakpoints",
-                        debug: true
-                    }
-                }
-            },
-            mirror: {
-                src: "src/plugin/elq-mirror-index.js",
-                dest: "build/elq-mirror.js",
-                options: {
-                    browserifyOptions: {
-                        standalone: "elqMirror",
-                        debug: true
-                    }
-                }
-            },
             dist: {
                 src: ["src/index.js"],
                 dest: "dist/elq.js",
                 options: {
                     browserifyOptions: {
                         standalone: "Elq"
-                    }
-                }
-            },
-            distBreakpoints: {
-                src: "src/plugin/elq-breakpoints-index.js",
-                dest: "dist/elq-breakpoints.js",
-                options: {
-                    browserifyOptions: {
-                        standalone: "elqBreakpoints"
-                    }
-                }
-            },
-            distMirror: {
-                src: "src/plugin/elq-mirror-index.js",
-                dest: "dist/elq-mirror.js",
-                options: {
-                    browserifyOptions: {
-                        standalone: "elqMirror"
                     }
                 }
             },
@@ -116,9 +78,9 @@ module.exports = function (grunt) {
 
     grunt.registerTask("build:dev", ["browserify:dev"]);
     grunt.registerTask("build:test", ["browserify:test"]);
-    grunt.registerTask("build:dist", ["browserify:dist", "browserify:distBreakpoints", "browserify:distMirror"]);
+    grunt.registerTask("build:dist", ["browserify:dist"]);
 
-    grunt.registerTask("build", ["build:dev", "browserify:breakpoints", "browserify:mirror", "build:test"]);
+    grunt.registerTask("build", ["build:dev", "build:test"]);
     grunt.registerTask("dist", ["build:dist"]);
 
     grunt.registerTask("test:style", ["jshint", "jscs"]);
