@@ -192,6 +192,34 @@ The update flow is as follows:
 Of course, there are options to disable some of the steps such as cycle detection and applying breakpoints.
 In additon to being triggered by the start flow and plugins, it is also triggered by element resize events.
 
+### Example Plugin Implementation
+The API that enables developers to annotate breakpoints in HTML, as described in the usage section, is implemented as two plugins. One plugin parses the breakpoints of the element attributes and one plugin applies the breakpoint classes. The simplified code of the ```make``` method of the parsing plugin is as following:
+
+```js
+function activate(element) {
+  if (!element.hasAttribute("elq-breakpoints")) {
+    return;
+  }
+
+  element.elq.resizeDetection = true;
+  element.elq.updateBreakpoints = true;
+  element.elq.applyBreakpoints = true;
+  element.elq.cycleCheck = true;
+}
+
+function getBreakpoints(element) {
+  return ...
+}
+
+// Return the plugin API
+return {
+  activate: activate,
+  getBreakpoints: getBreakpoints
+};
+```
+
+The applying plugin simply implements the \code{applyBreakpoints} method to alter the \code{className} property of the element by the given breakpoint states.
+
 # Options
 
 ## Elq
