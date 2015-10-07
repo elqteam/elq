@@ -131,21 +131,51 @@ Registers a callback to be called for an event of an element. The element pareme
 
 One our of contributions is to allow ELQ to be easily extended with plugins. For example, if annotating HTML is undesired it is possible to create a plugin that instead parses CSS. Likewise, if adding breakpoint classes to element is undesired it is possible to create a plugin that does something else when a breakpoint state of an element has changed. In order to enable such powerful behavior alterings by plugins, extensibility has been the main focus when designing the ELQ architecture.
 
-## elq-breakpoints
+### Plugin Definition Object
 
+A plugin is defined by a *plugin definition object* and has the following structure:
+```js
+var myPluginDefinition = {
+  getName: function () {
+      return "my-plugin";
+  },
+  getVersion: function () {
+      return "0.0.0";
+  },
+  isCompatible: function (elq) {
+      return true;
+  },
+  make: function (elq, options) {
+      return {};
+  }
+};
 ```
-// With default options.
-elq.use(elqBreakpoints);
 
-// With custom options.
-elq.use(elqBreakpoints, {
-  ...
-});
-```
+All of the methods are invoked when registered to an ELQ instance.
+The ```getName``` and ```getVersion``` methods tells the name and version of the plugin.
+The ```isCompatible``` tells if the plugin is compatible with the ELQ instance that it is registered to.
+In the ```make``` method the plugin may initialize itself to the ELQ instance and return an object that defines the API accessible by ELQ and other plugins.
 
-## Options
+When necessary, ELQ invokes certain methods of the plugin API, if implemented, to let plugins decide the behavior of the system. Those methods are the following:
 
-### Elq
+* ```activate(element)```: Called when an element is requested to be activated, in order for plugins to initialize listeners and element properties.
+* ```getElements(element)```: Called in order to let plugins reveal extra elements to be started in addition to the given element.
+* ```getBreakpoints(element)```: Called to retrieve the current breakpoints of an element.
+* ```applyBreakpointStates(element, breakpointStates)```: Called to apply the given breakpoint states of an element.
+
+In addition, plugins may also listen to the following ELQ events:
+
+* ```resize(element)```: Emited when an ELQ element has changed size.
+* ```breakpointStatesChanged(element, breakpointStates)```: Emited when an element has changed breakpoint states (e.g., when the width of an element changed from being narrower than a breakpoint to being wider).
+
+### Flow
+
+There are two main flows of the \elq{} system; starting an element and updating an element.
+When \elq{} is requested to start an element, the following flow occurs:
+
+# Options
+
+## Elq
 
 #### cycleDetection
 Type: `Boolean`  
