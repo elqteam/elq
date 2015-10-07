@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <script>
+        console.time("load->updated");
+    </script>
     <style>
         html, body {
             height: 100%;
@@ -56,6 +59,8 @@
             }
 
             $("#aligner").width(alignerWidth + "%");
+
+            console.time("breakpoints updated");
         }
 
         function createDiv(width) {
@@ -76,10 +81,28 @@
             return target;
         }
 
-        loopCreateAndAppend(400, createDiv.bind(null, 20), document.getElementById("aligner"));
+        var num = 400;
+
+        loopCreateAndAppend(num, createDiv.bind(null, 20), document.getElementById("aligner"));
 
         $(function onDomReady() {
             var elq = Elq();
+            var first = true;
+            var cnt = 0;
+            console.time("breakpoints updated");
+            elq.listenTo("breakpointStatesChanged", function () {
+                cnt++;
+
+                if (cnt === num) {
+                    console.timeEnd("breakpoints updated");
+                    cnt = 0;
+
+                    if (first) {
+                        console.timeEnd("load->updated");
+                        first = false;
+                    }
+                }
+            });
             elq.start($("[elq]"));
         });
     </script>
