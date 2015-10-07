@@ -3,6 +3,129 @@
 
 var utils = require("./utils");
 
+module.exports = function batchProcessorMaker(options) {
+    options             = options || {};
+    var reporter        = options.reporter;
+    var asyncProcess    = utils.getOption(options, "async", true);
+    var autoProcess     = utils.getOption(options, "auto", true);
+
+    if(autoProcess && !asyncProcess) {
+        reporter && reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
+        asyncProcess = true;
+    }
+
+    var batch;
+    var batchSize;
+    var topLevel;
+    var bottomLevel;
+
+    clearBatch();
+
+    var asyncFrameHandler;
+
+    function addFunction(level, fn) {
+        if(!fn) {
+            fn = level;
+            level = 0;
+        }
+
+        if(level > topLevel) {
+            topLevel = level;
+        } else if(level < bottomLevel) {
+            bottomLevel = level;
+        }
+
+        if(!batch[level]) {
+            batch[level] = [];
+        }
+
+        if(autoProcess && asyncProcess && batchSize === 0) {
+            processBatchAsync();
+        }
+
+        batch[level].push(fn);
+        batchSize++;
+    }
+
+    function forceProcessBatch(localAsyncProcess) {
+        if(localAsyncProcess === undefined) {
+            localAsyncProcess = asyncProcess;
+        }
+
+        if(asyncFrameHandler) {
+            cancelFrame(asyncFrameHandler);
+            asyncFrameHandler = null;
+        }
+
+        if(localAsyncProcess) {
+            processBatchAsync();
+        } else {
+            processBatch();
+        }
+    }
+
+    function processBatch() {
+        for(var level = bottomLevel; level <= topLevel; level++) {
+            var fns = batch[level];
+
+            for(var i = 0; i < fns.length; i++) {
+                var fn = fns[i];
+                fn();
+            }
+        }
+        clearBatch();
+    }
+
+    function processBatchAsync() {
+        asyncFrameHandler = requestFrame(processBatch);
+    }
+
+    function clearBatch() {
+        batch           = {};
+        batchSize       = 0;
+        topLevel        = 0;
+        bottomLevel     = 0;
+    }
+
+    function cancelFrame(listener) {
+        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
+        var cancel = window.clearTimeout;
+        return cancel(listener);
+    }
+
+    function requestFrame(callback) {
+        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
+        var raf = function(fn) { return window.setTimeout(fn, 0); };
+        return raf(callback);
+    }
+
+    return {
+        add: addFunction,
+        force: forceProcessBatch
+    };
+};
+},{"./utils":2}],2:[function(require,module,exports){
+"use strict";
+
+var utils = module.exports = {};
+
+utils.getOption = getOption;
+
+function getOption(options, name, defaultValue) {
+    var value = options[name];
+
+    if((value === undefined || value === null) && defaultValue !== undefined) {
+        return defaultValue;
+    }
+
+    return value;
+}
+
+},{}],3:[function(require,module,exports){
+"use strict";
+
+var utils = require("./utils");
+
 module.exports = function batchUpdaterMaker(options) {
     options = options || {};
 
@@ -95,131 +218,6 @@ module.exports = function batchUpdaterMaker(options) {
         force: forceUpdateBatch
     };
 };
-},{"./utils":2}],2:[function(require,module,exports){
-"use strict";
-
-var utils = module.exports = {};
-
-utils.getOption = getOption;
-
-function getOption(options, name, defaultValue) {
-    var value = options[name];
-
-    if((value === undefined || value === null) && defaultValue !== undefined) {
-        return defaultValue;
-    }
-
-    return value;
-}
-
-},{}],3:[function(require,module,exports){
-"use strict";
-
-var utils = require("./utils");
-
-module.exports = function BatchProcessor(options) {
-    options         = options || {};
-    var reporter    = options.reporter;
-    var async       = utils.getOption(options, "async", true);
-    var autoProcess = utils.getOption(options, "auto", true);
-
-    if(autoProcess && !async) {
-        if(reporter) {
-            reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
-        }
-        async = true;
-    }
-
-    var batch;
-    var batchSize;
-    var topLevel;
-    var bottomLevel;
-
-    clearBatch();
-
-    var asyncFrameHandler;
-
-    function addFunction(level, fn) {
-        if(!fn) {
-            fn = level;
-            level = 0;
-        }
-
-        if(level > topLevel) {
-            topLevel = level;
-        } else if(level < bottomLevel) {
-            bottomLevel = level;
-        }
-
-        if(!batch[level]) {
-            batch[level] = [];
-        }
-
-        if(autoProcess && async && batchSize === 0) {
-            processBatchAsync();
-        }
-
-        batch[level].push(fn);
-        batchSize++;
-    }
-
-    function forceProcessBatch(processAsync) {
-        if(processAsync === undefined) {
-            processAsync = async;
-        }
-
-        if(asyncFrameHandler) {
-            cancelFrame(asyncFrameHandler);
-            asyncFrameHandler = null;
-        }
-
-        if(async) {
-            processBatchAsync();
-        } else {
-            processBatch();
-        }
-    }
-
-    function processBatch() {
-        for(var level = bottomLevel; level <= topLevel; level++) {
-            var fns = batch[level];
-
-            for(var i = 0; i < fns.length; i++) {
-                var fn = fns[i];
-                fn();
-            }
-        }
-        clearBatch();
-    }
-
-    function processBatchAsync() {
-        asyncFrameHandler = requestFrame(processBatch);
-    }
-
-    function clearBatch() {
-        batch           = {};
-        batchSize       = 0;
-        topLevel        = 0;
-        bottomLevel     = 0;
-    }
-
-    function cancelFrame(listener) {
-        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
-        var cancel = window.clearTimeout;
-        return cancel(listener);
-    }
-
-    function requestFrame(callback) {
-        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
-        var raf = function(fn) { return window.setTimeout(fn, 0); };
-        return raf(callback);
-    }
-
-    return {
-        add: addFunction,
-        force: forceProcessBatch
-    };
-};
 },{"./utils":4}],4:[function(require,module,exports){
 arguments[4][2][0].apply(exports,arguments)
 },{"dup":2}],5:[function(require,module,exports){
@@ -230,7 +228,7 @@ var detector = module.exports = {};
 detector.isIE = function(version) {
     function isAnyIeVersion() {
         var agent = navigator.userAgent.toLowerCase();
-        return agent.indexOf("msie") !== -1 || agent.indexOf("trident") !== -1;
+        return agent.indexOf("msie") !== -1 || agent.indexOf("trident") !== -1 || agent.indexOf(" edge/") !== -1;
     }
 
     if(!isAnyIeVersion()) {
@@ -937,7 +935,7 @@ function getOption(options, name, defaultValue) {
     return value;
 }
 
-},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"batch-processor":3}],10:[function(require,module,exports){
+},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"batch-processor":1}],10:[function(require,module,exports){
 "use strict";
 
 module.exports = function() {
@@ -1945,7 +1943,7 @@ function createCallback(func, thisArg, argCount) {
 
 module.exports = createCallback;
 
-},{"lodash._basecreatecallback":23,"lodash._baseisequal":41,"lodash.isobject":87,"lodash.keys":49,"lodash.property":53}],23:[function(require,module,exports){
+},{"lodash._basecreatecallback":23,"lodash._baseisequal":41,"lodash.isobject":95,"lodash.keys":49,"lodash.property":53}],23:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2286,7 +2284,7 @@ function createWrapper(func, bitmask, partialArgs, partialRightArgs, thisArg, ar
 
 module.exports = createWrapper;
 
-},{"lodash._basebind":29,"lodash._basecreatewrapper":33,"lodash._slice":37,"lodash.isfunction":86}],29:[function(require,module,exports){
+},{"lodash._basebind":29,"lodash._basecreatewrapper":33,"lodash._slice":37,"lodash.isfunction":94}],29:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2350,7 +2348,7 @@ function baseBind(bindData) {
 
 module.exports = baseBind;
 
-},{"lodash._basecreate":30,"lodash._setbinddata":24,"lodash._slice":37,"lodash.isobject":87}],30:[function(require,module,exports){
+},{"lodash._basecreate":30,"lodash._setbinddata":24,"lodash._slice":37,"lodash.isobject":95}],30:[function(require,module,exports){
 (function (global){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
@@ -2396,7 +2394,7 @@ if (!nativeCreate) {
 module.exports = baseCreate;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._isnative":31,"lodash.isobject":87,"lodash.noop":32}],31:[function(require,module,exports){
+},{"lodash._isnative":31,"lodash.isobject":95,"lodash.noop":32}],31:[function(require,module,exports){
 arguments[4][25][0].apply(exports,arguments)
 },{"dup":25}],32:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
@@ -2480,9 +2478,9 @@ function baseCreateWrapper(bindData) {
 
 module.exports = baseCreateWrapper;
 
-},{"lodash._basecreate":34,"lodash._setbinddata":24,"lodash._slice":37,"lodash.isobject":87}],34:[function(require,module,exports){
+},{"lodash._basecreate":34,"lodash._setbinddata":24,"lodash._slice":37,"lodash.isobject":95}],34:[function(require,module,exports){
 arguments[4][30][0].apply(exports,arguments)
-},{"dup":30,"lodash._isnative":35,"lodash.isobject":87,"lodash.noop":36}],35:[function(require,module,exports){
+},{"dup":30,"lodash._isnative":35,"lodash.isobject":95,"lodash.noop":36}],35:[function(require,module,exports){
 arguments[4][25][0].apply(exports,arguments)
 },{"dup":25}],36:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
@@ -2813,7 +2811,7 @@ function baseIsEqual(a, b, callback, isWhere, stackA, stackB) {
 
 module.exports = baseIsEqual;
 
-},{"lodash._getarray":42,"lodash._objecttypes":44,"lodash._releasearray":45,"lodash.forin":48,"lodash.isfunction":86}],42:[function(require,module,exports){
+},{"lodash._getarray":42,"lodash._objecttypes":44,"lodash._releasearray":45,"lodash.forin":48,"lodash.isfunction":94}],42:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -3011,7 +3009,7 @@ var keys = !nativeKeys ? shimKeys : function(object) {
 
 module.exports = keys;
 
-},{"lodash._isnative":50,"lodash._shimkeys":51,"lodash.isobject":87}],50:[function(require,module,exports){
+},{"lodash._isnative":50,"lodash._shimkeys":51,"lodash.isobject":95}],50:[function(require,module,exports){
 arguments[4][25][0].apply(exports,arguments)
 },{"dup":25}],51:[function(require,module,exports){
 /**
@@ -3161,19 +3159,19 @@ arguments[4][26][0].apply(exports,arguments)
 arguments[4][27][0].apply(exports,arguments)
 },{"dup":27,"lodash._createwrapper":60,"lodash._slice":69}],60:[function(require,module,exports){
 arguments[4][28][0].apply(exports,arguments)
-},{"dup":28,"lodash._basebind":61,"lodash._basecreatewrapper":65,"lodash._slice":69,"lodash.isfunction":86}],61:[function(require,module,exports){
+},{"dup":28,"lodash._basebind":61,"lodash._basecreatewrapper":65,"lodash._slice":69,"lodash.isfunction":94}],61:[function(require,module,exports){
 arguments[4][29][0].apply(exports,arguments)
-},{"dup":29,"lodash._basecreate":62,"lodash._setbinddata":56,"lodash._slice":69,"lodash.isobject":87}],62:[function(require,module,exports){
+},{"dup":29,"lodash._basecreate":62,"lodash._setbinddata":56,"lodash._slice":69,"lodash.isobject":95}],62:[function(require,module,exports){
 arguments[4][30][0].apply(exports,arguments)
-},{"dup":30,"lodash._isnative":63,"lodash.isobject":87,"lodash.noop":64}],63:[function(require,module,exports){
+},{"dup":30,"lodash._isnative":63,"lodash.isobject":95,"lodash.noop":64}],63:[function(require,module,exports){
 arguments[4][25][0].apply(exports,arguments)
 },{"dup":25}],64:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
 },{"dup":26}],65:[function(require,module,exports){
 arguments[4][33][0].apply(exports,arguments)
-},{"dup":33,"lodash._basecreate":66,"lodash._setbinddata":56,"lodash._slice":69,"lodash.isobject":87}],66:[function(require,module,exports){
+},{"dup":33,"lodash._basecreate":66,"lodash._setbinddata":56,"lodash._slice":69,"lodash.isobject":95}],66:[function(require,module,exports){
 arguments[4][30][0].apply(exports,arguments)
-},{"dup":30,"lodash._isnative":67,"lodash.isobject":87,"lodash.noop":68}],67:[function(require,module,exports){
+},{"dup":30,"lodash._isnative":67,"lodash.isobject":95,"lodash.noop":68}],67:[function(require,module,exports){
 arguments[4][25][0].apply(exports,arguments)
 },{"dup":25}],68:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
@@ -3189,7 +3187,7 @@ arguments[4][25][0].apply(exports,arguments)
 arguments[4][44][0].apply(exports,arguments)
 },{"dup":44}],74:[function(require,module,exports){
 arguments[4][49][0].apply(exports,arguments)
-},{"dup":49,"lodash._isnative":75,"lodash._shimkeys":76,"lodash.isobject":87}],75:[function(require,module,exports){
+},{"dup":49,"lodash._isnative":75,"lodash._shimkeys":76,"lodash.isobject":95}],75:[function(require,module,exports){
 arguments[4][25][0].apply(exports,arguments)
 },{"dup":25}],76:[function(require,module,exports){
 arguments[4][51][0].apply(exports,arguments)
@@ -4208,6 +4206,22 @@ function isNative(value) {
 module.exports = isArray;
 
 },{}],85:[function(require,module,exports){
+arguments[4][77][0].apply(exports,arguments)
+},{"dup":77,"lodash._arrayeach":86,"lodash._baseeach":87,"lodash._bindcallback":91,"lodash.isarray":92}],86:[function(require,module,exports){
+arguments[4][78][0].apply(exports,arguments)
+},{"dup":78}],87:[function(require,module,exports){
+arguments[4][79][0].apply(exports,arguments)
+},{"dup":79,"lodash.keys":88}],88:[function(require,module,exports){
+arguments[4][80][0].apply(exports,arguments)
+},{"dup":80,"lodash._getnative":89,"lodash.isarguments":90,"lodash.isarray":92}],89:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"dup":81}],90:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"dup":82}],91:[function(require,module,exports){
+arguments[4][83][0].apply(exports,arguments)
+},{"dup":83}],92:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84}],93:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -4246,7 +4260,7 @@ function isString(value) {
 
 module.exports = isString;
 
-},{}],86:[function(require,module,exports){
+},{}],94:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -4275,7 +4289,7 @@ function isFunction(value) {
 
 module.exports = isFunction;
 
-},{}],87:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -4316,9 +4330,9 @@ function isObject(value) {
 
 module.exports = isObject;
 
-},{"lodash._objecttypes":88}],88:[function(require,module,exports){
+},{"lodash._objecttypes":96}],96:[function(require,module,exports){
 arguments[4][44][0].apply(exports,arguments)
-},{"dup":44}],89:[function(require,module,exports){
+},{"dup":44}],97:[function(require,module,exports){
 /**
  * lodash 3.1.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4470,7 +4484,7 @@ function map(collection, iteratee, thisArg) {
 
 module.exports = map;
 
-},{"lodash._arraymap":90,"lodash._basecallback":91,"lodash._baseeach":96,"lodash.isarray":97}],90:[function(require,module,exports){
+},{"lodash._arraymap":98,"lodash._basecallback":99,"lodash._baseeach":104,"lodash.isarray":105}],98:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4502,7 +4516,7 @@ function arrayMap(array, iteratee) {
 
 module.exports = arrayMap;
 
-},{}],91:[function(require,module,exports){
+},{}],99:[function(require,module,exports){
 /**
  * lodash 3.3.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4926,7 +4940,7 @@ function property(path) {
 
 module.exports = baseCallback;
 
-},{"lodash._baseisequal":92,"lodash._bindcallback":94,"lodash.isarray":97,"lodash.pairs":95}],92:[function(require,module,exports){
+},{"lodash._baseisequal":100,"lodash._bindcallback":102,"lodash.isarray":105,"lodash.pairs":103}],100:[function(require,module,exports){
 /**
  * lodash 3.0.7 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5270,7 +5284,7 @@ function isObject(value) {
 
 module.exports = baseIsEqual;
 
-},{"lodash.isarray":97,"lodash.istypedarray":93,"lodash.keys":98}],93:[function(require,module,exports){
+},{"lodash.isarray":105,"lodash.istypedarray":101,"lodash.keys":106}],101:[function(require,module,exports){
 /**
  * lodash 3.0.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5382,9 +5396,9 @@ function isTypedArray(value) {
 
 module.exports = isTypedArray;
 
-},{}],94:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 arguments[4][83][0].apply(exports,arguments)
-},{"dup":83}],95:[function(require,module,exports){
+},{"dup":83}],103:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5464,17 +5478,17 @@ function pairs(object) {
 
 module.exports = pairs;
 
-},{"lodash.keys":98}],96:[function(require,module,exports){
+},{"lodash.keys":106}],104:[function(require,module,exports){
 arguments[4][79][0].apply(exports,arguments)
-},{"dup":79,"lodash.keys":98}],97:[function(require,module,exports){
+},{"dup":79,"lodash.keys":106}],105:[function(require,module,exports){
 arguments[4][84][0].apply(exports,arguments)
-},{"dup":84}],98:[function(require,module,exports){
+},{"dup":84}],106:[function(require,module,exports){
 arguments[4][80][0].apply(exports,arguments)
-},{"dup":80,"lodash._getnative":99,"lodash.isarguments":100,"lodash.isarray":97}],99:[function(require,module,exports){
+},{"dup":80,"lodash._getnative":107,"lodash.isarguments":108,"lodash.isarray":105}],107:[function(require,module,exports){
 arguments[4][81][0].apply(exports,arguments)
-},{"dup":81}],100:[function(require,module,exports){
+},{"dup":81}],108:[function(require,module,exports){
 arguments[4][82][0].apply(exports,arguments)
-},{"dup":82}],101:[function(require,module,exports){
+},{"dup":82}],109:[function(require,module,exports){
 /**
  * lodash 3.1.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5544,17 +5558,560 @@ partial.placeholder = {};
 
 module.exports = partial;
 
-},{"lodash._createwrapper":102,"lodash._replaceholders":105,"lodash.restparam":106}],102:[function(require,module,exports){
+},{"lodash._createwrapper":110,"lodash._replaceholders":113,"lodash.restparam":114}],110:[function(require,module,exports){
 arguments[4][16][0].apply(exports,arguments)
-},{"dup":16,"lodash._arraycopy":103,"lodash._basecreate":104,"lodash._replaceholders":105}],103:[function(require,module,exports){
+},{"dup":16,"lodash._arraycopy":111,"lodash._basecreate":112,"lodash._replaceholders":113}],111:[function(require,module,exports){
 arguments[4][17][0].apply(exports,arguments)
-},{"dup":17}],104:[function(require,module,exports){
+},{"dup":17}],112:[function(require,module,exports){
 arguments[4][18][0].apply(exports,arguments)
-},{"dup":18}],105:[function(require,module,exports){
+},{"dup":18}],113:[function(require,module,exports){
 arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],106:[function(require,module,exports){
+},{"dup":19}],114:[function(require,module,exports){
 arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],107:[function(require,module,exports){
+},{"dup":20}],115:[function(require,module,exports){
+/**
+ * lodash 3.2.2 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+var baseCallback = require('lodash._basecallback'),
+    baseUniq = require('lodash._baseuniq'),
+    isIterateeCall = require('lodash._isiterateecall');
+
+/**
+ * An implementation of `_.uniq` optimized for sorted arrays without support
+ * for callback shorthands and `this` binding.
+ *
+ * @private
+ * @param {Array} array The array to inspect.
+ * @param {Function} [iteratee] The function invoked per iteration.
+ * @returns {Array} Returns the new duplicate-value-free array.
+ */
+function sortedUniq(array, iteratee) {
+  var seen,
+      index = -1,
+      length = array.length,
+      resIndex = -1,
+      result = [];
+
+  while (++index < length) {
+    var value = array[index],
+        computed = iteratee ? iteratee(value, index, array) : value;
+
+    if (!index || seen !== computed) {
+      seen = computed;
+      result[++resIndex] = value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Creates a duplicate-free version of an array, using
+ * [`SameValueZero`](http://ecma-international.org/ecma-262/6.0/#sec-samevaluezero)
+ * for equality comparisons, in which only the first occurence of each element
+ * is kept. Providing `true` for `isSorted` performs a faster search algorithm
+ * for sorted arrays. If an iteratee function is provided it is invoked for
+ * each element in the array to generate the criterion by which uniqueness
+ * is computed. The `iteratee` is bound to `thisArg` and invoked with three
+ * arguments: (value, index, array).
+ *
+ * If a property name is provided for `iteratee` the created `_.property`
+ * style callback returns the property value of the given element.
+ *
+ * If a value is also provided for `thisArg` the created `_.matchesProperty`
+ * style callback returns `true` for elements that have a matching property
+ * value, else `false`.
+ *
+ * If an object is provided for `iteratee` the created `_.matches` style
+ * callback returns `true` for elements that have the properties of the given
+ * object, else `false`.
+ *
+ * @static
+ * @memberOf _
+ * @alias unique
+ * @category Array
+ * @param {Array} array The array to inspect.
+ * @param {boolean} [isSorted] Specify the array is sorted.
+ * @param {Function|Object|string} [iteratee] The function invoked per iteration.
+ * @param {*} [thisArg] The `this` binding of `iteratee`.
+ * @returns {Array} Returns the new duplicate-value-free array.
+ * @example
+ *
+ * _.uniq([2, 1, 2]);
+ * // => [2, 1]
+ *
+ * // using `isSorted`
+ * _.uniq([1, 1, 2], true);
+ * // => [1, 2]
+ *
+ * // using an iteratee function
+ * _.uniq([1, 2.5, 1.5, 2], function(n) {
+ *   return this.floor(n);
+ * }, Math);
+ * // => [1, 2.5]
+ *
+ * // using the `_.property` callback shorthand
+ * _.uniq([{ 'x': 1 }, { 'x': 2 }, { 'x': 1 }], 'x');
+ * // => [{ 'x': 1 }, { 'x': 2 }]
+ */
+function uniq(array, isSorted, iteratee, thisArg) {
+  var length = array ? array.length : 0;
+  if (!length) {
+    return [];
+  }
+  if (isSorted != null && typeof isSorted != 'boolean') {
+    thisArg = iteratee;
+    iteratee = isIterateeCall(array, isSorted, thisArg) ? undefined : isSorted;
+    isSorted = false;
+  }
+  iteratee = iteratee == null ? iteratee : baseCallback(iteratee, thisArg, 3);
+  return (isSorted)
+    ? sortedUniq(array, iteratee)
+    : baseUniq(array, iteratee);
+}
+
+module.exports = uniq;
+
+},{"lodash._basecallback":116,"lodash._baseuniq":125,"lodash._isiterateecall":130}],116:[function(require,module,exports){
+arguments[4][99][0].apply(exports,arguments)
+},{"dup":99,"lodash._baseisequal":117,"lodash._bindcallback":121,"lodash.isarray":131,"lodash.pairs":122}],117:[function(require,module,exports){
+arguments[4][100][0].apply(exports,arguments)
+},{"dup":100,"lodash.isarray":131,"lodash.istypedarray":118,"lodash.keys":119}],118:[function(require,module,exports){
+arguments[4][101][0].apply(exports,arguments)
+},{"dup":101}],119:[function(require,module,exports){
+arguments[4][80][0].apply(exports,arguments)
+},{"dup":80,"lodash._getnative":129,"lodash.isarguments":120,"lodash.isarray":131}],120:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"dup":82}],121:[function(require,module,exports){
+arguments[4][83][0].apply(exports,arguments)
+},{"dup":83}],122:[function(require,module,exports){
+arguments[4][103][0].apply(exports,arguments)
+},{"dup":103,"lodash.keys":123}],123:[function(require,module,exports){
+arguments[4][80][0].apply(exports,arguments)
+},{"dup":80,"lodash._getnative":129,"lodash.isarguments":124,"lodash.isarray":131}],124:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"dup":82}],125:[function(require,module,exports){
+/**
+ * lodash 3.0.3 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+var baseIndexOf = require('lodash._baseindexof'),
+    cacheIndexOf = require('lodash._cacheindexof'),
+    createCache = require('lodash._createcache');
+
+/** Used as the size to enable large array optimizations. */
+var LARGE_ARRAY_SIZE = 200;
+
+/**
+ * The base implementation of `_.uniq` without support for callback shorthands
+ * and `this` binding.
+ *
+ * @private
+ * @param {Array} array The array to inspect.
+ * @param {Function} [iteratee] The function invoked per iteration.
+ * @returns {Array} Returns the new duplicate-value-free array.
+ */
+function baseUniq(array, iteratee) {
+  var index = -1,
+      indexOf = baseIndexOf,
+      length = array.length,
+      isCommon = true,
+      isLarge = isCommon && length >= LARGE_ARRAY_SIZE,
+      seen = isLarge ? createCache() : null,
+      result = [];
+
+  if (seen) {
+    indexOf = cacheIndexOf;
+    isCommon = false;
+  } else {
+    isLarge = false;
+    seen = iteratee ? [] : result;
+  }
+  outer:
+  while (++index < length) {
+    var value = array[index],
+        computed = iteratee ? iteratee(value, index, array) : value;
+
+    if (isCommon && value === value) {
+      var seenIndex = seen.length;
+      while (seenIndex--) {
+        if (seen[seenIndex] === computed) {
+          continue outer;
+        }
+      }
+      if (iteratee) {
+        seen.push(computed);
+      }
+      result.push(value);
+    }
+    else if (indexOf(seen, computed, 0) < 0) {
+      if (iteratee || isLarge) {
+        seen.push(computed);
+      }
+      result.push(value);
+    }
+  }
+  return result;
+}
+
+module.exports = baseUniq;
+
+},{"lodash._baseindexof":126,"lodash._cacheindexof":127,"lodash._createcache":128}],126:[function(require,module,exports){
+/**
+ * lodash 3.1.0 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.2 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/**
+ * The base implementation of `_.indexOf` without support for binary searches.
+ *
+ * @private
+ * @param {Array} array The array to search.
+ * @param {*} value The value to search for.
+ * @param {number} fromIndex The index to search from.
+ * @returns {number} Returns the index of the matched value, else `-1`.
+ */
+function baseIndexOf(array, value, fromIndex) {
+  if (value !== value) {
+    return indexOfNaN(array, fromIndex);
+  }
+  var index = fromIndex - 1,
+      length = array.length;
+
+  while (++index < length) {
+    if (array[index] === value) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Gets the index at which the first occurrence of `NaN` is found in `array`.
+ * If `fromRight` is provided elements of `array` are iterated from right to left.
+ *
+ * @private
+ * @param {Array} array The array to search.
+ * @param {number} fromIndex The index to search from.
+ * @param {boolean} [fromRight] Specify iterating from right to left.
+ * @returns {number} Returns the index of the matched `NaN`, else `-1`.
+ */
+function indexOfNaN(array, fromIndex, fromRight) {
+  var length = array.length,
+      index = fromIndex + (fromRight ? 0 : -1);
+
+  while ((fromRight ? index-- : ++index < length)) {
+    var other = array[index];
+    if (other !== other) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+module.exports = baseIndexOf;
+
+},{}],127:[function(require,module,exports){
+/**
+ * lodash 3.0.2 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/**
+ * Checks if `value` is in `cache` mimicking the return signature of
+ * `_.indexOf` by returning `0` if the value is found, else `-1`.
+ *
+ * @private
+ * @param {Object} cache The cache to search.
+ * @param {*} value The value to search for.
+ * @returns {number} Returns `0` if `value` is found, else `-1`.
+ */
+function cacheIndexOf(cache, value) {
+  var data = cache.data,
+      result = (typeof value == 'string' || isObject(value)) ? data.set.has(value) : data.hash[value];
+
+  return result ? 0 : -1;
+}
+
+/**
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
+ * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(1);
+ * // => false
+ */
+function isObject(value) {
+  // Avoid a V8 JIT bug in Chrome 19-20.
+  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
+  var type = typeof value;
+  return !!value && (type == 'object' || type == 'function');
+}
+
+module.exports = cacheIndexOf;
+
+},{}],128:[function(require,module,exports){
+(function (global){
+/**
+ * lodash 3.1.2 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+var getNative = require('lodash._getnative');
+
+/** Native method references. */
+var Set = getNative(global, 'Set');
+
+/* Native method references for those with the same name as other `lodash` methods. */
+var nativeCreate = getNative(Object, 'create');
+
+/**
+ *
+ * Creates a cache object to store unique values.
+ *
+ * @private
+ * @param {Array} [values] The values to cache.
+ */
+function SetCache(values) {
+  var length = values ? values.length : 0;
+
+  this.data = { 'hash': nativeCreate(null), 'set': new Set };
+  while (length--) {
+    this.push(values[length]);
+  }
+}
+
+/**
+ * Adds `value` to the cache.
+ *
+ * @private
+ * @name push
+ * @memberOf SetCache
+ * @param {*} value The value to cache.
+ */
+function cachePush(value) {
+  var data = this.data;
+  if (typeof value == 'string' || isObject(value)) {
+    data.set.add(value);
+  } else {
+    data.hash[value] = true;
+  }
+}
+
+/**
+ * Creates a `Set` cache object to optimize linear searches of large arrays.
+ *
+ * @private
+ * @param {Array} [values] The values to cache.
+ * @returns {null|Object} Returns the new cache object if `Set` is supported, else `null`.
+ */
+function createCache(values) {
+  return (nativeCreate && Set) ? new SetCache(values) : null;
+}
+
+/**
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
+ * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(1);
+ * // => false
+ */
+function isObject(value) {
+  // Avoid a V8 JIT bug in Chrome 19-20.
+  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
+  var type = typeof value;
+  return !!value && (type == 'object' || type == 'function');
+}
+
+// Add functions to the `Set` cache.
+SetCache.prototype.push = cachePush;
+
+module.exports = createCache;
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"lodash._getnative":129}],129:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"dup":81}],130:[function(require,module,exports){
+/**
+ * lodash 3.0.9 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/** Used to detect unsigned integer values. */
+var reIsUint = /^\d+$/;
+
+/**
+ * Used as the [maximum length](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.max_safe_integer)
+ * of an array-like value.
+ */
+var MAX_SAFE_INTEGER = 9007199254740991;
+
+/**
+ * The base implementation of `_.property` without support for deep paths.
+ *
+ * @private
+ * @param {string} key The key of the property to get.
+ * @returns {Function} Returns the new function.
+ */
+function baseProperty(key) {
+  return function(object) {
+    return object == null ? undefined : object[key];
+  };
+}
+
+/**
+ * Gets the "length" property value of `object`.
+ *
+ * **Note:** This function is used to avoid a [JIT bug](https://bugs.webkit.org/show_bug.cgi?id=142792)
+ * that affects Safari on at least iOS 8.1-8.3 ARM64.
+ *
+ * @private
+ * @param {Object} object The object to query.
+ * @returns {*} Returns the "length" value.
+ */
+var getLength = baseProperty('length');
+
+/**
+ * Checks if `value` is array-like.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
+ */
+function isArrayLike(value) {
+  return value != null && isLength(getLength(value));
+}
+
+/**
+ * Checks if `value` is a valid array-like index.
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @param {number} [length=MAX_SAFE_INTEGER] The upper bounds of a valid index.
+ * @returns {boolean} Returns `true` if `value` is a valid index, else `false`.
+ */
+function isIndex(value, length) {
+  value = (typeof value == 'number' || reIsUint.test(value)) ? +value : -1;
+  length = length == null ? MAX_SAFE_INTEGER : length;
+  return value > -1 && value % 1 == 0 && value < length;
+}
+
+/**
+ * Checks if the provided arguments are from an iteratee call.
+ *
+ * @private
+ * @param {*} value The potential iteratee value argument.
+ * @param {*} index The potential iteratee index or key argument.
+ * @param {*} object The potential iteratee object argument.
+ * @returns {boolean} Returns `true` if the arguments are from an iteratee call, else `false`.
+ */
+function isIterateeCall(value, index, object) {
+  if (!isObject(object)) {
+    return false;
+  }
+  var type = typeof index;
+  if (type == 'number'
+      ? (isArrayLike(object) && isIndex(index, object.length))
+      : (type == 'string' && index in object)) {
+    var other = object[index];
+    return value === value ? (value === other) : (other !== other);
+  }
+  return false;
+}
+
+/**
+ * Checks if `value` is a valid array-like length.
+ *
+ * **Note:** This function is based on [`ToLength`](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength).
+ *
+ * @private
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
+ */
+function isLength(value) {
+  return typeof value == 'number' && value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
+}
+
+/**
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
+ * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(1);
+ * // => false
+ */
+function isObject(value) {
+  // Avoid a V8 JIT bug in Chrome 19-20.
+  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
+  var type = typeof value;
+  return !!value && (type == 'object' || type == 'function');
+}
+
+module.exports = isIterateeCall;
+
+},{}],131:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84}],132:[function(require,module,exports){
 module.exports={
   "name": "elq",
   "description": "Element media queries framework. Solution to modular responsive components.",
@@ -5563,11 +6120,11 @@ module.exports={
   "private": false,
   "license": "MIT",
   "devDependencies": {
-    "load-grunt-tasks": "^3.0.0",
     "grunt": "^0.4.5",
     "grunt-banner": "^0.3.1",
     "grunt-browserify": "^3.3.0",
     "grunt-contrib-jshint": "^0.11.0",
+    "grunt-contrib-watch": "^0.6.1",
     "grunt-jscs": "^1.2.0",
     "grunt-karma": "^0.10.1",
     "jasmine-core": "^2.2.0",
@@ -5580,10 +6137,11 @@ module.exports={
     "karma-jasmine": "^0.3.5",
     "karma-safari-launcher": "^0.1.1",
     "karma-sauce-launcher": "^0.2.10",
+    "load-grunt-tasks": "^3.0.0",
     "lodash": "^3.3.1"
   },
   "dependencies": {
-    "element-resize-detector": "^0.3.5",
+    "element-resize-detector": "^0.3.7",
     "batch-updater": "^0.1.0",
     "lodash.filter": "^2.4.1",
     "lodash.foreach": "^3.0.1",
@@ -5603,7 +6161,57 @@ module.exports={
   }
 }
 
-},{}],108:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
+"use strict";
+
+var forEach = require("lodash.foreach");
+
+module.exports = function BreakpointStateCalculator() {
+    function getBreakpointStates(element, breakpoints) {
+        var width = element.offsetWidth;
+        var height = element.offsetHeight;
+
+        var dimensionValues = {
+            width: width,
+            height: height
+        };
+
+        var breakpointStates = {
+            width: [],
+            height: []
+        };
+
+        forEach(breakpoints, function (breakpoint) {
+            var dimension = breakpoint.dimension;
+            var elementValue = dimensionValues[dimension];
+
+            var over = false;
+            var under = false;
+
+            if (elementValue > breakpoint.pixelValue) {
+                over = true;
+            } else if (elementValue < breakpoint.pixelValue) {
+                under = true;
+            }
+
+            var breakpointState = {
+                breakpoint: breakpoint,
+                over: over,
+                under: under
+            };
+
+            breakpointStates[dimension].push(breakpointState);
+        });
+
+        return breakpointStates;
+    }
+
+    return {
+        getBreakpointStates: getBreakpointStates
+    };
+};
+
+},{"lodash.foreach":85}],134:[function(require,module,exports){
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
@@ -5612,8 +6220,8 @@ module.exports = function CycleDetector(idHandler, options) {
     }
 
     options = options || {};
-    options.numCyclesAllowed = options.numCyclesAllowed || 0;
-    options.timeBetweenCyclesAllowed = options.timeBetweenCyclesAllowed || 300;
+    options.numCyclesAllowed = options.numCyclesAllowed || 1;
+    options.timeBetweenCyclesAllowed = options.timeBetweenCyclesAllowed || 100;
 
     var elements = {};
 
@@ -5665,54 +6273,221 @@ module.exports = function CycleDetector(idHandler, options) {
     };
 };
 
-},{}],109:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 "use strict";
 
 var packageJson                 = require("../package.json");
 var BatchUpdater                = require("batch-updater");
 var partial                     = require("lodash.partial");
 var forEach                     = require("lodash.forEach");
+var unique                      = require("lodash.uniq");
 var ElementResizeDetector       = require("element-resize-detector");
 var PluginHandler               = require("./plugin-handler");
 var Reporter                    = require("./reporter");
 var IdGenerator                 = require("./id-generator");
 var IdHandler                   = require("./id-handler");
 var CycleDetector               = require("./cycle-detector");
+var BreakpointStateCalculator   = require("./breakpoint-state-calculator");
+var StyleResolver               = require("./style-resolver");
+
+// Core plugins
+var elqBreakpoints              = require("./plugin/elq-breakpoints/elq-breakpoints.js");
+var elqMinMaxSerializer         = require("./plugin/elq-minmax-serializer/elq-minmax-serializer.js");
+var elqMirror                   = require("./plugin/elq-mirror/elq-mirror.js");
 
 module.exports = function Elq(options) {
     options = options || {};
 
-    var elq                     = {};
-    var reporter                = options.reporter || Reporter();
-    var idGenerator             = IdGenerator();
-    var idHandler               = IdHandler(idGenerator);
-    var cycleDetector           = CycleDetector(idHandler);
-    var pluginHandler           = PluginHandler(reporter);
-    var elementResizeDetector   = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
-    var BatchUpdater            = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
+    var elq                         = {};
+    var reporter                    = options.reporter || Reporter();
+    var defaultUnit                 = options.defaultUnit || "px";
+    var cycleDetection              = options.cycleDetection || false;
+    var idGenerator                 = IdGenerator();
+    var idHandler                   = IdHandler(idGenerator);
+    var cycleDetector               = CycleDetector(idHandler);
+    var pluginHandler               = PluginHandler(reporter);
+    var styleResolver               = StyleResolver();
+    var breakpointStateCalculator   = BreakpointStateCalculator();
+    var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
+    var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
+
+    var batchUpdater                = BatchUpdater();
+    var globalListeners             = {};
+
+    function notifyListeners(element, event, args) {
+        var listeners = element.elq.listeners[event] || [];
+        listeners = listeners.concat(globalListeners[event] || []);
+
+        var listenerArguments = [element].concat(args || []);
+
+        forEach(listeners, function (callback) {
+            callback.apply(null, listenerArguments);
+        });
+    }
+
+    function updateBreakpoints(element, batchProcessor) {
+        var breakpoints = [];
+
+        forEach(pluginHandler.getMethods("getBreakpoints"), function (getBreakpoints) {
+            breakpoints = breakpoints.concat(getBreakpoints(element) || []);
+        });
+
+        if (!breakpoints.length) {
+            return;
+        }
+
+        // Filter so that we only got unique breakpoints.
+        breakpoints = unique(breakpoints, function uniqueFunction(bp) {
+            return bp.dimension + bp.value + bp.type;
+        });
+
+        var breakpointStates = breakpointStateCalculator.getBreakpointStates(element, breakpoints);
+
+        // TODO: This should instead be hashed. Also, maybe there is a more effective way of doing this.
+        var breakpointStatesHash = JSON.stringify(breakpointStates);
+
+        if (element.elq.currentBreakpointStatesHash !== breakpointStatesHash) {
+            if (cycleDetection && element.elq.cycleCheck) {
+                if (cycleDetector.isUpdateCyclic(element, breakpointStatesHash)) {
+                    reporter.warn("Cyclic rules detected! Breakpoint classes has not been updated. Element: ", element);
+                    return;
+                }
+            }
+
+            element.elq.currentBreakpointStatesHash = breakpointStatesHash;
+
+            if (element.elq.serialize) {
+                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]);
+            }
+
+            notifyListeners(element, "breakpointStatesChanged", [breakpointStates]);
+        }
+    }
+
+    function initElement(element) {
+        element.elq = element.elq || {
+            listeners: {},
+            updateBreakpoints: false,
+            resizeDetection: false,
+            id: idGenerator.generate()
+        };
+    }
+
+    function isInited(element) {
+        return !!(element.elq && element.elq.id);
+    }
 
     function start(elements) {
-        var elementsArray = elements;
+        function toArray(collection) {
+            if (!Array.isArray(collection)) {
+                var array = [];
+                forEach(elements, function (element) {
+                    array.push(element);
+                });
+                return array;
+            } else {
+                return collection;
+            }
+        }
 
-        if (!elementsArray) {
+        if (!elements) {
             return;
         }
 
         if (elements.length === undefined) {
-            elementsArray = [elements];
+            elements = [elements];
         }
 
         // Convert collection to array for plugins.
-        if (!Array.isArray(elementsArray)) {
-            elementsArray = [];
+        elements = toArray(elements);
 
+        // Get possible extra elements by plugins.
+        forEach(pluginHandler.getMethods("getExtraElements"), function (getExtraElements) {
             forEach(elements, function (element) {
-                elementsArray.push(element);
+                var extraElements = getExtraElements(element) || [];
+                elements.push.apply(elements, extraElements);
             });
+        });
+
+        // Add the elq object to all elements before starting them, since a plugin may need to listen to elements
+        // that has not yet been started.
+        forEach(elements, function (element) {
+            if (!isInited(elements)) {
+                initElement(element);
+            }
+        });
+
+        // Filter out possible duplicates.
+        elements = unique(elements, function (element) {
+            return element.elq.id;
+        });
+
+        forEach(elements, function (element) {
+            pluginHandler.callMethods("start", [element]);
+        });
+
+        var manualBatchUpdater = BatchUpdater({ async: false, auto: false });
+
+        //Before listening to each element (which is a heavy task) it is important to apply the right classes
+        //to the elements so that a correct render can occur before the installation.
+        forEach(elements, function (element) {
+            if (element.elq.updateBreakpoints) {
+                updateBreakpoints(element, manualBatchUpdater);
+            }
+        });
+
+        function onElementResizeProxy(element) {
+            notifyListeners(element, "resize");
+
+            if (element.elq.updateBreakpoints) {
+                updateBreakpoints(element, batchUpdater);
+            }
         }
 
-        if (elementsArray.length) {
-            pluginHandler.callMethods("start", [elementsArray]);
+        forEach(elements, function listenToLoop(element) {
+            if (element.elq.resizeDetection) {
+                elementResizeDetector.listenTo({
+                    callOnAdd: true, // TODO: Shouldn't this be false?
+                    batchUpdater: batchUpdater
+                }, element, onElementResizeProxy);
+            }
+        });
+
+        //Force everything currently in the batch to execute synchronously.
+        //Important that his is done after the listenToLoop since it reads the DOM style and the batch will write to the DOM.
+        manualBatchUpdater.force();
+    }
+
+    function listenTo(element, event, callback) {
+        function attachListener(listeners) {
+            if (!listeners[event]) {
+                listeners[event] = [];
+            }
+
+            listeners[event].push(callback);
+        }
+
+        // The element parameter may be omitted, in order to setup a global listener (i.e., a listener that listens to the event of all elements).
+        if (!callback) {
+            callback = event;
+            event = element;
+            element = null;
+        }
+
+        if (element) {
+            // A local element event listener.
+
+            if (!isInited(element)) {
+                initElement(element);
+            }
+
+            // TODO: If event is "resize" but the element is current element.elq.resizeDetection = false,
+            // it would perhaps be nice to start listening to this element.
+
+            attachListener(element.elq.listeners);
+        } else {
+            // A global event listener that emits for the event of all elements.
+            attachListener(globalListeners);
         }
     }
 
@@ -5722,7 +6497,7 @@ module.exports = function Elq(options) {
     elq.use                 = partial(pluginHandler.register, elq);
     elq.using               = pluginHandler.isRegistered;
     elq.start               = start;
-    elq.listenTo            = elementResizeDetector.listenTo;
+    elq.listenTo            = listenTo;
 
     //Create an object copy of the currently attached API methods, that will be exposed as the public API.
     var publicElq           = copy(elq);
@@ -5732,7 +6507,17 @@ module.exports = function Elq(options) {
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
     elq.BatchUpdater        = BatchUpdater;
-    elq.getPlugin           = pluginHandler.get;
+    elq.pluginHandler       = pluginHandler;
+
+    // Register core plugins
+    // TODO: These should be registered at a higher level, such as index.js so that they can be omitted in a slim build.
+
+    elq.use(elqBreakpoints, {
+        defaultUnit: defaultUnit
+    });
+
+    elq.use(elqMinMaxSerializer);
+    elq.use(elqMirror);
 
     return publicElq;
 };
@@ -5775,7 +6560,7 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
     return createBatchUpdaterOptionsProxy;
 }
 
-},{"../package.json":107,"./cycle-detector":108,"./id-generator":110,"./id-handler":111,"./plugin-handler":113,"./reporter":114,"batch-updater":1,"element-resize-detector":9,"lodash.forEach":77,"lodash.partial":101}],110:[function(require,module,exports){
+},{"../package.json":132,"./breakpoint-state-calculator":133,"./cycle-detector":134,"./id-generator":136,"./id-handler":137,"./plugin-handler":139,"./plugin/elq-breakpoints/elq-breakpoints.js":141,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":143,"./plugin/elq-mirror/elq-mirror.js":144,"./reporter":145,"./style-resolver":146,"batch-updater":3,"element-resize-detector":9,"lodash.forEach":77,"lodash.partial":109,"lodash.uniq":115}],136:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -5795,7 +6580,7 @@ module.exports = function () {
     };
 };
 
-},{}],111:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 "use strict";
 
 module.exports = function (idGenerator) {
@@ -5829,18 +6614,20 @@ module.exports = function (idGenerator) {
     }
 
     return {
-        get: getId
+        get: getId,
+        set: setId,
+        has: hasId
     };
 };
 
-},{}],112:[function(require,module,exports){
+},{}],138:[function(require,module,exports){
 "use strict";
 
 var Elq = require("./elq");
 
 module.exports = Elq;
 
-},{"./elq":109}],113:[function(require,module,exports){
+},{"./elq":135}],139:[function(require,module,exports){
 "use strict";
 
 var _ = {};
@@ -5976,7 +6763,355 @@ module.exports = function PluginHandler(reporter) {
     };
 };
 
-},{"lodash.bind":15,"lodash.filter":21,"lodash.isString":85,"lodash.isfunction":86,"lodash.isobject":87,"lodash.map":89}],114:[function(require,module,exports){
+},{"lodash.bind":15,"lodash.filter":21,"lodash.isString":93,"lodash.isfunction":94,"lodash.isobject":95,"lodash.map":97}],140:[function(require,module,exports){
+"use strict";
+
+var BP_UNITS = {};
+BP_UNITS.PX = "px";
+BP_UNITS.EM = "em";
+BP_UNITS.REM = "rem";
+
+function isUnitTypeValid(val) {
+    for (var prop in BP_UNITS) {
+        if (BP_UNITS.hasOwnProperty(prop) && BP_UNITS[prop] === val) {
+            return true;
+        }
+    }
+    return false;
+}
+
+module.exports = function BreakpointParser(options) {
+    options = options || {};
+    var reporter = options.reporter;
+    var defaultUnit = options.defaultUnit;
+    var styleResolver = options.styleResolver;
+
+    function parseBreakpoints(element) {
+        function getBreakpoints(element, dimension) {
+            function getElementFontSizeInPixels(element) {
+                return parseFloat(styleResolver.getComputedStyle(element).fontSize.replace("px", ""));
+            }
+
+            var breakpointPixelValueConverters = {};
+
+            breakpointPixelValueConverters[BP_UNITS.PX] = function (value) {
+                return value;
+            };
+
+            var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same element.
+            breakpointPixelValueConverters[BP_UNITS.REM] = function (value) {
+                function getRootElementFontSize() {
+                    if (!cachedRootFontSize) {
+                        cachedRootFontSize = getElementFontSizeInPixels(document.documentElement);
+                    }
+                    return cachedRootFontSize;
+                }
+                return value * getRootElementFontSize();
+            };
+
+            var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same element.
+            breakpointPixelValueConverters[BP_UNITS.EM] = function (value) {
+                function getElementFontSize() {
+                    if (!cachedElementFontSize) {
+                        cachedElementFontSize = getElementFontSizeInPixels(element);
+                    }
+                    return cachedElementFontSize;
+                }
+                return value * getElementFontSize();
+            };
+
+            function getFromMainAttr(element, dimension) {
+                var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
+
+                if (!breakpoints) {
+                    return [];
+                }
+
+                breakpoints = breakpoints.replace(/\s+/g, " ").trim();
+                breakpoints = breakpoints.split(" ");
+
+                breakpoints = breakpoints.map(function (breakpointString) {
+                    var valueMatch = breakpointString.match(/^([0-9]+)/g);
+                    // a breakpoint value must exist
+                    if (!valueMatch) {
+                        reporter.error("Invalid breakpoint: " + breakpointString + " for element ", element);
+                    }
+
+                    var unitMatch = breakpointString.match(/([a-zA-Z]+)$/g); // the unit is allowed to be omitted
+                    var unit = unitMatch ? unitMatch[0] : defaultUnit;
+
+                    if (!isUnitTypeValid(unit)) {
+                        reporter.error("Elq breakpoint found with invalid unit: " + unit + " for element ", element);
+                    }
+
+                    var value = parseFloat(valueMatch[0]);
+                    var valuePx = breakpointPixelValueConverters[unit](value);
+
+                    return {
+                        dimension: dimension,
+                        pixelValue: valuePx,
+                        value: value,
+                        type: unit
+                    };
+                });
+
+                return breakpoints;
+            }
+
+            var breakpoints = getFromMainAttr(element, dimension);
+            return breakpoints;
+        }
+
+        var widthBreakpoints = getBreakpoints(element, "width");
+        var heightBreakpoints = getBreakpoints(element, "height");
+
+        return widthBreakpoints.concat(heightBreakpoints);
+    }
+
+    return {
+        parseBreakpoints: parseBreakpoints
+    };
+};
+
+},{}],141:[function(require,module,exports){
+"use strict";
+
+var packageJson = require("../../../package.json");
+var BreakpointsParser = require("./breakpoint-parser.js");
+var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
+
+module.exports = {
+    getName: function () {
+        return "elq-breakpoints";
+    },
+    getVersion: function () {
+        return packageJson.version;
+    },
+    isCompatible: function (elq) {
+        return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
+    },
+    make: function (elq, options) {
+        var styleResolver       = StyleResolver();
+        var breakpointsParser   = BreakpointsParser({
+            defaultUnit: options.defaultUnit,
+            reporter: elq.reporter,
+            styleResolver: styleResolver
+        });
+
+        function start(element) {
+            if (!element.hasAttribute("elq-breakpoints")) {
+                return;
+            }
+
+            // All elq-breakpoints elements need to detect resizes and also update breakpoints.
+            element.elq.resizeDetection = true;
+            element.elq.updateBreakpoints = true;
+
+            // Enable serialization unless some other system explicitly has disabled it.
+            if (element.elq.serialize !== false) {
+                element.elq.serialize = true;
+            }
+
+            if (element.getAttribute("elq-breakpoints").indexOf("notcyclic") !== -1) {
+                element.elq.cycleCheck = false;
+            } else {
+                // Enable cycle check unless some other system explicitly has disabled it.
+                if (element.elq.cycleCheck !== false) {
+                    element.elq.cycleCheck = true;
+                }
+            }
+        }
+
+        function getBreakpoints(element) {
+            return breakpointsParser.parseBreakpoints(element);
+        }
+
+        return {
+            start: start,
+            getBreakpoints: getBreakpoints
+        };
+    }
+};
+
+},{"../../../package.json":132,"../../style-resolver.js":146,"./breakpoint-parser.js":140}],142:[function(require,module,exports){
+"use strict";
+
+var forEach = require("lodash.foreach");
+
+module.exports = function BreakpointStateSerializer() {
+    function serializeBreakpointStates(element, breakpointStates) {
+        function sortBreakpointStates(breakpointStates) {
+            return breakpointStates.sort(function (bp1, bp2) {
+                return bp1.breakpoint.pixelValue - bp2.breakpoint.pixelValue;
+            });
+        }
+
+        function getClasses(breakpointStates, dimension) {
+            var dimensionBreakpointStates = breakpointStates[dimension];
+
+            var classes = [];
+
+            if (!dimensionBreakpointStates.length) {
+                return classes;
+            }
+
+            // Sort for the visual aspect of having the classes in order in the html
+            dimensionBreakpointStates = sortBreakpointStates(dimensionBreakpointStates);
+
+            forEach(dimensionBreakpointStates, function (breakpointState) {
+                // Direction "min" is inclusive, which means that it is active when the width is over or equal the breakpoint
+
+                var dir = "min";
+
+                if (breakpointState.under) {
+                    dir = "max";
+                }
+
+                var dimension = breakpointState.breakpoint.dimension;
+                var value = breakpointState.breakpoint.value;
+                var type = breakpointState.breakpoint.type;
+
+                classes.push("elq-" + dir + "-" + dimension + "-" + value + type);
+            });
+
+            return classes;
+        }
+
+        //TODO: This function should maybe take into consideration if the target element has the noclasses option set.
+        function updateBreakpointClasses(element, breakpointClasses) {
+            var classes = element.className;
+
+            //Remove all old breakpoints.
+            var breakpointRegexp = new RegExp("elq-(min|max)-(width|height)-[0-9]+[a-zA-Z]+" , "g");
+            classes = classes.replace(breakpointRegexp, "");
+
+            //Add new classes
+            classes += " " + breakpointClasses;
+
+            //Format classes before putting it in.
+            classes = classes.replace(/\s+/g, " ").trim();
+
+            element.className = classes;
+        }
+
+        var widthClasses = getClasses(breakpointStates, "width");
+        var heightClasses = getClasses(breakpointStates, "height");
+        var breakpointClasses = widthClasses.join(" ") + " " + heightClasses.join(" ");
+
+        updateBreakpointClasses(element, breakpointClasses);
+    }
+
+    return {
+        serializeBreakpointStates: serializeBreakpointStates
+    };
+};
+
+},{"lodash.foreach":85}],143:[function(require,module,exports){
+"use strict";
+
+var packageJson = require("../../../package.json");
+var BreakpointStateSerializer = require("./breakpoint-state-serializer.js");
+var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
+
+module.exports = {
+    getName: function () {
+        return "elq-minmax-classes";
+    },
+    getVersion: function () {
+        return packageJson.version;
+    },
+    isCompatible: function (elq) {
+        return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
+    },
+    make: function (elq, options) {
+        var breakpointSerializer = BreakpointStateSerializer();
+
+        function serializeBreakpointStates(element, breakpointStates) {
+            breakpointSerializer.serializeBreakpointStates(element, breakpointStates);
+        }
+
+        return {
+            serializeBreakpointStates: serializeBreakpointStates
+        };
+    }
+};
+
+},{"../../../package.json":132,"../../style-resolver.js":146,"./breakpoint-state-serializer.js":142}],144:[function(require,module,exports){
+"use strict";
+
+var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
+
+module.exports = {
+    getName: function () {
+        return "elq-mirror";
+    },
+    getVersion: function () {
+        return packageJson.version;
+    },
+
+    isCompatible: function (elq) {
+        return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
+    },
+    make: function (elq) {
+        function mirror(mirrorElement, targetElement) {
+            // Mirror serialization overrides any serializations since a mirror element may have breakpoints as well (that doesn't get serialized).
+            // Therefore, serialization must be disable for mirror elements.
+            mirrorElement.elq.serialize = false;
+
+            if (mirrorElement.elq.mirror) {
+                // This element is already mirroring an element.
+
+                if (mirrorElement.elq.mirror.targetId === targetElement.elq.id) {
+                    // It is the same object, do nothing.
+                    return;
+                } else {
+                    // A new object is to be mirrored. This is currently unsupported, but shall probably be supported in the future.
+                    elq.reporter.error("Cannot change mirror target.", mirrorElement);
+                }
+            }
+
+            mirrorElement.elq.mirror = {
+                targetId: targetElement.elq.id
+            };
+
+            elq.listenTo(targetElement, "breakpointStatesChanged", function mirrorNewBreakpointStates(targetElement, newBreakpointStates) {
+                elq.pluginHandler.callMethods("serializeBreakpointStates", [mirrorElement, newBreakpointStates]);
+            });
+        }
+
+        function start(element) {
+            function getElqParentElement(mirrorElement) {
+                var currentElement = mirrorElement.parentNode;
+
+                while (currentElement && currentElement.hasAttribute) {
+                    if (currentElement.hasAttribute("elq-breakpoints")) {
+                        return currentElement;
+                    }
+
+                    currentElement = currentElement.parentNode;
+                }
+
+                //If this is reached, it means that there was no elq-breakpoints parent found.
+                elq.reporter.error("Mirror elements require an elq-breakpoints ancestor. This error can probably be resolved by making body an elq-breakpoints element. Error caused by mirror element:", mirrorElement);
+            }
+
+            if (!element.hasAttribute("elq-mirror")) {
+                return;
+            }
+
+            var breakpointElement = getElqParentElement(element);
+
+            mirror(element, breakpointElement);
+        }
+
+        return {
+            start: start,
+            mirror: mirror
+        };
+    }
+};
+
+},{"../../../package.json":132}],145:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -6012,5 +7147,16 @@ module.exports = function (quiet) {
     return reporter;
 };
 
-},{}]},{},[112])(112)
+},{}],146:[function(require,module,exports){
+"use strict";
+
+module.exports = function StyleResolver() {
+    return {
+        getComputedStyle: function (element) {
+            return window.getComputedStyle(element);
+        }
+    };
+};
+
+},{}]},{},[138])(138)
 });
