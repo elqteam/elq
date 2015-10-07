@@ -33,7 +33,7 @@ Since ELQ is in beta, we haven't had time to write proper docs yet. What follows
 
 Once the ```dist/elq.js``` file is included into the HTML (it is built with UMD, so include it as you wish) it exposes a global function ```Elq```. This is a constructor that creates ELQ instances. It is recommended to only use one instance per application.
 
-```
+```js
 // Creating an ELQ instance is easy!
 var elq = Elq();
 
@@ -43,10 +43,9 @@ var elq = Elq({
 });
 ```
 
-ELQ is bundled with three plugins as default, that let you annotate breakpoints as attributes of your elements like so:
-```
+The main idea is to annotate elements with breakpoints of interest so that children can be conditionally styled in CSS by targeting the different breakpoint states. ELQ is bundled with three plugins as default, that let you annotate breakpoints as attributes of your elements like so:
+```html
 <div class="foo" elq elq-breakpoints elq-breakpoints-widths="300 500">
-
   <p>When in doubt, mumble.</p>
 </div>
 ```
@@ -57,7 +56,7 @@ It may seem alien that the classes describe that the width of the element is bot
 
 Now that we have defined the breakpoints of the element, we can conditionally style it by using the classes:
 
-```
+```css
 .foo.elq-min-width-300px.elq-max-width-500px {
   background-color: green;
 }
@@ -70,6 +69,36 @@ Now that we have defined the breakpoints of the element, we can conditionally st
   color: white;
 }
 ```
+
+This API is sufficient for applications that do not need nested breakpoint elements, and similar features is provided by related libraries. However, using such API in responsive modules still limits the reusability since the modules then may not exist in an outer responsive context.
+
+The reason this API is not sufficient for nested modules is because there is no way to limit the CSS matching search of the selectors. The selector ```.foo.elq-max-width-500px p``` specifies that all paragraph elements should have white text if *any* ancestor breakpoints element is above 500 pixels wide. Since the ancestor selector may match elements outside of the module, such selectors are dangerous to use in the context of responsive modules. The problem may be somewhat reduced by more specific selectors and such, but it cannot be fully solved for arbitrary styling.
+
+To solve this problem, we provide a plugin that let us define elements to "mirror" the breakpoints classes of the nearest ancestor breakpoints element. Then, the conditional style of the mirror element may be written as a combinatory selector that is relative to the nearest ancestor breakpoints element.
+
+Let's expand our example HTML to include to nested modules, that uses the ```mirror``` API.
+```html
+<div class="foo" elq elq-breakpoints elq-breakpoints-widths="300 500">
+  <div class="foo" elq elq-breakpoints elq-breakpoints-widths="300 500">
+    <p elq elq-mirror>When in doubt, mumble.</p>
+  </div>
+  <p elq elq-mirror>When in doubt, mumble.</p>
+</div>
+```
+
+As the paragraph elements are mirroring the nearest ```.foo``` ancestor, we can now write CSS in the following encapsulated way:
+```css
+.foo {
+  /* So that the nested modulebehaves differently */
+  width: 50%;
+}
+
+.foo p.elq-max-width-500px {
+  color: white;
+}
+```
+
+Since we in the previous examples have annotated elements manually, the power and flexibility of the API have not been properly displayed. Only when combined with JavaScript, things get more interesting. To be continued...
 
 ### Public API
 
