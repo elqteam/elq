@@ -27,7 +27,7 @@ The API and architecture is somewhat outdated, but the Thesis is still relevant 
 
 # Docs
 
-Since ELQ is in beta, we haven't had time to write proper docs yet. What follows is really a minimal explenation of the API.
+Since ELQ is in beta, we haven't had time to write proper docs yet. What follows is really a minimal explanation of the API.
 
 ## Usage example
 
