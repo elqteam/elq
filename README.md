@@ -29,7 +29,7 @@ The API and architecture is somewhat outdated, but the Thesis is still relevant 
 
 Since ELQ is in beta, we haven't had time to write proper docs yet. What follows is really a minimal explenation of the API.
 
-## Usage
+## Usage example
 
 Once the ```dist/elq.js``` file is included into the HTML (it is built with UMD, so include it as you wish) it exposes a global function ```Elq```. This is a constructor that creates ELQ instances. It is recommended to only use one instance per application.
 
@@ -42,6 +42,36 @@ var elq = Elq({
   cycleDetection: false
 });
 ```
+
+ELQ is bundled with three plugins as default, that let you annotate breakpoints as attributes of your elements like so:
+```
+<div class="foo" elq elq-breakpoints elq-breakpoints-widths="300 500">
+
+  <p>When in doubt, mumble.</p>
+</div>
+```
+
+When ELQ has processed the element, it will always have two classes, one for each breakpoint, that tells if the size of the element is greater or lesser than each breakpoint. For instance, if the element is 400 pixels wide, the element has the two classes ```elq-min-width-300px``` and ```elq-max-width-500px```. Similarly, if the element is 200 pixels wide the element the classes are instead ```elq-max-width-300px``` and ```elq-max-width-500px```. So for each breakpoint only the ```min/max``` part changes. 
+
+It may seem alien that the classes describe that the width of the element is both maximum 300 and 500 pixels. This is because we have taken a user-centric approach, so that when using the classes in CSS the API is similar to element queries. However, developers are free to change this API at will as \elq{} is plugin-based.
+
+Now that we have defined the breakpoints of the element, we can conditionally style it by using the classes:
+
+```
+.foo.elq-min-width-300px.elq-max-width-500px {
+  background-color: green;
+}
+
+.foo.elq-min-width-500px {
+  background-color: blue;
+}
+
+.foo.elq-max-width-500px p {
+  color: white;
+}
+```
+
+### Public API
 
 An ELQ instance exposes the following public methods:
 
