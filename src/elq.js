@@ -36,12 +36,16 @@ module.exports = function Elq(options) {
     var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
     var batchUpdater                = BatchUpdater();
+    var globalListeners             = {};
 
     function notifyListeners(element, event, args) {
         var listeners = element.elq.listeners[event] || [];
+        listeners = listeners.concat(globalListeners[event] || []);
+
+        var listenerArguments = [element].concat(args || []);
 
         forEach(listeners, function (callback) {
-            callback.apply(null, args);
+            callback.apply(null, listenerArguments);
         });
     }
 
@@ -80,24 +84,24 @@ module.exports = function Elq(options) {
                 pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]);
             }
 
-            notifyListeners(element, "breakpointStatesChanged", [element, breakpointStates]);
+            notifyListeners(element, "breakpointStatesChanged", [breakpointStates]);
         }
     }
 
+    function initElement(element) {
+        element.elq = element.elq || {
+            listeners: {},
+            updateBreakpoints: false,
+            resizeDetection: false,
+            id: idGenerator.generate()
+        };
+    }
+
+    function isInited(element) {
+        return !!(element.elq && element.elq.id);
+    }
+
     function start(elements) {
-        function initElement(element) {
-            element.elq = element.elq || {
-                listeners: {},
-                updateBreakpoints: false,
-                resizeDetection: false,
-                id: idGenerator.generate()
-            };
-        }
-
-        function isInited(element) {
-            return !!(element.elq && element.elq.id);
-        }
-
         function toArray(collection) {
             if (!Array.isArray(collection)) {
                 var array = [];
@@ -157,7 +161,7 @@ module.exports = function Elq(options) {
         });
 
         function onElementResizeProxy(element) {
-            notifyListeners(element, "resize", [element]);
+            notifyListeners(element, "resize");
 
             if (element.elq.updateBreakpoints) {
                 updateBreakpoints(element, batchUpdater);
@@ -179,21 +183,36 @@ module.exports = function Elq(options) {
     }
 
     function listenTo(element, event, callback) {
-        if (!element.elq) {
-            // TODO: This could perhaps be removed, so that it is possible to add listeners before starting elements.
-            return reporter.error("Can only listen to events of elq elements. Call 'start' before listening.");
+        function attachListener(listeners) {
+            if (!listeners[event]) {
+                listeners[event] = [];
+            }
+
+            listeners[event].push(callback);
         }
 
-        // TODO: If event is "resize" but the element is current element.elq.resizeDetection = false,
-        // it would perhaps be nice to start listening to this element.
-
-        var listeners = element.elq.listeners;
-
-        if (!listeners[event]) {
-            listeners[event] = [];
+        // The element parameter may be omitted, in order to setup a global listener (i.e., a listener that listens to the event of all elements).
+        if (!callback) {
+            callback = event;
+            event = element;
+            element = null;
         }
 
-        listeners[event].push(callback);
+        if (element) {
+            // A local element event listener.
+
+            if (!isInited(element)) {
+                initElement(element);
+            }
+
+            // TODO: If event is "resize" but the element is current element.elq.resizeDetection = false,
+            // it would perhaps be nice to start listening to this element.
+
+            attachListener(element.elq.listeners);
+        } else {
+            // A global event listener that emits for the event of all elements.
+            attachListener(globalListeners);
+        }
     }
 
     //Public
