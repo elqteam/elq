@@ -22,9 +22,30 @@ There are numerous JavaScript libraries that enable element queries in different
 - A runtime cycle detection system
 - Allowing style encapsulation of responsive elements (this allows nestable responsive modules).
 
-Read the Master's Thesis for more details.
+For a very detailed description of ELQ and element queries, read the Master's Thesis: http://kth.diva-portal.org/smash/get/diva2:850230/FULLTEXT01.pdf
+The API and architecture is somewhat outdated, but the Thesis is still relevant for understanding ELQ.
 
 # Docs
+
+Since ELQ is in beta, we haven't had time to write proper docs yet. What follows is really a minimal explenation of the API.
+
+## Usage
+
+Once the ```dist/elq.js``` file is included into the HTML (it is built with UMD, so include it as you wish) it exposes a global function ```Elq```. This is a constructor that creates ELQ instances. It is recommended to only use one instance per application.
+
+```
+// Creating an ELQ instance is easy!
+var elq = Elq();
+
+// It also accepts an options object.
+var elq = Elq({
+  cycleDetection: false
+});
+```
+
+## Architecture & Plugins
+
+One our of contributions is to allow ELQ to be easily extended with plugins. For example, if annotating HTML is undesired it is possible to create a plugin that instead parses CSS. Likewise, if adding breakpoint classes to element is undesired it is possible to create a plugin that does something else when a breakpoint state of an element has changed. In order to enable such powerful behavior alterings by plugins, extensibility has been the main focus when designing the ELQ architecture.
 
 ## elq-breakpoints
 
