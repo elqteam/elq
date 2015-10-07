@@ -43,6 +43,31 @@ var elq = Elq({
 });
 ```
 
+An ELQ instance exposes the following public methods:
+
+#### elq.getVersion()
+Returns the version of instance.
+
+#### elq.use(plugin)
+Registeres a plugin to be used by the instance. Parameter is required to be a *plugin definition object*.
+
+Returns the registered plugin instance.
+
+#### elq.using(plugin)
+Tells if the given plugin has been registered or not. Paremter can be a plugin name (of type ```string```) or a *plugin definition object*.
+
+Returns a ```boolean```.
+
+#### elq.activate(elements)
+Activates the given collection of elements. This triggers ELQ to perform its work so that all element queries are updated.
+Plugins are invoked, so that they can perform their logic. Resize listeners are also installed when propriate.
+Elements may be activated multiple times.
+
+Parameter can be any collection of elements, and also accepts a single element. The are assumed to be ELQ-elements and it is not recommended to activate non-ELQ elements.
+
+#### elq.listenTo([element], event, callback)
+Registers a callback to be called for an event of an element. The element paremeter is option, and if omitted the callback will be called when the event is emitted for any element.
+
 ## Architecture & Plugins
 
 One our of contributions is to allow ELQ to be easily extended with plugins. For example, if annotating HTML is undesired it is possible to create a plugin that instead parses CSS. Likewise, if adding breakpoint classes to element is undesired it is possible to create a plugin that does something else when a breakpoint state of an element has changed. In order to enable such powerful behavior alterings by plugins, extensibility has been the main focus when designing the ELQ architecture.
@@ -59,7 +84,9 @@ elq.use(elqBreakpoints, {
 });
 ```
 
-### Options
+## Options
+
+### Elq
 
 #### cycleDetection
 Type: `Boolean`  
