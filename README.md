@@ -1,4 +1,4 @@
-# elq
+# ELQ
 Element queries framework. Solution to modular responsive components.
 
 **ELQ currently is in early beta.** Therefore, bugs and API changes may occur frequently. We really appreciate feedback such as GitHub issues and pull requests.
