@@ -22,7 +22,7 @@ module.exports = {
             styleResolver: styleResolver
         });
 
-        function start(element) {
+        function activate(element) {
             if (!element.hasAttribute("elq-breakpoints")) {
                 return;
             }
@@ -51,7 +51,7 @@ module.exports = {
         }
 
         return {
-            start: start,
+            activate: activate,
             getBreakpoints: getBreakpoints
         };
     }

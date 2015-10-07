@@ -50,7 +50,7 @@ describe("elq", function () {
                     expect(elq.getName).toEqual(jasmine.any(Function));
                     expect(elq.use).toEqual(jasmine.any(Function));
                     expect(elq.using).toEqual(jasmine.any(Function));
-                    expect(elq.start).toEqual(jasmine.any(Function));
+                    expect(elq.activate).toEqual(jasmine.any(Function));
                     expect(elq.listenTo).toEqual(jasmine.any(Function));
                     expect(elq.idHandler).toEqual(jasmine.any(Object));
                     expect(elq.reporter).toEqual(jasmine.any(Object));
@@ -137,17 +137,17 @@ describe("elq", function () {
             });
         });
 
-        // describe("start", function () {
-        //     it("should call all plugins that have a start method", function () {
+        // describe("activate", function () {
+        //     it("should call all plugins that have a activate method", function () {
         //         var elq;
         //         var elements;
 
         //         var myPlugin = createDummyPlugin("my-plugin", {
-        //             start: function () {}
+        //             activate: function () {}
         //         });
 
         //         var myOtherPlugin = createDummyPlugin("my-other-plugin", {
-        //             start: function () {}
+        //             activate: function () {}
         //         });
 
         //         var myOtherExtraPlugin = createDummyPlugin("my-other-extra-plugin", {});
@@ -158,25 +158,25 @@ describe("elq", function () {
         //         var myOtherPluginInstance = elq.use(myOtherPlugin);
         //         elq.use(myOtherExtraPlugin);
 
-        //         spyOn(myPluginInstance, "start");
-        //         spyOn(myOtherPluginInstance, "start");
+        //         spyOn(myPluginInstance, "activate");
+        //         spyOn(myOtherPluginInstance, "activate");
 
         //         //Note that elements here can be anything. Not using strings because they are also enumerable, which makes the testing a bit hard.
 
         //         //Called with array.
         //         elements = [11, 22, 33, 44];
-        //         elq.start(elements);
-        //         expect(myPluginInstance.start).toHaveBeenCalledWith(elements);
-        //         expect(myOtherPluginInstance.start).toHaveBeenCalledWith(elements);
-        //         myPluginInstance.start.calls.reset();
-        //         myOtherPluginInstance.start.calls.reset();
+        //         elq.activate(elements);
+        //         expect(myPluginInstance.activate).toHaveBeenCalledWith(elements);
+        //         expect(myOtherPluginInstance.activate).toHaveBeenCalledWith(elements);
+        //         myPluginInstance.activate.calls.reset();
+        //         myOtherPluginInstance.activate.calls.reset();
 
         //         //Called with single element.
-        //         elq.start(11);
-        //         expect(myPluginInstance.start).toHaveBeenCalledWith([11]);
-        //         expect(myOtherPluginInstance.start).toHaveBeenCalledWith([11]);
-        //         myPluginInstance.start.calls.reset();
-        //         myOtherPluginInstance.start.calls.reset();
+        //         elq.activate(11);
+        //         expect(myPluginInstance.activate).toHaveBeenCalledWith([11]);
+        //         expect(myOtherPluginInstance.activate).toHaveBeenCalledWith([11]);
+        //         myPluginInstance.activate.calls.reset();
+        //         myOtherPluginInstance.activate.calls.reset();
 
         //         //Called with an enumerable object which should be transformed to an array for plugins.
         //         elements = {
@@ -186,30 +186,30 @@ describe("elq", function () {
         //             2: 33,
         //             3: 44
         //         };
-        //         elq.start(elements);
-        //         expect(myPluginInstance.start).toHaveBeenCalledWith([11, 22, 33, 44]);
-        //         expect(myOtherPluginInstance.start).toHaveBeenCalledWith([11, 22, 33, 44]);
-        //         myPluginInstance.start.calls.reset();
-        //         myOtherPluginInstance.start.calls.reset();
+        //         elq.activate(elements);
+        //         expect(myPluginInstance.activate).toHaveBeenCalledWith([11, 22, 33, 44]);
+        //         expect(myOtherPluginInstance.activate).toHaveBeenCalledWith([11, 22, 33, 44]);
+        //         myPluginInstance.activate.calls.reset();
+        //         myOtherPluginInstance.activate.calls.reset();
 
         //         // Called with falsy values should be okay.
-        //         elq.start(false);
-        //         expect(myPluginInstance.start).not.toHaveBeenCalled();
-        //         expect(myOtherPluginInstance.start).not.toHaveBeenCalled();
-        //         myPluginInstance.start.calls.reset();
-        //         myOtherPluginInstance.start.calls.reset();
+        //         elq.activate(false);
+        //         expect(myPluginInstance.activate).not.toHaveBeenCalled();
+        //         expect(myOtherPluginInstance.activate).not.toHaveBeenCalled();
+        //         myPluginInstance.activate.calls.reset();
+        //         myOtherPluginInstance.activate.calls.reset();
 
-        //         elq.start([]);
-        //         expect(myPluginInstance.start).not.toHaveBeenCalled();
-        //         expect(myOtherPluginInstance.start).not.toHaveBeenCalled();
-        //         myPluginInstance.start.calls.reset();
-        //         myOtherPluginInstance.start.calls.reset();
+        //         elq.activate([]);
+        //         expect(myPluginInstance.activate).not.toHaveBeenCalled();
+        //         expect(myOtherPluginInstance.activate).not.toHaveBeenCalled();
+        //         myPluginInstance.activate.calls.reset();
+        //         myOtherPluginInstance.activate.calls.reset();
 
-        //         elq.start({ length: 0 });
-        //         expect(myPluginInstance.start).not.toHaveBeenCalled();
-        //         expect(myOtherPluginInstance.start).not.toHaveBeenCalled();
-        //         myPluginInstance.start.calls.reset();
-        //         myOtherPluginInstance.start.calls.reset();
+        //         elq.activate({ length: 0 });
+        //         expect(myPluginInstance.activate).not.toHaveBeenCalled();
+        //         expect(myOtherPluginInstance.activate).not.toHaveBeenCalled();
+        //         myPluginInstance.activate.calls.reset();
+        //         myOtherPluginInstance.activate.calls.reset();
         //     });
         // });
 

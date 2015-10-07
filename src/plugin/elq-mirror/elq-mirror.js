@@ -40,7 +40,7 @@ module.exports = {
             });
         }
 
-        function start(element) {
+        function activate(element) {
             function getElqParentElement(mirrorElement) {
                 var currentElement = mirrorElement.parentNode;
 
@@ -66,7 +66,7 @@ module.exports = {
         }
 
         return {
-            start: start,
+            activate: activate,
             mirror: mirror
         };
     }

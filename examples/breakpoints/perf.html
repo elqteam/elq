@@ -14,7 +14,7 @@
         }
 
         .container {
-            width: 20%;
+            width: 50%;
             background: #FF9800;
             cursor: pointer;
             position: relative;
@@ -22,11 +22,11 @@
             height: 20px;
         }
 
-        .container.elq-max-width-200 {
+        .container.elq-max-width-200px {
             background-color: red;
         }
 
-        .container.elq-min-width-200 {
+        .container.elq-min-width-200px {
             background-color: blue;
         }
 
@@ -103,7 +103,7 @@
                     }
                 }
             });
-            elq.start($("[elq]"));
+            elq.activate($("[elq]"));
         });
     </script>
 </body>
