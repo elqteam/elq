@@ -3,6 +3,8 @@ Element queries framework. Solution to modular responsive components.
 
 **ELQ currently is in early beta.** Therefore, bugs and API changes may occur frequently. We really appreciate feedback such as GitHub issues and pull requests.
 
+We are aware that the file size is a bit big at the moment (237 KB, 55 KB minified, 16 KB minified + gzip). In the future, we will remove the lodash dependency, reducing the size to something like (71 KB, 20 KB minified, 6 KB minified + gzip).
+
 ## Why Element Queries?
 
 Element queries are not for the faint hearted (read: not suitable for all projects).
