@@ -159,7 +159,7 @@ In the ```make``` method the plugin may initialize itself to the ELQ instance an
 When necessary, ELQ invokes certain methods of the plugin API, if implemented, to let plugins decide the behavior of the system. Those methods are the following:
 
 * ```activate(element)```: Called when an element is requested to be activated, in order for plugins to initialize listeners and element properties.
-* ```getElements(element)```: Called in order to let plugins reveal extra elements to be started in addition to the given element.
+* ```getElements(element)```: Called in order to let plugins reveal extra elements to be activated in addition to the given element.
 * ```getBreakpoints(element)```: Called to retrieve the current breakpoints of an element.
 * ```applyBreakpointStates(element, breakpointStates)```: Called to apply the given breakpoint states of an element.
 
@@ -170,8 +170,27 @@ In addition, plugins may also listen to the following ELQ events:
 
 ### Flow
 
-There are two main flows of the \elq{} system; starting an element and updating an element.
-When \elq{} is requested to start an element, the following flow occurs:
+There are two main flows of the ELQ system; activating an element and updating an element.
+When ELQ is requested to activate an element, the following flow occurs:
+
+1. The element is intialized by installing properties and a system handling listeners.s
+2. The ```getElements``` method of all plugins is called to retrieve any additional elements to activate. Additonal elements will go through an own flow.
+3. The ```activate``` method of all plugins is called so that plugin specific initialized may occur.
+4. If any plugin has requested ELQ to detect resize events of the element, an resize detector is installed.
+5. The element is passed through the update flow.
+
+The update flow is as follows:
+
+1. The ```getBreakpoints``` method of all plugins is called to retrieve all breakpoints of the element.
+2. Breakpoint states are calculated.
+3. If any state has changed since the previous update:
+4. If any state has changed since the previous update:
+    1. Cycle detection is performed.
+    2. The ```applyBreakpoints``` method of all plugins is called.
+    3. The ```breakpointStatesChanged``` event is emited.
+
+Of course, there are options to disable some of the steps such as cycle detection and applying breakpoints.
+In additon to being triggered by the start flow and plugins, it is also triggered by element resize events.
 
 # Options
 
