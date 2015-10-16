@@ -6116,7 +6116,7 @@ module.exports={
   "name": "elq",
   "description": "Element media queries framework. Solution to modular responsive components.",
   "homepage": "https://github.com/wnr/elq",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": false,
   "license": "MIT",
   "devDependencies": {
@@ -6821,7 +6821,15 @@ module.exports = function BreakpointParser(options) {
             };
 
             function getFromMainAttr(element, dimension) {
-                var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
+                function getAttribute(element, attr) {
+                    if (element.hasAttribute(attr)) {
+                        return element.getAttribute(attr);
+                    }
+
+                    return element.getAttribute("data-" + attr);
+                }
+
+                var breakpoints = getAttribute(element, "elq-breakpoints-" + dimension + "s");
 
                 if (!breakpoints) {
                     return [];
