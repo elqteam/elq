@@ -55,7 +55,15 @@ module.exports = function BreakpointParser(options) {
             };
 
             function getFromMainAttr(element, dimension) {
-                var breakpoints = element.getAttribute("elq-breakpoints-" + dimension + "s");
+                function getAttribute(element, attr) {
+                    if (element.hasAttribute(attr)) {
+                        return element.getAttribute(attr);
+                    }
+
+                    return element.getAttribute("data-" + attr);
+                }
+
+                var breakpoints = getAttribute(element, "elq-breakpoints-" + dimension + "s");
 
                 if (!breakpoints) {
                     return [];
