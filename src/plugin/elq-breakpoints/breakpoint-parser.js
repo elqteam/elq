@@ -19,6 +19,7 @@ module.exports = function BreakpointParser(options) {
     var reporter = options.reporter;
     var defaultUnit = options.defaultUnit;
     var styleResolver = options.styleResolver;
+    var elementUtils = options.elementUtils;
 
     function parseBreakpoints(element) {
         function getBreakpoints(element, dimension) {
@@ -55,15 +56,7 @@ module.exports = function BreakpointParser(options) {
             };
 
             function getFromMainAttr(element, dimension) {
-                function getAttribute(element, attr) {
-                    if (element.hasAttribute(attr)) {
-                        return element.getAttribute(attr);
-                    }
-
-                    return element.getAttribute("data-" + attr);
-                }
-
-                var breakpoints = getAttribute(element, "elq-breakpoints-" + dimension + "s");
+                var breakpoints = elementUtils.getAttribute(element, "elq-breakpoints-" + dimension + "s");
 
                 if (!breakpoints) {
                     return [];

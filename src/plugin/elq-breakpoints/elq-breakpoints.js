@@ -3,6 +3,7 @@
 var packageJson = require("../../../package.json");
 var BreakpointsParser = require("./breakpoint-parser.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
+var elementUtils = require("./element-utils");
 
 module.exports = {
     getName: function () {
@@ -19,11 +20,12 @@ module.exports = {
         var breakpointsParser   = BreakpointsParser({
             defaultUnit: options.defaultUnit,
             reporter: elq.reporter,
-            styleResolver: styleResolver
+            styleResolver: styleResolver,
+            elementUtils: elementUtils
         });
 
         function activate(element) {
-            if (!element.hasAttribute("elq-breakpoints")) {
+            if (!elementUtils.getAttribute(element, "elq-breakpoints")) {
                 return;
             }
 
@@ -36,7 +38,7 @@ module.exports = {
                 element.elq.serialize = true;
             }
 
-            if (element.getAttribute("elq-breakpoints").indexOf("notcyclic") !== -1) {
+            if (elementUtils.getAttribute(element, "elq-breakpoints").indexOf("notcyclic") !== -1) {
                 element.elq.cycleCheck = false;
             } else {
                 // Enable cycle check unless some other system explicitly has disabled it.
