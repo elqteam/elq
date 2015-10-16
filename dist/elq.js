@@ -6560,7 +6560,7 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
     return createBatchUpdaterOptionsProxy;
 }
 
-},{"../package.json":132,"./breakpoint-state-calculator":133,"./cycle-detector":134,"./id-generator":136,"./id-handler":137,"./plugin-handler":139,"./plugin/elq-breakpoints/elq-breakpoints.js":141,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":143,"./plugin/elq-mirror/elq-mirror.js":144,"./reporter":145,"./style-resolver":146,"batch-updater":3,"element-resize-detector":9,"lodash.forEach":77,"lodash.partial":109,"lodash.uniq":115}],136:[function(require,module,exports){
+},{"../package.json":132,"./breakpoint-state-calculator":133,"./cycle-detector":134,"./id-generator":136,"./id-handler":137,"./plugin-handler":139,"./plugin/elq-breakpoints/elq-breakpoints.js":142,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":144,"./plugin/elq-mirror/elq-mirror.js":145,"./reporter":146,"./style-resolver":147,"batch-updater":3,"element-resize-detector":9,"lodash.forEach":77,"lodash.partial":109,"lodash.uniq":115}],136:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -6785,6 +6785,7 @@ module.exports = function BreakpointParser(options) {
     var reporter = options.reporter;
     var defaultUnit = options.defaultUnit;
     var styleResolver = options.styleResolver;
+    var elementUtils = options.elementUtils;
 
     function parseBreakpoints(element) {
         function getBreakpoints(element, dimension) {
@@ -6821,15 +6822,7 @@ module.exports = function BreakpointParser(options) {
             };
 
             function getFromMainAttr(element, dimension) {
-                function getAttribute(element, attr) {
-                    if (element.hasAttribute(attr)) {
-                        return element.getAttribute(attr);
-                    }
-
-                    return element.getAttribute("data-" + attr);
-                }
-
-                var breakpoints = getAttribute(element, "elq-breakpoints-" + dimension + "s");
+                var breakpoints = elementUtils.getAttribute(element, "elq-breakpoints-" + dimension + "s");
 
                 if (!breakpoints) {
                     return [];
@@ -6884,9 +6877,23 @@ module.exports = function BreakpointParser(options) {
 },{}],141:[function(require,module,exports){
 "use strict";
 
+var utils = module.exports = {};
+
+utils.getAttribute = function (element, attr) {
+    if (element.hasAttribute(attr)) {
+        return element.getAttribute(attr);
+    }
+
+    return element.getAttribute("data-" + attr);
+};
+
+},{}],142:[function(require,module,exports){
+"use strict";
+
 var packageJson = require("../../../package.json");
 var BreakpointsParser = require("./breakpoint-parser.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
+var elementUtils = require("./element-utils");
 
 module.exports = {
     getName: function () {
@@ -6903,11 +6910,12 @@ module.exports = {
         var breakpointsParser   = BreakpointsParser({
             defaultUnit: options.defaultUnit,
             reporter: elq.reporter,
-            styleResolver: styleResolver
+            styleResolver: styleResolver,
+            elementUtils: elementUtils
         });
 
         function activate(element) {
-            if (!element.hasAttribute("elq-breakpoints")) {
+            if (!elementUtils.getAttribute(element, "elq-breakpoints")) {
                 return;
             }
 
@@ -6920,7 +6928,7 @@ module.exports = {
                 element.elq.serialize = true;
             }
 
-            if (element.getAttribute("elq-breakpoints").indexOf("notcyclic") !== -1) {
+            if (elementUtils.getAttribute(element, "elq-breakpoints").indexOf("notcyclic") !== -1) {
                 element.elq.cycleCheck = false;
             } else {
                 // Enable cycle check unless some other system explicitly has disabled it.
@@ -6941,7 +6949,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":132,"../../style-resolver.js":146,"./breakpoint-parser.js":140}],142:[function(require,module,exports){
+},{"../../../package.json":132,"../../style-resolver.js":147,"./breakpoint-parser.js":140,"./element-utils":141}],143:[function(require,module,exports){
 "use strict";
 
 var forEach = require("lodash.foreach");
@@ -7014,7 +7022,7 @@ module.exports = function BreakpointStateSerializer() {
     };
 };
 
-},{"lodash.foreach":85}],143:[function(require,module,exports){
+},{"lodash.foreach":85}],144:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -7044,7 +7052,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":132,"../../style-resolver.js":146,"./breakpoint-state-serializer.js":142}],144:[function(require,module,exports){
+},{"../../../package.json":132,"../../style-resolver.js":147,"./breakpoint-state-serializer.js":143}],145:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
@@ -7119,7 +7127,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":132}],145:[function(require,module,exports){
+},{"../../../package.json":132}],146:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -7155,7 +7163,7 @@ module.exports = function (quiet) {
     return reporter;
 };
 
-},{}],146:[function(require,module,exports){
+},{}],147:[function(require,module,exports){
 "use strict";
 
 module.exports = function StyleResolver() {
