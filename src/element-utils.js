@@ -9,3 +9,7 @@ utils.getAttribute = function (element, attr) {
 
     return element.getAttribute("data-" + attr);
 };
+
+utils.hasAttribute = function (element, attr) {
+    return utils.getAttribute(element, attr) !== null;
+};

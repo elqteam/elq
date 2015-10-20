@@ -3,7 +3,7 @@
 var packageJson = require("../../../package.json");
 var BreakpointsParser = require("./breakpoint-parser.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
-var elementUtils = require("./element-utils");
+var elementUtils = require("../../element-utils.js");
 
 module.exports = {
     getName: function () {
