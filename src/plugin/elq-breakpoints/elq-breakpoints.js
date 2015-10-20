@@ -25,7 +25,7 @@ module.exports = {
         });
 
         function activate(element) {
-            if (!elementUtils.getAttribute(element, "elq-breakpoints")) {
+            if (!elementUtils.hasAttribute(element, "elq-breakpoints")) {
                 return;
             }
 
