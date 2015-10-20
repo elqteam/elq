@@ -124,6 +124,1070 @@ function getOption(options, name, defaultValue) {
 },{}],3:[function(require,module,exports){
 "use strict";
 
+var detector = module.exports = {};
+
+detector.isIE = function(version) {
+    function isAnyIeVersion() {
+        var agent = navigator.userAgent.toLowerCase();
+        return agent.indexOf("msie") !== -1 || agent.indexOf("trident") !== -1 || agent.indexOf(" edge/") !== -1;
+    }
+
+    if(!isAnyIeVersion()) {
+        return false;
+    }
+
+    if(!version) {
+        return true;
+    }
+
+    //Shamelessly stolen from https://gist.github.com/padolsey/527683
+    var ieVersion = (function(){
+        var undef,
+            v = 3,
+            div = document.createElement("div"),
+            all = div.getElementsByTagName("i");
+
+        do {
+            div.innerHTML = "<!--[if gt IE " + (++v) + "]><i></i><![endif]-->";
+        }
+        while (all[0]);
+
+        return v > 4 ? v : undef;
+    }());
+
+    return version === ieVersion;
+};
+
+detector.isLegacyOpera = function() {
+    return !!window.opera;
+};
+
+},{}],4:[function(require,module,exports){
+"use strict";
+
+var utils = module.exports = {};
+
+/**
+ * Loops through the collection and calls the callback for each element. if the callback returns truthy, the loop is broken and returns the same value.
+ * @public
+ * @param {*} collection The collection to loop through. Needs to have a length property set and have indices set from 0 to length - 1.
+ * @param {function} callback The callback to be called for each element. The element will be given as a parameter to the callback. If this callback returns truthy, the loop is broken and the same value is returned.
+ * @returns {*} The value that a callback has returned (if truthy). Otherwise nothing.
+ */
+utils.forEach = function(collection, callback) {
+    for(var i = 0; i < collection.length; i++) {
+        var result = callback(collection[i]);
+        if(result) {
+            return result;
+        }
+    }
+};
+
+},{}],5:[function(require,module,exports){
+/**
+ * Resize detection strategy that injects objects to elements in order to detect resize events.
+ * Heavily inspired by: http://www.backalleycoder.com/2013/03/18/cross-browser-event-based-element-resize-detection/
+ */
+
+"use strict";
+
+var browserDetector = require("../browser-detector");
+
+module.exports = function(options) {
+    options             = options || {};
+    var reporter        = options.reporter;
+    var batchProcessor  = options.batchProcessor;
+    var getState        = options.stateHandler.getState;
+
+    if(!reporter) {
+        throw new Error("Missing required dependency: reporter.");
+    }
+
+    /**
+     * Adds a resize event listener to the element.
+     * @public
+     * @param {element} element The element that should have the listener added.
+     * @param {function} listener The listener callback to be called for each resize event of the element. The element will be given as a parameter to the listener callback.
+     */
+    function addListener(element, listener) {
+        if(!getObject(element)) {
+            throw new Error("Element is not detectable by this strategy.");
+        }
+
+        function listenerProxy() {
+            listener(element);
+        }
+
+        if(browserDetector.isIE(8)) {
+            //IE 8 does not support object, but supports the resize event directly on elements.
+            getState(element).object = {
+                proxy: listenerProxy
+            };
+            element.attachEvent("onresize", listenerProxy);
+        } else {
+            var object = getObject(element);
+            object.contentDocument.defaultView.addEventListener("resize", listenerProxy);
+        }
+    }
+
+    /**
+     * Makes an element detectable and ready to be listened for resize events. Will call the callback when the element is ready to be listened for resize changes.
+     * @private
+     * @param {element} element The element to make detectable
+     * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
+     */
+    function makeDetectable(element, callback) {
+        function injectObject(element, callback) {
+            var OBJECT_STYLE = "display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; opacity: 0; z-index: -1000; pointer-events: none;";
+
+            //The target element needs to be positioned (everything except static) so the absolute positioned object will be positioned relative to the target element.
+
+            // Position altering may be performed directly or on object load, depending on if style resolution is possible directly or not.
+            var positionCheckPerformed = false;
+
+            // The element may not yet be attached to the DOM, and therefore the style object may be empty in some browsers.
+            // Since the style object is a reference, it will be updated as soon as the element is attached to the DOM.
+            var style = getComputedStyle(element);
+
+            getState(element).startSizeStyle = {
+                width: style.width,
+                height: style.height
+            };
+
+            function mutateDom() {
+                function alterPositionStyles() {
+                    if(style.position === "static") {
+                        element.style.position = "relative";
+
+                        var removeRelativeStyles = function(reporter, element, style, property) {
+                            function getNumericalValue(value) {
+                                return value.replace(/[^-\d\.]/g, "");
+                            }
+
+                            var value = style[property];
+
+                            if(value !== "auto" && getNumericalValue(value) !== "0") {
+                                reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
+                                element.style[property] = 0;
+                            }
+                        };
+
+                        //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
+                        //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
+                        removeRelativeStyles(reporter, element, style, "top");
+                        removeRelativeStyles(reporter, element, style, "right");
+                        removeRelativeStyles(reporter, element, style, "bottom");
+                        removeRelativeStyles(reporter, element, style, "left");
+                    }
+                }
+
+                function onObjectLoad() {
+                    // The object has been loaded, which means that the element now is guaranteed to be attached to the DOM.
+                    if (!positionCheckPerformed) {
+                        alterPositionStyles();
+                    }
+
+                    /*jshint validthis: true */
+
+                    function getDocument(element, callback) {
+                        //Opera 12 seem to call the object.onload before the actual document has been created.
+                        //So if it is not present, poll it with an timeout until it is present.
+                        //TODO: Could maybe be handled better with object.onreadystatechange or similar.
+                        if(!element.contentDocument) {
+                            setTimeout(function checkForObjectDocument() {
+                                getDocument(element, callback);
+                            }, 100);
+
+                            return;
+                        }
+
+                        callback(element.contentDocument);
+                    }
+
+                    //Mutating the object element here seems to fire another load event.
+                    //Mutating the inner document of the object element is fine though.
+                    var objectElement = this;
+
+                    //Create the style element to be added to the object.
+                    getDocument(objectElement, function onObjectDocumentReady(objectDocument) {
+                        //Notify that the element is ready to be listened to.
+                        callback(element);
+                    });
+                }
+
+                // The element may be detached from the DOM, and some browsers does not support style resolving of detached elements.
+                // The alterPositionStyles needs to be delayed until we know the element has been attached to the DOM (which we are sure of when the onObjectLoad has been fired), if style resolution is not possible.
+                if (style.position !== "") {
+                    alterPositionStyles(style);
+                    positionCheckPerformed = true;
+                }
+
+                //Add an object element as a child to the target element that will be listened to for resize events.
+                var object = document.createElement("object");
+                object.style.cssText = OBJECT_STYLE;
+                object.type = "text/html";
+                object.onload = onObjectLoad;
+
+                //Safari: This must occur before adding the object to the DOM.
+                //IE: Does not like that this happens before, even if it is also added after.
+                if(!browserDetector.isIE()) {
+                    object.data = "about:blank";
+                }
+
+                element.appendChild(object);
+                getState(element).object = object;
+
+                //IE: This must occur after adding the object to the DOM.
+                if(browserDetector.isIE()) {
+                    object.data = "about:blank";
+                }
+            }
+
+            if(batchProcessor) {
+                batchProcessor.add(mutateDom);
+            } else {
+                mutateDom();
+            }
+        }
+
+        if(browserDetector.isIE(8)) {
+            //IE 8 does not support objects properly. Luckily they do support the resize event.
+            //So do not inject the object and notify that the element is already ready to be listened to.
+            //The event handler for the resize event is attached in the utils.addListener instead.
+            callback(element);
+        } else {
+            injectObject(element, callback);
+        }
+    }
+
+    /**
+     * Returns the child object of the target element.
+     * @private
+     * @param {element} element The target element.
+     * @returns The object element of the target.
+     */
+    function getObject(element) {
+        return getState(element).object;
+    }
+
+    function uninstall(element) {
+        if(browserDetector.isIE(8)) {
+            element.detachEvent("onresize", getState(element).object.proxy);
+        } else {
+            element.removeChild(getObject(element));
+        }
+        delete getState(element).object;
+    }
+
+    return {
+        makeDetectable: makeDetectable,
+        addListener: addListener,
+        uninstall: uninstall
+    };
+};
+
+},{"../browser-detector":3}],6:[function(require,module,exports){
+/**
+ * Resize detection strategy that injects divs to elements in order to detect resize events on scroll events.
+ * Heavily inspired by: https://github.com/marcj/css-element-queries/blob/master/src/ResizeSensor.js
+ */
+
+"use strict";
+
+module.exports = function(options) {
+    options             = options || {};
+    var reporter        = options.reporter;
+    var batchProcessor  = options.batchProcessor;
+    var getState        = options.stateHandler.getState;
+
+    if(!reporter) {
+        throw new Error("Missing required dependency: reporter.");
+    }
+
+    //TODO: Could this perhaps be done at installation time?
+    var scrollbarSizes = getScrollbarSizes();
+
+    /**
+     * Adds a resize event listener to the element.
+     * @public
+     * @param {element} element The element that should have the listener added.
+     * @param {function} listener The listener callback to be called for each resize event of the element. The element will be given as a parameter to the listener callback.
+     */
+    function addListener(element, listener) {
+        var changed = function() {
+            var elementStyle    = getComputedStyle(element);
+            var width           = parseSize(elementStyle.width);
+            var height          = parseSize(elementStyle.height);
+
+            // Store the size of the element sync here, so that multiple scroll events may be ignored in the event listeners.
+            // Otherwise the if-check in handleScroll is useless.
+            storeCurrentSize(element, width, height);
+
+            batchProcessor.add(function updateDetectorElements() {
+                updateChildSizes(element, width, height);
+            });
+
+            batchProcessor.add(1, function updateScrollbars() {
+                positionScrollbars(element, width, height);
+                listener(element);
+            });
+        };
+
+        function handleScroll() {
+            var style = getComputedStyle(element);
+            var width = parseSize(style.width);
+            var height = parseSize(style.height);
+
+            if (width !== element.lastWidth || height !== element.lastHeight) {
+                changed();
+            }
+        }
+
+        var expand = getExpandElement(element);
+        var shrink = getShrinkElement(element);
+
+        addEvent(expand, "scroll", handleScroll);
+        addEvent(shrink, "scroll", handleScroll);
+    }
+
+    /**
+     * Makes an element detectable and ready to be listened for resize events. Will call the callback when the element is ready to be listened for resize changes.
+     * @private
+     * @param {element} element The element to make detectable
+     * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
+     */
+    function makeDetectable(element, callback) {
+        function isStyleResolved() {
+            function isPxValue(length) {
+                return length.indexOf("px") !== -1;
+            }
+
+            var style = getComputedStyle(element);
+
+            return style.position && isPxValue(style.width) && isPxValue(style.height);
+        }
+
+        function install() {
+            function getStyle() {
+                // Some browsers only force layouts when actually reading the style properties of the style object, so make sure that they are all read here,
+                // so that the user of the function can be sure that it will perform the layout here, instead of later (important for batching).
+                var style                   = {};
+                var elementStyle            = getComputedStyle(element);
+                style.position              = elementStyle.position;
+                style.width                 = parseSize(elementStyle.width);
+                style.height                = parseSize(elementStyle.height);
+                style.top                   = elementStyle.top;
+                style.right                 = elementStyle.right;
+                style.bottom                = elementStyle.bottom;
+                style.left                  = elementStyle.left;
+                style.widthStyle            = elementStyle.width;
+                style.heightStyle           = elementStyle.height;
+                return style;
+            }
+
+            // Style is to be retrieved in the first level (before mutating the DOM) so that a forced layout is avoided later.
+            var style = getStyle();
+
+            getState(element).startSizeStyle = {
+                width: style.widthStyle,
+                height: style.heightStyle
+            };
+
+            var readyExpandScroll       = false;
+            var readyShrinkScroll       = false;
+            var readyOverall            = false;
+
+            function ready() {
+                if(readyExpandScroll && readyShrinkScroll && readyOverall) {
+                    callback(element);
+                }
+            }
+
+            function mutateDom() {
+                function alterPositionStyles() {
+                    if(style.position === "static") {
+                        element.style.position = "relative";
+
+                        var removeRelativeStyles = function(reporter, element, style, property) {
+                            function getNumericalValue(value) {
+                                return value.replace(/[^-\d\.]/g, "");
+                            }
+
+                            var value = style[property];
+
+                            if(value !== "auto" && getNumericalValue(value) !== "0") {
+                                reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
+                                element.style[property] = 0;
+                            }
+                        };
+
+                        //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
+                        //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
+                        removeRelativeStyles(reporter, element, style, "top");
+                        removeRelativeStyles(reporter, element, style, "right");
+                        removeRelativeStyles(reporter, element, style, "bottom");
+                        removeRelativeStyles(reporter, element, style, "left");
+                    }
+                }
+
+                function getContainerCssText(left, top, bottom, right) {
+                    left = (!left ? "0" : (left + "px"));
+                    top = (!top ? "0" : (top + "px"));
+                    bottom = (!bottom ? "0" : (bottom + "px"));
+                    right = (!right ? "0" : (right + "px"));
+
+                    return "position: absolute; left: " + left + "; top: " + top + "; right: " + right + "; bottom: " + bottom + "; overflow: scroll; z-index: -1; visibility: hidden;";
+                }
+
+                alterPositionStyles(style);
+
+                var scrollbarWidth          = scrollbarSizes.width;
+                var scrollbarHeight         = scrollbarSizes.height;
+                var containerStyle          = getContainerCssText(-1, -1, -scrollbarHeight, -scrollbarWidth);
+                var shrinkExpandstyle       = getContainerCssText(0, 0, -scrollbarHeight, -scrollbarWidth);
+                var shrinkExpandChildStyle  = "position: absolute; left: 0; top: 0;";
+
+                var container               = document.createElement("div");
+                var expand                  = document.createElement("div");
+                var expandChild             = document.createElement("div");
+                var shrink                  = document.createElement("div");
+                var shrinkChild             = document.createElement("div");
+
+                container.style.cssText     = containerStyle;
+                expand.style.cssText        = shrinkExpandstyle;
+                expandChild.style.cssText   = shrinkExpandChildStyle;
+                shrink.style.cssText        = shrinkExpandstyle;
+                shrinkChild.style.cssText   = shrinkExpandChildStyle + " width: 200%; height: 200%;";
+
+                expand.appendChild(expandChild);
+                shrink.appendChild(shrinkChild);
+                container.appendChild(expand);
+                container.appendChild(shrink);
+                element.appendChild(container);
+                getState(element).element = container;
+
+                addEvent(expand, "scroll", function onFirstExpandScroll() {
+                    removeEvent(expand, "scroll", onFirstExpandScroll);
+                    readyExpandScroll = true;
+                    ready();
+                });
+
+                addEvent(shrink, "scroll", function onFirstShrinkScroll() {
+                    removeEvent(shrink, "scroll", onFirstShrinkScroll);
+                    readyShrinkScroll = true;
+                    ready();
+                });
+
+                updateChildSizes(element, style.width, style.height);
+            }
+
+            function finalizeDomMutation() {
+                storeCurrentSize(element, style.width, style.height);
+                positionScrollbars(element, style.width, style.height);
+                readyOverall = true;
+                ready();
+            }
+
+            if(batchProcessor) {
+                batchProcessor.add(mutateDom);
+                batchProcessor.add(1, finalizeDomMutation);
+            } else {
+                mutateDom();
+                finalizeDomMutation();
+            }
+        }
+
+        // Only install the strategy if the style has been resolved (this does not always mean that the element is attached).
+        if (isStyleResolved()) {
+            install();
+        } else {
+            // Need to perform polling in order to detect when the element has been attached to the DOM.
+            var timeout = setInterval(function () {
+                if (isStyleResolved()) {
+                    install();
+                    clearTimeout(timeout);
+                }
+            }, 50);
+        }
+    }
+
+    function getExpandElement(element) {
+        return getState(element).element.childNodes[0];
+    }
+
+    function getExpandChildElement(element) {
+        return getExpandElement(element).childNodes[0];
+    }
+
+    function getShrinkElement(element) {
+        return getState(element).element.childNodes[1];
+    }
+
+    function getExpandSize(size) {
+        return size + 10;
+    }
+
+    function getShrinkSize(size) {
+        return size * 2;
+    }
+
+    function updateChildSizes(element, width, height) {
+        var expandChild             = getExpandChildElement(element);
+        var expandWidth             = getExpandSize(width);
+        var expandHeight            = getExpandSize(height);
+        expandChild.style.width     = expandWidth + "px";
+        expandChild.style.height    = expandHeight + "px";
+    }
+
+    function storeCurrentSize(element, width, height) {
+        element.lastWidth   = width;
+        element.lastHeight  = height;
+    }
+
+    function positionScrollbars(element, width, height) {
+        var expand          = getExpandElement(element);
+        var shrink          = getShrinkElement(element);
+        var expandWidth     = getExpandSize(width);
+        var expandHeight    = getExpandSize(height);
+        var shrinkWidth     = getShrinkSize(width);
+        var shrinkHeight    = getShrinkSize(height);
+        expand.scrollLeft   = expandWidth;
+        expand.scrollTop    = expandHeight;
+        shrink.scrollLeft   = shrinkWidth;
+        shrink.scrollTop    = shrinkHeight;
+    }
+
+    function addEvent(el, name, cb) {
+        if (el.attachEvent) {
+            el.attachEvent("on" + name, cb);
+        } else {
+            el.addEventListener(name, cb);
+        }
+    }
+
+    function removeEvent(el, name, cb) {
+        if(el.attachEvent) {
+            el.detachEvent("on" + name, cb);
+        } else {
+            el.removeEventListener(name, cb);
+        }
+    }
+
+    function parseSize(size) {
+        return parseFloat(size.replace(/px/, ""));
+    }
+
+    function getScrollbarSizes() {
+        var width = 500;
+        var height = 500;
+
+        var child = document.createElement("div");
+        child.style.cssText = "position: absolute; width: " + width*2 + "px; height: " + height*2 + "px; visibility: hidden;";
+
+        var container = document.createElement("div");
+        container.style.cssText = "position: absolute; width: " + width + "px; height: " + height + "px; overflow: scroll; visibility: none; top: " + -width*3 + "px; left: " + -height*3 + "px; visibility: hidden;";
+
+        container.appendChild(child);
+
+        document.body.insertBefore(container, document.body.firstChild);
+
+        var widthSize = width - container.clientWidth;
+        var heightSize = height - container.clientHeight;
+
+        document.body.removeChild(container);
+
+        return {
+            width: widthSize,
+            height: heightSize
+        };
+    }
+
+    function uninstall(element) {
+        var state = getState(element);
+        element.removeChild(state.element);
+        delete state.element;
+    }
+
+    return {
+        makeDetectable: makeDetectable,
+        addListener: addListener,
+        uninstall: uninstall
+    };
+};
+
+},{}],7:[function(require,module,exports){
+"use strict";
+
+var forEach                 = require("./collection-utils").forEach;
+var elementUtilsMaker       = require("./element-utils");
+var listenerHandlerMaker    = require("./listener-handler");
+var idGeneratorMaker        = require("./id-generator");
+var idHandlerMaker          = require("./id-handler");
+var reporterMaker           = require("./reporter");
+var browserDetector         = require("./browser-detector");
+var batchProcessorMaker     = require("batch-processor");
+var stateHandler            = require("./state-handler");
+
+//Detection strategies.
+var objectStrategyMaker     = require("./detection-strategy/object.js");
+var scrollStrategyMaker     = require("./detection-strategy/scroll.js");
+
+/**
+ * @typedef idHandler
+ * @type {object}
+ * @property {function} get Gets the resize detector id of the element.
+ * @property {function} set Generate and sets the resize detector id of the element.
+ */
+
+/**
+ * @typedef Options
+ * @type {object}
+ * @property {boolean} callOnAdd    Determines if listeners should be called when they are getting added.
+                                    Default is true. If true, the listener is guaranteed to be called when it has been added.
+                                    If false, the listener will not be guarenteed to be called when it has been added (does not prevent it from being called).
+ * @property {idHandler} idHandler  A custom id handler that is responsible for generating, setting and retrieving id's for elements.
+                                    If not provided, a default id handler will be used.
+ * @property {reporter} reporter    A custom reporter that handles reporting logs, warnings and errors.
+                                    If not provided, a default id handler will be used.
+                                    If set to false, then nothing will be reported.
+ */
+
+/**
+ * Creates an element resize detector instance.
+ * @public
+ * @param {Options?} options Optional global options object that will decide how this instance will work.
+ */
+module.exports = function(options) {
+    options = options || {};
+
+    //idHandler is currently not an option to the listenTo function, so it should not be added to globalOptions.
+    var idHandler = options.idHandler;
+
+    if(!idHandler) {
+        var idGenerator = idGeneratorMaker();
+        var defaultIdHandler = idHandlerMaker({
+            idGenerator: idGenerator,
+            stateHandler: stateHandler
+        });
+        idHandler = defaultIdHandler;
+    }
+
+    //reporter is currently not an option to the listenTo function, so it should not be added to globalOptions.
+    var reporter = options.reporter;
+
+    if(!reporter) {
+        //If options.reporter is false, then the reporter should be quiet.
+        var quiet = reporter === false;
+        reporter = reporterMaker(quiet);
+    }
+
+    //batchProcessor is currently not an option to the listenTo function, so it should not be added to globalOptions.
+    var batchProcessor = getOption(options, "batchProcessor", batchProcessorMaker({ reporter: reporter }));
+
+    //Options to be used as default for the listenTo function.
+    var globalOptions = {};
+    globalOptions.callOnAdd     = !!getOption(options, "callOnAdd", true);
+
+    var eventListenerHandler    = listenerHandlerMaker(idHandler);
+    var elementUtils            = elementUtilsMaker({
+        stateHandler: stateHandler
+    });
+
+    //The detection strategy to be used.
+    var detectionStrategy;
+    var desiredStrategy = getOption(options, "strategy", "object");
+    var strategyOptions = {
+        reporter: reporter,
+        batchProcessor: batchProcessor,
+        stateHandler: stateHandler
+    };
+
+    if(desiredStrategy === "scroll" && browserDetector.isLegacyOpera()) {
+        reporter.warn("Scroll strategy is not supported on legacy Opera. Changing to object strategy.");
+        desiredStrategy = "object";
+    }
+
+    if(desiredStrategy === "scroll") {
+        detectionStrategy = scrollStrategyMaker(strategyOptions);
+    } else if(desiredStrategy === "object") {
+        detectionStrategy = objectStrategyMaker(strategyOptions);
+    } else {
+        throw new Error("Invalid strategy name: " + desiredStrategy);
+    }
+
+    //Calls can be made to listenTo with elements that are still are being installed.
+    //Also, same elements can occur in the elements list in the listenTo function.
+    //With this map, the ready callbacks can be synchronized between the calls
+    //so that the ready callback can always be called when an element is ready - even if
+    //it wasn't installed from the function intself.
+    var onReadyCallbacks = {};
+
+    /**
+     * Makes the given elements resize-detectable and starts listening to resize events on the elements. Calls the event callback for each event for each element.
+     * @public
+     * @param {Options?} options Optional options object. These options will override the global options. Some options may not be overriden, such as idHandler.
+     * @param {element[]|element} elements The given array of elements to detect resize events of. Single element is also valid.
+     * @param {function} listener The callback to be executed for each resize event for each element.
+     */
+    function listenTo(options, elements, listener) {
+        function onResizeCallback(element) {
+            var listeners = eventListenerHandler.get(element);
+            forEach(listeners, function callListenerProxy(listener) {
+                listener(element);
+            });
+        }
+
+        function addListener(callOnAdd, element, listener) {
+            eventListenerHandler.add(element, listener);
+
+            if(callOnAdd) {
+                listener(element);
+            }
+        }
+
+        //Options object may be omitted.
+        if(!listener) {
+            listener = elements;
+            elements = options;
+            options = {};
+        }
+
+        if(!elements) {
+            throw new Error("At least one element required.");
+        }
+
+        if(!listener) {
+            throw new Error("Listener required.");
+        }
+
+        if(elements.length === undefined) {
+            elements = [elements];
+        }
+
+        var elementsReady = 0;
+
+        var callOnAdd = getOption(options, "callOnAdd", globalOptions.callOnAdd);
+        var onReadyCallback = getOption(options, "onReady", function noop() {});
+
+        forEach(elements, function attachListenerToElement(element) {
+            var id = idHandler.get(element);
+
+            if(!elementUtils.isDetectable(element)) {
+                if(elementUtils.isBusy(element)) {
+                    //The element is being prepared to be detectable. Do not make it detectable.
+                    //Just add the listener, because the element will soon be detectable.
+                    addListener(callOnAdd, element, listener);
+                    onReadyCallbacks[id] = onReadyCallbacks[id] || [];
+                    onReadyCallbacks[id].push(function onReady() {
+                        elementsReady++;
+
+                        if(elementsReady === elements.length) {
+                            onReadyCallback();
+                        }
+                    });
+                    return;
+                }
+
+                //The element is not prepared to be detectable, so do prepare it and add a listener to it.
+                elementUtils.markBusy(element, true);
+                return detectionStrategy.makeDetectable(element, function onElementDetectable(element) {
+                    elementUtils.markAsDetectable(element);
+                    elementUtils.markBusy(element, false);
+                    detectionStrategy.addListener(element, onResizeCallback);
+                    addListener(callOnAdd, element, listener);
+
+                    // Since the element size might have changed since the call to "listenTo", we need to check for this change,
+                    // so that a resize event may be emitted.
+                    var style = getComputedStyle(element);
+                    if (stateHandler.getState(element).startSizeStyle.width !== style.width || stateHandler.getState(element).startSizeStyle.height !== style.height) {
+                        onResizeCallback(element);
+                    }
+
+                    elementsReady++;
+                    if(elementsReady === elements.length) {
+                        onReadyCallback();
+                    }
+
+                    if(onReadyCallbacks[id]) {
+                        forEach(onReadyCallbacks[id], function(callback) {
+                            callback();
+                        });
+                        delete onReadyCallbacks[id];
+                    }
+                });
+            }
+
+            //The element has been prepared to be detectable and is ready to be listened to.
+            addListener(callOnAdd, element, listener);
+            elementsReady++;
+        });
+
+        if(elementsReady === elements.length) {
+            onReadyCallback();
+        }
+    }
+
+    function uninstall(element) {
+      eventListenerHandler.removeAllListeners(element);
+      detectionStrategy.uninstall(element);
+      stateHandler.cleanState(element);
+    }
+
+    return {
+        listenTo: listenTo,
+        removeListener: eventListenerHandler.removeListener,
+        removeAllListeners: eventListenerHandler.removeAllListeners,
+        uninstall: uninstall
+    };
+};
+
+function getOption(options, name, defaultValue) {
+    var value = options[name];
+
+    if((value === undefined || value === null) && defaultValue !== undefined) {
+        return defaultValue;
+    }
+
+    return value;
+}
+
+},{"./browser-detector":3,"./collection-utils":4,"./detection-strategy/object.js":5,"./detection-strategy/scroll.js":6,"./element-utils":8,"./id-generator":9,"./id-handler":10,"./listener-handler":11,"./reporter":12,"./state-handler":13,"batch-processor":1}],8:[function(require,module,exports){
+"use strict";
+
+module.exports = function(options) {
+    var getState = options.stateHandler.getState;
+
+    /**
+     * Tells if the element has been made detectable and ready to be listened for resize events.
+     * @public
+     * @param {element} The element to check.
+     * @returns {boolean} True or false depending on if the element is detectable or not.
+     */
+    function isDetectable(element) {
+        return !!getState(element).isDetectable;
+    }
+
+    /**
+     * Marks the element that it has been made detectable and ready to be listened for resize events.
+     * @public
+     * @param {element} The element to mark.
+     */
+    function markAsDetectable(element) {
+        getState(element).isDetectable = true;
+    }
+
+    /**
+     * Tells if the element is busy or not.
+     * @public
+     * @param {element} The element to check.
+     * @returns {boolean} True or false depending on if the element is busy or not.
+     */
+    function isBusy(element) {
+        return !!getState(element).busy;
+    }
+
+    /**
+     * Marks the object is busy and should not be made detectable.
+     * @public
+     * @param {element} element The element to mark.
+     * @param {boolean} busy If the element is busy or not.
+     */
+    function markBusy(element, busy) {
+        getState(element).busy = !!busy;
+    }
+
+    return {
+        isDetectable: isDetectable,
+        markAsDetectable: markAsDetectable,
+        isBusy: isBusy,
+        markBusy: markBusy
+    };
+};
+
+},{}],9:[function(require,module,exports){
+"use strict";
+
+module.exports = function() {
+    var idCount = 1;
+
+    /**
+     * Generates a new unique id in the context.
+     * @public
+     * @returns {number} A unique id in the context.
+     */
+    function generate() {
+        return idCount++;
+    }
+
+    return {
+        generate: generate
+    };
+};
+
+},{}],10:[function(require,module,exports){
+"use strict";
+
+module.exports = function(options) {
+    var idGenerator     = options.idGenerator;
+    var getState        = options.stateHandler.getState;
+
+    /**
+     * Gets the resize detector id of the element. If the element does not have an id, one will be assigned to the element.
+     * @public
+     * @param {element} element The target element to get the id of.
+     * @param {boolean?} readonly An id will not be assigned to the element if the readonly parameter is true. Default is false.
+     * @returns {string|number} The id of the element.
+     */
+    function getId(element, readonly) {
+        if(!readonly && !hasId(element)) {
+            setId(element);
+        }
+
+        return getState(element).id;
+    }
+
+    function setId(element) {
+        var id = idGenerator.generate();
+
+        getState(element).id = id;
+
+        return id;
+    }
+
+    function hasId(element) {
+        return getState(element).id !== undefined;
+    }
+
+    function removeId(element) {
+        delete getState(element).id;
+    }
+
+    return {
+        get: getId,
+        remove: removeId
+    };
+};
+
+},{}],11:[function(require,module,exports){
+"use strict";
+
+module.exports = function(idHandler) {
+    var eventListeners = {};
+
+    /**
+     * Gets all listeners for the given element.
+     * @public
+     * @param {element} element The element to get all listeners for.
+     * @returns All listeners for the given element.
+     */
+    function getListeners(element) {
+        return eventListeners[idHandler.get(element)] || [];
+    }
+
+    /**
+     * Stores the given listener for the given element. Will not actually add the listener to the element.
+     * @public
+     * @param {element} element The element that should have the listener added.
+     * @param {function} listener The callback that the element has added.
+     */
+    function addListener(element, listener) {
+        var id = idHandler.get(element);
+
+        if(!eventListeners[id]) {
+            eventListeners[id] = [];
+        }
+
+        eventListeners[id].push(listener);
+    }
+
+    function removeListener(element, listener) {
+        var listeners = getListeners(element);
+        for (var i = 0, len = listeners.length; i < len; ++i) {
+            if (listeners[i] === listener) {
+              listeners.splice(i, 1);
+              break;
+            }
+        }
+    }
+
+    function removeAllListeners(element) {
+      var listeners = eventListeners[idHandler.get(element)];
+      if (!listeners) { return; }
+      listeners.length = 0;
+    }
+
+    return {
+        get: getListeners,
+        add: addListener,
+        removeListener: removeListener,
+        removeAllListeners: removeAllListeners
+    };
+};
+
+},{}],12:[function(require,module,exports){
+"use strict";
+
+/* global console: false */
+
+/**
+ * Reporter that handles the reporting of logs, warnings and errors.
+ * @public
+ * @param {boolean} quiet Tells if the reporter should be quiet or not.
+ */
+module.exports = function(quiet) {
+    function noop() {
+        //Does nothing.
+    }
+
+    var reporter = {
+        log: noop,
+        warn: noop,
+        error: noop
+    };
+
+    if(!quiet && window.console) {
+        var attachFunction = function(reporter, name) {
+            //The proxy is needed to be able to call the method with the console context,
+            //since we cannot use bind.
+            reporter[name] = function reporterProxy() {
+                console[name].apply(console, arguments);
+            };
+        };
+
+        attachFunction(reporter, "log");
+        attachFunction(reporter, "warn");
+        attachFunction(reporter, "error");
+    }
+
+    return reporter;
+};
+},{}],13:[function(require,module,exports){
+"use strict";
+
+var prop = "_erd";
+
+function initState(element) {
+    element[prop] = {};
+    return getState(element);
+}
+
+function getState(element) {
+    return element[prop] || initState(element);
+}
+
+function cleanState(element) {
+    delete element[prop];
+}
+
+module.exports = {
+    initState: initState,
+    getState: getState,
+    cleanState: cleanState
+};
+
+},{}],14:[function(require,module,exports){
+"use strict";
+
 var utils = require("./utils");
 
 module.exports = function batchUpdaterMaker(options) {
@@ -218,908 +1282,9 @@ module.exports = function batchUpdaterMaker(options) {
         force: forceUpdateBatch
     };
 };
-},{"./utils":4}],4:[function(require,module,exports){
+},{"./utils":15}],15:[function(require,module,exports){
 arguments[4][2][0].apply(exports,arguments)
-},{"dup":2}],5:[function(require,module,exports){
-"use strict";
-
-var detector = module.exports = {};
-
-detector.isIE = function(version) {
-    function isAnyIeVersion() {
-        var agent = navigator.userAgent.toLowerCase();
-        return agent.indexOf("msie") !== -1 || agent.indexOf("trident") !== -1 || agent.indexOf(" edge/") !== -1;
-    }
-
-    if(!isAnyIeVersion()) {
-        return false;
-    }
-
-    if(!version) {
-        return true;
-    }
-
-    //Shamelessly stolen from https://gist.github.com/padolsey/527683
-    var ieVersion = (function(){
-        var undef,
-            v = 3,
-            div = document.createElement("div"),
-            all = div.getElementsByTagName("i");
-
-        do {
-            div.innerHTML = "<!--[if gt IE " + (++v) + "]><i></i><![endif]-->";
-        }
-        while (all[0]);
-
-        return v > 4 ? v : undef;
-    }());
-
-    return version === ieVersion;
-};
-
-detector.isLegacyOpera = function() {
-    return !!window.opera;
-};
-
-},{}],6:[function(require,module,exports){
-"use strict";
-
-var utils = module.exports = {};
-
-/**
- * Loops through the collection and calls the callback for each element. if the callback returns truthy, the loop is broken and returns the same value.
- * @public
- * @param {*} collection The collection to loop through. Needs to have a length property set and have indices set from 0 to length - 1.
- * @param {function} callback The callback to be called for each element. The element will be given as a parameter to the callback. If this callback returns truthy, the loop is broken and the same value is returned.
- * @returns {*} The value that a callback has returned (if truthy). Otherwise nothing.
- */
-utils.forEach = function(collection, callback) {
-    for(var i = 0; i < collection.length; i++) {
-        var result = callback(collection[i]);
-        if(result) {
-            return result;
-        }
-    }
-};
-
-},{}],7:[function(require,module,exports){
-/**
- * Resize detection strategy that injects objects to elements in order to detect resize events.
- * Heavily inspired by: http://www.backalleycoder.com/2013/03/18/cross-browser-event-based-element-resize-detection/
- */
-
-"use strict";
-
-var browserDetector = require("../browser-detector");
-
-module.exports = function(options) {
-    options             = options || {};
-    var reporter        = options.reporter;
-    var batchProcessor  = options.batchProcessor;
-
-    if(!reporter) {
-        throw new Error("Missing required dependency: reporter.");
-    }
-
-    /**
-     * Adds a resize event listener to the element.
-     * @public
-     * @param {element} element The element that should have the listener added.
-     * @param {function} listener The listener callback to be called for each resize event of the element. The element will be given as a parameter to the listener callback.
-     */
-    function addListener(element, listener) {
-        if(!getObject(element)) {
-            throw new Error("Element is not detectable by this strategy.");
-        }
-
-        function listenerProxy() {
-            listener(element);
-        }
-
-        if(browserDetector.isIE(8)) {
-            //IE 8 does not support object, but supports the resize event directly on elements.
-            element.attachEvent("onresize", listenerProxy);
-        } else {
-            var object = getObject(element);
-            object.contentDocument.defaultView.addEventListener("resize", listenerProxy);
-        }
-    }
-
-    /**
-     * Makes an element detectable and ready to be listened for resize events. Will call the callback when the element is ready to be listened for resize changes.
-     * @private
-     * @param {element} element The element to make detectable
-     * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
-     */
-    function makeDetectable(element, callback) {
-        function injectObject(element, callback) {
-            var OBJECT_STYLE = "display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; opacity: 0; z-index: -1000; pointer-events: none;";
-
-            function onObjectLoad() {
-                /*jshint validthis: true */
-
-                function getDocument(element, callback) {
-                    //Opera 12 seem to call the object.onload before the actual document has been created.
-                    //So if it is not present, poll it with an timeout until it is present.
-                    //TODO: Could maybe be handled better with object.onreadystatechange or similar.
-                    if(!element.contentDocument) {
-                        setTimeout(function checkForObjectDocument() {
-                            getDocument(element, callback);
-                        }, 100);
-
-                        return;
-                    }
-
-                    callback(element.contentDocument);
-                }
-
-                //Mutating the object element here seems to fire another load event.
-                //Mutating the inner document of the object element is fine though.
-                var objectElement = this;
-
-                //Create the style element to be added to the object.
-                getDocument(objectElement, function onObjectDocumentReady(objectDocument) {
-                    //Notify that the element is ready to be listened to.
-                    callback(element);
-                });
-            }
-
-            //The target element needs to be positioned (everything except static) so the absolute positioned object will be positioned relative to the target element.
-            var style = getComputedStyle(element);
-            var position = style.position;
-
-            function mutateDom() {
-                if(position === "static") {
-                    element.style.position = "relative";
-
-                    var removeRelativeStyles = function(reporter, element, style, property) {
-                        function getNumericalValue(value) {
-                            return value.replace(/[^-\d\.]/g, "");
-                        }
-
-                        var value = style[property];
-
-                        if(value !== "auto" && getNumericalValue(value) !== "0") {
-                            reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
-                            element.style[property] = 0;
-                        }
-                    };
-
-                    //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
-                    //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
-                    removeRelativeStyles(reporter, element, style, "top");
-                    removeRelativeStyles(reporter, element, style, "right");
-                    removeRelativeStyles(reporter, element, style, "bottom");
-                    removeRelativeStyles(reporter, element, style, "left");
-                }
-
-                //Add an object element as a child to the target element that will be listened to for resize events.
-                var object = document.createElement("object");
-                object.style.cssText = OBJECT_STYLE;
-                object.type = "text/html";
-                object.onload = onObjectLoad;
-
-                //Safari: This must occur before adding the object to the DOM.
-                //IE: Does not like that this happens before, even if it is also added after.
-                if(!browserDetector.isIE()) {
-                    object.data = "about:blank";
-                }
-
-                element.appendChild(object);
-                element._erdObject = object;
-
-                //IE: This must occur after adding the object to the DOM.
-                if(browserDetector.isIE()) {
-                    object.data = "about:blank";
-                }
-            }
-
-            if(batchProcessor) {
-                batchProcessor.add(mutateDom);
-            } else {
-                mutateDom();
-            }
-        }
-
-        if(browserDetector.isIE(8)) {
-            //IE 8 does not support objects properly. Luckily they do support the resize event.
-            //So do not inject the object and notify that the element is already ready to be listened to.
-            //The event handler for the resize event is attached in the utils.addListener instead.
-            callback(element);
-        } else {
-            injectObject(element, callback);
-        }
-    }
-
-    /**
-     * Returns the child object of the target element.
-     * @private
-     * @param {element} element The target element.
-     * @returns The object element of the target.
-     */
-    function getObject(element) {
-        return element._erdObject;
-    }
-
-    return {
-        makeDetectable: makeDetectable,
-        addListener: addListener
-    };
-};
-
-},{"../browser-detector":5}],8:[function(require,module,exports){
-/**
- * Resize detection strategy that injects divs to elements in order to detect resize events on scroll events.
- * Heavily inspired by: https://github.com/marcj/css-element-queries/blob/master/src/ResizeSensor.js
- */
-
-"use strict";
-
-module.exports = function(options) {
-    options             = options || {};
-    var reporter        = options.reporter;
-    var batchProcessor  = options.batchProcessor;
-
-    if(!reporter) {
-        throw new Error("Missing required dependency: reporter.");
-    }
-
-    //TODO: Could this perhaps be done at installation time?
-    var scrollbarSizes = getScrollbarSizes();
-
-    /**
-     * Adds a resize event listener to the element.
-     * @public
-     * @param {element} element The element that should have the listener added.
-     * @param {function} listener The listener callback to be called for each resize event of the element. The element will be given as a parameter to the listener callback.
-     */
-    function addListener(element, listener) {
-        var changed = function() {
-            var elementStyle    = getComputedStyle(element);
-            var width           = parseSize(elementStyle.width);
-            var height          = parseSize(elementStyle.height);
-
-            // Store the size of the element sync here, so that multiple scroll events may be ignored in the event listeners.
-            // Otherwise the if-check in handleScroll is useless.
-            storeCurrentSize(element, width, height);
-
-            batchProcessor.add(function updateDetectorElements() {
-                updateChildSizes(element, width, height);
-            });
-
-            batchProcessor.add(1, function updateScrollbars() {
-                positionScrollbars(element, width, height);
-                listener(element);
-            });
-        };
-
-        function handleScroll() {
-            var style = getComputedStyle(element);
-            var width = parseSize(style.width);
-            var height = parseSize(style.height);
-
-            if (width !== element.lastWidth || height !== element.lastHeight) {
-                changed();
-            }
-        }
-
-        var expand = getExpandElement(element);
-        var shrink = getShrinkElement(element);
-
-        addEvent(expand, "scroll", handleScroll);
-        addEvent(shrink, "scroll", handleScroll);
-    }
-
-    /**
-     * Makes an element detectable and ready to be listened for resize events. Will call the callback when the element is ready to be listened for resize changes.
-     * @private
-     * @param {element} element The element to make detectable
-     * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
-     */
-    function makeDetectable(element, callback) {
-        // Reading properties of elementStyle will result in a forced getComputedStyle for some browsers, so read all values and store them as primitives here.
-        var elementStyle        = getComputedStyle(element);
-        var position            = elementStyle.position;
-        var width               = parseSize(elementStyle.width);
-        var height              = parseSize(elementStyle.height);
-        var top                 = elementStyle.top;
-        var right               = elementStyle.right;
-        var bottom              = elementStyle.bottom;
-        var left                = elementStyle.left;
-        var readyExpandScroll   = false;
-        var readyShrinkScroll   = false;
-        var readyOverall        = false;
-
-        function ready() {
-            if(readyExpandScroll && readyShrinkScroll && readyOverall) {
-                callback(element);
-            }
-        }
-
-        function mutateDom() {
-            if(position === "static") {
-                element.style.position = "relative";
-
-                var removeRelativeStyles = function(reporter, element, value, property) {
-                    function getNumericalValue(value) {
-                        return value.replace(/[^-\d\.]/g, "");
-                    }
-
-                    if(value !== "auto" && getNumericalValue(value) !== "0") {
-                        reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
-                        element.style[property] = 0;
-                    }
-                };
-
-                //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
-                //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
-                removeRelativeStyles(reporter, element, top, "top");
-                removeRelativeStyles(reporter, element, right, "right");
-                removeRelativeStyles(reporter, element, bottom, "bottom");
-                removeRelativeStyles(reporter, element, left, "left");
-            }
-
-            function getContainerCssText(left, top, bottom, right) {
-                left = (!left ? "0" : (left + "px"));
-                top = (!top ? "0" : (top + "px"));
-                bottom = (!bottom ? "0" : (bottom + "px"));
-                right = (!right ? "0" : (right + "px"));
-
-                return "position: absolute; left: " + left + "; top: " + top + "; right: " + right + "; bottom: " + bottom + "; overflow: scroll; z-index: -1; visibility: hidden;";
-            }
-
-            var scrollbarWidth          = scrollbarSizes.width;
-            var scrollbarHeight         = scrollbarSizes.height;
-            var containerStyle          = getContainerCssText(-1, -1, -scrollbarHeight, -scrollbarWidth);
-            var shrinkExpandstyle       = getContainerCssText(0, 0, -scrollbarHeight, -scrollbarWidth);
-            var shrinkExpandChildStyle  = "position: absolute; left: 0; top: 0;";
-
-            var container               = document.createElement("div");
-            var expand                  = document.createElement("div");
-            var expandChild             = document.createElement("div");
-            var shrink                  = document.createElement("div");
-            var shrinkChild             = document.createElement("div");
-
-            container.style.cssText     = containerStyle;
-            expand.style.cssText        = shrinkExpandstyle;
-            expandChild.style.cssText   = shrinkExpandChildStyle;
-            shrink.style.cssText        = shrinkExpandstyle;
-            shrinkChild.style.cssText   = shrinkExpandChildStyle + " width: 200%; height: 200%;";
-
-            expand.appendChild(expandChild);
-            shrink.appendChild(shrinkChild);
-            container.appendChild(expand);
-            container.appendChild(shrink);
-            element.appendChild(container);
-            element._erdElement = container;
-
-            addEvent(expand, "scroll", function onFirstExpandScroll() {
-                removeEvent(expand, "scroll", onFirstExpandScroll);
-                readyExpandScroll = true;
-                ready();
-            });
-
-            addEvent(shrink, "scroll", function onFirstShrinkScroll() {
-                removeEvent(shrink, "scroll", onFirstShrinkScroll);
-                readyShrinkScroll = true;
-                ready();
-            });
-
-            updateChildSizes(element, width, height);
-        }
-
-        function finalizeDomMutation() {
-            storeCurrentSize(element, width, height);
-            positionScrollbars(element, width, height);
-            readyOverall = true;
-            ready();
-        }
-
-        if(batchProcessor) {
-            batchProcessor.add(mutateDom);
-            batchProcessor.add(1, finalizeDomMutation);
-        } else {
-            mutateDom();
-            finalizeDomMutation();
-        }
-    }
-
-    function getExpandElement(element) {
-        return element._erdElement.childNodes[0];
-    }
-
-    function getExpandChildElement(element) {
-        return getExpandElement(element).childNodes[0];
-    }
-
-    function getShrinkElement(element) {
-        return element._erdElement.childNodes[1];
-    }
-
-    function getExpandSize(size) {
-        return size + 10;
-    }
-
-    function getShrinkSize(size) {
-        return size * 2;
-    }
-
-    function updateChildSizes(element, width, height) {
-        var expandChild             = getExpandChildElement(element);
-        var expandWidth             = getExpandSize(width);
-        var expandHeight            = getExpandSize(height);
-        expandChild.style.width     = expandWidth + "px";
-        expandChild.style.height    = expandHeight + "px";
-    }
-
-    function storeCurrentSize(element, width, height) {
-        element.lastWidth   = width;
-        element.lastHeight  = height;
-    }
-
-    function positionScrollbars(element, width, height) {
-        var expand          = getExpandElement(element);
-        var shrink          = getShrinkElement(element);
-        var expandWidth     = getExpandSize(width);
-        var expandHeight    = getExpandSize(height);
-        var shrinkWidth     = getShrinkSize(width);
-        var shrinkHeight    = getShrinkSize(height);
-        expand.scrollLeft   = expandWidth;
-        expand.scrollTop    = expandHeight;
-        shrink.scrollLeft   = shrinkWidth;
-        shrink.scrollTop    = shrinkHeight;
-    }
-
-    function addEvent(el, name, cb) {
-        if (el.attachEvent) {
-            el.attachEvent("on" + name, cb);
-        } else {
-            el.addEventListener(name, cb);
-        }
-    }
-
-    function removeEvent(el, name, cb) {
-        if(el.attachEvent) {
-            el.detachEvent("on" + name, cb);
-        } else {
-            el.removeEventListener(name, cb);
-        }
-    }
-
-    function parseSize(size) {
-        return parseFloat(size.replace(/px/, ""));
-    }
-
-    function getScrollbarSizes() {
-        var width = 500;
-        var height = 500;
-
-        var child = document.createElement("div");
-        child.style.cssText = "position: absolute; width: " + width*2 + "px; height: " + height*2 + "px; visibility: hidden;";
-
-        var container = document.createElement("div");
-        container.style.cssText = "position: absolute; width: " + width + "px; height: " + height + "px; overflow: scroll; visibility: none; top: " + -width*3 + "px; left: " + -height*3 + "px; visibility: hidden;";
-
-        container.appendChild(child);
-
-        document.body.insertBefore(container, document.body.firstChild);
-
-        var widthSize = width - container.clientWidth;
-        var heightSize = height - container.clientHeight;
-
-        document.body.removeChild(container);
-
-        return {
-            width: widthSize,
-            height: heightSize
-        };
-    }
-
-    return {
-        makeDetectable: makeDetectable,
-        addListener: addListener
-    };
-};
-
-},{}],9:[function(require,module,exports){
-"use strict";
-
-var forEach                 = require("./collection-utils").forEach;
-var elementUtilsMaker       = require("./element-utils");
-var listenerHandlerMaker    = require("./listener-handler");
-var idGeneratorMaker        = require("./id-generator");
-var idHandlerMaker          = require("./id-handler");
-var reporterMaker           = require("./reporter");
-var browserDetector         = require("./browser-detector");
-var batchProcessorMaker     = require("batch-processor");
-
-//Detection strategies.
-var objectStrategyMaker     = require("./detection-strategy/object.js");
-var scrollStrategyMaker     = require("./detection-strategy/scroll.js");
-
-/**
- * @typedef idHandler
- * @type {object}
- * @property {function} get Gets the resize detector id of the element.
- * @property {function} set Generate and sets the resize detector id of the element.
- */
-
-/**
- * @typedef Options
- * @type {object}
- * @property {boolean} callOnAdd    Determines if listeners should be called when they are getting added. 
-                                    Default is true. If true, the listener is guaranteed to be called when it has been added. 
-                                    If false, the listener will not be guarenteed to be called when it has been added (does not prevent it from being called).
- * @property {idHandler} idHandler  A custom id handler that is responsible for generating, setting and retrieving id's for elements.
-                                    If not provided, a default id handler will be used.
- * @property {reporter} reporter    A custom reporter that handles reporting logs, warnings and errors. 
-                                    If not provided, a default id handler will be used.
-                                    If set to false, then nothing will be reported.
- */
-
-/**
- * Creates an element resize detector instance.
- * @public
- * @param {Options?} options Optional global options object that will decide how this instance will work.
- */
-module.exports = function(options) {
-    options = options || {};
-
-    //idHandler is currently not an option to the listenTo function, so it should not be added to globalOptions.
-    var idHandler = options.idHandler;
-
-    if(!idHandler) {
-        var idGenerator = idGeneratorMaker();
-        var defaultIdHandler = idHandlerMaker(idGenerator);
-        idHandler = defaultIdHandler;
-    }
-
-    //reporter is currently not an option to the listenTo function, so it should not be added to globalOptions.
-    var reporter = options.reporter;
-
-    if(!reporter) {
-        //If options.reporter is false, then the reporter should be quiet.
-        var quiet = reporter === false;
-        reporter = reporterMaker(quiet);
-    }
-
-    //batchProcessor is currently not an option to the listenTo function, so it should not be added to globalOptions.
-    var batchProcessor = getOption(options, "batchProcessor", batchProcessorMaker({ reporter: reporter }));
-
-    //Options to be used as default for the listenTo function.
-    var globalOptions = {};
-    globalOptions.callOnAdd     = !!getOption(options, "callOnAdd", true);
-
-    var eventListenerHandler    = listenerHandlerMaker(idHandler);
-    var elementUtils            = elementUtilsMaker();
-
-    //The detection strategy to be used.
-    var detectionStrategy;
-    var desiredStrategy = getOption(options, "strategy", "object");
-    var strategyOptions = {
-        reporter: reporter,
-        batchProcessor: batchProcessor
-    };
-
-    if(desiredStrategy === "scroll" && browserDetector.isLegacyOpera()) {
-        reporter.warn("Scroll strategy is not supported on legacy Opera. Changing to object strategy.");
-        desiredStrategy = "object";
-    }
-
-    if(desiredStrategy === "scroll") {
-        detectionStrategy = scrollStrategyMaker(strategyOptions);
-    } else if(desiredStrategy === "object") {
-        detectionStrategy = objectStrategyMaker(strategyOptions);
-    } else {
-        throw new Error("Invalid strategy name: " + desiredStrategy);
-    }
-
-    //Calls can be made to listenTo with elements that are still are being installed.
-    //Also, same elements can occur in the elements list in the listenTo function.
-    //With this map, the ready callbacks can be synchronized between the calls
-    //so that the ready callback can always be called when an element is ready - even if
-    //it wasn't installed from the function intself.
-    var onReadyCallbacks = {};
-
-    /**
-     * Makes the given elements resize-detectable and starts listening to resize events on the elements. Calls the event callback for each event for each element.
-     * @public
-     * @param {Options?} options Optional options object. These options will override the global options. Some options may not be overriden, such as idHandler.
-     * @param {element[]|element} elements The given array of elements to detect resize events of. Single element is also valid.
-     * @param {function} listener The callback to be executed for each resize event for each element.
-     */
-    function listenTo(options, elements, listener) {
-        function onResizeCallback(element) {
-            var listeners = eventListenerHandler.get(element);
-
-            forEach(listeners, function callListenerProxy(listener) {
-                listener(element);
-            });
-        }
-
-        function addListener(callOnAdd, element, listener) {
-            eventListenerHandler.add(element, listener);
-            
-            if(callOnAdd) {
-                listener(element);
-            }
-        }
-
-        //Options object may be omitted.
-        if(!listener) {
-            listener = elements;
-            elements = options;
-            options = {};
-        }
-
-        if(!elements) {
-            throw new Error("At least one element required.");
-        }
-
-        if(!listener) {
-            throw new Error("Listener required.");
-        }
-
-        if(elements.length === undefined) {
-            elements = [elements];
-        }
-
-        var elementsReady = 0;
-
-        var callOnAdd = getOption(options, "callOnAdd", globalOptions.callOnAdd);
-        var onReadyCallback = getOption(options, "onReady", function noop() {});
-
-        forEach(elements, function attachListenerToElement(element) {
-            var id = idHandler.get(element);
-
-            if(!elementUtils.isDetectable(element)) {
-                if(elementUtils.isBusy(element)) {
-                    //The element is being prepared to be detectable. Do not make it detectable.
-                    //Just add the listener, because the element will soon be detectable.
-                    addListener(callOnAdd, element, listener);
-                    onReadyCallbacks[id] = onReadyCallbacks[id] || [];
-                    onReadyCallbacks[id].push(function onReady() {
-                        elementsReady++;
-
-                        if(elementsReady === elements.length) {
-                            onReadyCallback();
-                        }
-                    });
-                    return;
-                }
-
-                //The element is not prepared to be detectable, so do prepare it and add a listener to it.
-                elementUtils.markBusy(element, true);
-                return detectionStrategy.makeDetectable(element, function onElementDetectable(element) {
-                    elementUtils.markAsDetectable(element);
-                    elementUtils.markBusy(element, false);
-                    detectionStrategy.addListener(element, onResizeCallback);
-                    addListener(callOnAdd, element, listener);
-
-                    elementsReady++;
-                    if(elementsReady === elements.length) {
-                        onReadyCallback();
-                    }
-
-                    if(onReadyCallbacks[id]) {
-                        forEach(onReadyCallbacks[id], function(callback) {
-                            callback();
-                        });
-                        delete onReadyCallbacks[id];
-                    }
-                });
-            }
-            
-            //The element has been prepared to be detectable and is ready to be listened to.
-            addListener(callOnAdd, element, listener);
-            elementsReady++;
-        });
-
-        if(elementsReady === elements.length) {
-            onReadyCallback();
-        }
-    }
-
-    return {
-        listenTo: listenTo
-    };
-};
-
-function getOption(options, name, defaultValue) {
-    var value = options[name];
-
-    if((value === undefined || value === null) && defaultValue !== undefined) {
-        return defaultValue;
-    }
-
-    return value;
-}
-
-},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"batch-processor":1}],10:[function(require,module,exports){
-"use strict";
-
-module.exports = function() {
-    /**
-     * Tells if the element has been made detectable and ready to be listened for resize events.
-     * @public
-     * @param {element} The element to check.
-     * @returns {boolean} True or false depending on if the element is detectable or not.
-     */
-    function isDetectable(element) {
-        return !!element._erdIsDetectable;
-    }
-
-    /**
-     * Marks the element that it has been made detectable and ready to be listened for resize events.
-     * @public
-     * @param {element} The element to mark.
-     */
-    function markAsDetectable(element) {
-        element._erdIsDetectable = true;
-    }
-
-    /**
-     * Tells if the element is busy or not.
-     * @public
-     * @param {element} The element to check.
-     * @returns {boolean} True or false depending on if the element is busy or not.
-     */
-    function isBusy(element) {
-        return !!element._erdBusy;
-    }
-
-    /**
-     * Marks the object is busy and should not be made detectable.
-     * @public
-     * @param {element} element The element to mark.
-     * @param {boolean} busy If the element is busy or not.
-     */
-    function markBusy(element, busy) {
-        element._erdBusy = !!busy;
-    }
-
-    return {
-        isDetectable: isDetectable,
-        markAsDetectable: markAsDetectable,
-        isBusy: isBusy,
-        markBusy: markBusy
-    };
-};
-
-},{}],11:[function(require,module,exports){
-"use strict";
-
-module.exports = function() {
-    var idCount = 1;
-
-    /**
-     * Generates a new unique id in the context.
-     * @public
-     * @returns {number} A unique id in the context.
-     */
-    function generate() {
-        return idCount++;
-    }
-
-    return {
-        generate: generate
-    };
-};
-
-},{}],12:[function(require,module,exports){
-"use strict";
-
-module.exports = function(idGenerator) {
-    var ID_PROP_NAME = "_erdTargetId";
-
-    /**
-     * Gets the resize detector id of the element. If the element does not have an id, one will be assigned to the element.
-     * @public
-     * @param {element} element The target element to get the id of.
-     * @param {boolean?} readonly An id will not be assigned to the element if the readonly parameter is true. Default is false.
-     * @returns {string|number} The id of the element.
-     */
-    function getId(element, readonly) {
-        if(!readonly && !hasId(element)) {
-            setId(element);
-        }
-
-        return element[ID_PROP_NAME];
-    }
-
-    function setId(element) {
-        var id = idGenerator.generate();
-
-        element[ID_PROP_NAME] = id;
-
-        return id;
-    }
-
-    function hasId(element) {
-        return element[ID_PROP_NAME] !== undefined;
-    }
-
-    return {
-        get: getId
-    };
-};
-
-},{}],13:[function(require,module,exports){
-"use strict";
-
-module.exports = function(idHandler) {
-    var eventListeners = {};
-
-    /**
-     * Gets all listeners for the given element.
-     * @public
-     * @param {element} element The element to get all listeners for.
-     * @returns All listeners for the given element.
-     */
-    function getListeners(element) {
-        return eventListeners[idHandler.get(element)];
-    }
-
-    /**
-     * Stores the given listener for the given element. Will not actually add the listener to the element.
-     * @public
-     * @param {element} element The element that should have the listener added.
-     * @param {function} listener The callback that the element has added.
-     */
-    function addListener(element, listener) {
-        var id = idHandler.get(element);
-
-        if(!eventListeners[id]) {
-            eventListeners[id] = [];
-        }
-
-        eventListeners[id].push(listener);
-    }
-
-    return {
-        get: getListeners,
-        add: addListener
-    };
-};
-
-},{}],14:[function(require,module,exports){
-"use strict";
-
-/* global console: false */
-
-/**
- * Reporter that handles the reporting of logs, warnings and errors.
- * @public
- * @param {boolean} quiet Tells if the reporter should be quiet or not.
- */
-module.exports = function(quiet) {
-    function noop() {
-        //Does nothing.
-    }
-
-    var reporter = {
-        log: noop,
-        warn: noop,
-        error: noop
-    };
-
-    if(!quiet && window.console) {
-        var attachFunction = function(reporter, name) {
-            //The proxy is needed to be able to call the method with the console context,
-            //since we cannot use bind.
-            reporter[name] = function reporterProxy() {
-                console[name].apply(console, arguments);
-            };
-        };
-
-        attachFunction(reporter, "log");
-        attachFunction(reporter, "warn");
-        attachFunction(reporter, "error");
-    }
-
-    return reporter;
-};
-},{}],15:[function(require,module,exports){
+},{"dup":2}],16:[function(require,module,exports){
 /**
  * lodash 3.1.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -1185,7 +1350,7 @@ bind.placeholder = {};
 
 module.exports = bind;
 
-},{"lodash._createwrapper":16,"lodash._replaceholders":19,"lodash.restparam":20}],16:[function(require,module,exports){
+},{"lodash._createwrapper":17,"lodash._replaceholders":20,"lodash.restparam":21}],17:[function(require,module,exports){
 (function (global){
 /**
  * lodash 3.0.7 (Custom Build) <https://lodash.com/>
@@ -1584,7 +1749,7 @@ function isObject(value) {
 module.exports = createWrapper;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._arraycopy":17,"lodash._basecreate":18,"lodash._replaceholders":19}],17:[function(require,module,exports){
+},{"lodash._arraycopy":18,"lodash._basecreate":19,"lodash._replaceholders":20}],18:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -1615,7 +1780,7 @@ function arrayCopy(source, array) {
 
 module.exports = arrayCopy;
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 /**
  * lodash 3.0.3 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -1674,7 +1839,7 @@ function isObject(value) {
 
 module.exports = baseCreate;
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -1713,7 +1878,7 @@ function replaceHolders(array, placeholder) {
 
 module.exports = replaceHolders;
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 /**
  * lodash 3.6.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -1782,7 +1947,7 @@ function restParam(func, start) {
 
 module.exports = restParam;
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1860,7 +2025,7 @@ function filter(collection, callback, thisArg) {
 
 module.exports = filter;
 
-},{"lodash.createcallback":22,"lodash.forown":54}],22:[function(require,module,exports){
+},{"lodash.createcallback":23,"lodash.forown":55}],23:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.3 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1943,7 +2108,7 @@ function createCallback(func, thisArg, argCount) {
 
 module.exports = createCallback;
 
-},{"lodash._basecreatecallback":23,"lodash._baseisequal":41,"lodash.isobject":95,"lodash.keys":49,"lodash.property":53}],23:[function(require,module,exports){
+},{"lodash._basecreatecallback":24,"lodash._baseisequal":42,"lodash.isobject":96,"lodash.keys":50,"lodash.property":54}],24:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2025,7 +2190,7 @@ function baseCreateCallback(func, thisArg, argCount) {
 
 module.exports = baseCreateCallback;
 
-},{"lodash._setbinddata":24,"lodash.bind":27,"lodash.identity":38,"lodash.support":39}],24:[function(require,module,exports){
+},{"lodash._setbinddata":25,"lodash.bind":28,"lodash.identity":39,"lodash.support":40}],25:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2070,7 +2235,7 @@ var setBindData = !defineProperty ? noop : function(func, value) {
 
 module.exports = setBindData;
 
-},{"lodash._isnative":25,"lodash.noop":26}],25:[function(require,module,exports){
+},{"lodash._isnative":26,"lodash.noop":27}],26:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2106,7 +2271,7 @@ function isNative(value) {
 
 module.exports = isNative;
 
-},{}],26:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2134,7 +2299,7 @@ function noop() {
 
 module.exports = noop;
 
-},{}],27:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2176,7 +2341,7 @@ function bind(func, thisArg) {
 
 module.exports = bind;
 
-},{"lodash._createwrapper":28,"lodash._slice":37}],28:[function(require,module,exports){
+},{"lodash._createwrapper":29,"lodash._slice":38}],29:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2284,7 +2449,7 @@ function createWrapper(func, bitmask, partialArgs, partialRightArgs, thisArg, ar
 
 module.exports = createWrapper;
 
-},{"lodash._basebind":29,"lodash._basecreatewrapper":33,"lodash._slice":37,"lodash.isfunction":94}],29:[function(require,module,exports){
+},{"lodash._basebind":30,"lodash._basecreatewrapper":34,"lodash._slice":38,"lodash.isfunction":95}],30:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2348,7 +2513,7 @@ function baseBind(bindData) {
 
 module.exports = baseBind;
 
-},{"lodash._basecreate":30,"lodash._setbinddata":24,"lodash._slice":37,"lodash.isobject":95}],30:[function(require,module,exports){
+},{"lodash._basecreate":31,"lodash._setbinddata":25,"lodash._slice":38,"lodash.isobject":96}],31:[function(require,module,exports){
 (function (global){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
@@ -2394,11 +2559,11 @@ if (!nativeCreate) {
 module.exports = baseCreate;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._isnative":31,"lodash.isobject":95,"lodash.noop":32}],31:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],32:[function(require,module,exports){
+},{"lodash._isnative":32,"lodash.isobject":96,"lodash.noop":33}],32:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
 },{"dup":26}],33:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"dup":27}],34:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2478,13 +2643,13 @@ function baseCreateWrapper(bindData) {
 
 module.exports = baseCreateWrapper;
 
-},{"lodash._basecreate":34,"lodash._setbinddata":24,"lodash._slice":37,"lodash.isobject":95}],34:[function(require,module,exports){
-arguments[4][30][0].apply(exports,arguments)
-},{"dup":30,"lodash._isnative":35,"lodash.isobject":95,"lodash.noop":36}],35:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],36:[function(require,module,exports){
+},{"lodash._basecreate":35,"lodash._setbinddata":25,"lodash._slice":38,"lodash.isobject":96}],35:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"dup":31,"lodash._isnative":36,"lodash.isobject":96,"lodash.noop":37}],36:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
 },{"dup":26}],37:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"dup":27}],38:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2524,7 +2689,7 @@ function slice(array, start, end) {
 
 module.exports = slice;
 
-},{}],38:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2554,7 +2719,7 @@ function identity(value) {
 
 module.exports = identity;
 
-},{}],39:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 (function (global){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
@@ -2598,9 +2763,9 @@ support.funcNames = typeof Function.name == 'string';
 module.exports = support;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._isnative":40}],40:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],41:[function(require,module,exports){
+},{"lodash._isnative":41}],41:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],42:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2811,7 +2976,7 @@ function baseIsEqual(a, b, callback, isWhere, stackA, stackB) {
 
 module.exports = baseIsEqual;
 
-},{"lodash._getarray":42,"lodash._objecttypes":44,"lodash._releasearray":45,"lodash.forin":48,"lodash.isfunction":94}],42:[function(require,module,exports){
+},{"lodash._getarray":43,"lodash._objecttypes":45,"lodash._releasearray":46,"lodash.forin":49,"lodash.isfunction":95}],43:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2834,7 +2999,7 @@ function getArray() {
 
 module.exports = getArray;
 
-},{"lodash._arraypool":43}],43:[function(require,module,exports){
+},{"lodash._arraypool":44}],44:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2849,7 +3014,7 @@ var arrayPool = [];
 
 module.exports = arrayPool;
 
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2871,7 +3036,7 @@ var objectTypes = {
 
 module.exports = objectTypes;
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2898,9 +3063,9 @@ function releaseArray(array) {
 
 module.exports = releaseArray;
 
-},{"lodash._arraypool":46,"lodash._maxpoolsize":47}],46:[function(require,module,exports){
-arguments[4][43][0].apply(exports,arguments)
-},{"dup":43}],47:[function(require,module,exports){
+},{"lodash._arraypool":47,"lodash._maxpoolsize":48}],47:[function(require,module,exports){
+arguments[4][44][0].apply(exports,arguments)
+},{"dup":44}],48:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2915,7 +3080,7 @@ var maxPoolSize = 40;
 
 module.exports = maxPoolSize;
 
-},{}],48:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -2971,7 +3136,7 @@ var forIn = function(collection, callback, thisArg) {
 
 module.exports = forIn;
 
-},{"lodash._basecreatecallback":23,"lodash._objecttypes":44}],49:[function(require,module,exports){
+},{"lodash._basecreatecallback":24,"lodash._objecttypes":45}],50:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -3009,9 +3174,9 @@ var keys = !nativeKeys ? shimKeys : function(object) {
 
 module.exports = keys;
 
-},{"lodash._isnative":50,"lodash._shimkeys":51,"lodash.isobject":95}],50:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],51:[function(require,module,exports){
+},{"lodash._isnative":51,"lodash._shimkeys":52,"lodash.isobject":96}],51:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],52:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -3051,9 +3216,9 @@ var shimKeys = function(object) {
 
 module.exports = shimKeys;
 
-},{"lodash._objecttypes":52}],52:[function(require,module,exports){
-arguments[4][44][0].apply(exports,arguments)
-},{"dup":44}],53:[function(require,module,exports){
+},{"lodash._objecttypes":53}],53:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],54:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -3095,7 +3260,7 @@ function property(key) {
 
 module.exports = property;
 
-},{}],54:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -3147,51 +3312,51 @@ var forOwn = function(collection, callback, thisArg) {
 
 module.exports = forOwn;
 
-},{"lodash._basecreatecallback":55,"lodash._objecttypes":73,"lodash.keys":74}],55:[function(require,module,exports){
-arguments[4][23][0].apply(exports,arguments)
-},{"dup":23,"lodash._setbinddata":56,"lodash.bind":59,"lodash.identity":70,"lodash.support":71}],56:[function(require,module,exports){
+},{"lodash._basecreatecallback":56,"lodash._objecttypes":74,"lodash.keys":75}],56:[function(require,module,exports){
 arguments[4][24][0].apply(exports,arguments)
-},{"dup":24,"lodash._isnative":57,"lodash.noop":58}],57:[function(require,module,exports){
+},{"dup":24,"lodash._setbinddata":57,"lodash.bind":60,"lodash.identity":71,"lodash.support":72}],57:[function(require,module,exports){
 arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],58:[function(require,module,exports){
+},{"dup":25,"lodash._isnative":58,"lodash.noop":59}],58:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
 },{"dup":26}],59:[function(require,module,exports){
 arguments[4][27][0].apply(exports,arguments)
-},{"dup":27,"lodash._createwrapper":60,"lodash._slice":69}],60:[function(require,module,exports){
+},{"dup":27}],60:[function(require,module,exports){
 arguments[4][28][0].apply(exports,arguments)
-},{"dup":28,"lodash._basebind":61,"lodash._basecreatewrapper":65,"lodash._slice":69,"lodash.isfunction":94}],61:[function(require,module,exports){
+},{"dup":28,"lodash._createwrapper":61,"lodash._slice":70}],61:[function(require,module,exports){
 arguments[4][29][0].apply(exports,arguments)
-},{"dup":29,"lodash._basecreate":62,"lodash._setbinddata":56,"lodash._slice":69,"lodash.isobject":95}],62:[function(require,module,exports){
+},{"dup":29,"lodash._basebind":62,"lodash._basecreatewrapper":66,"lodash._slice":70,"lodash.isfunction":95}],62:[function(require,module,exports){
 arguments[4][30][0].apply(exports,arguments)
-},{"dup":30,"lodash._isnative":63,"lodash.isobject":95,"lodash.noop":64}],63:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],64:[function(require,module,exports){
+},{"dup":30,"lodash._basecreate":63,"lodash._setbinddata":57,"lodash._slice":70,"lodash.isobject":96}],63:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"dup":31,"lodash._isnative":64,"lodash.isobject":96,"lodash.noop":65}],64:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
 },{"dup":26}],65:[function(require,module,exports){
-arguments[4][33][0].apply(exports,arguments)
-},{"dup":33,"lodash._basecreate":66,"lodash._setbinddata":56,"lodash._slice":69,"lodash.isobject":95}],66:[function(require,module,exports){
-arguments[4][30][0].apply(exports,arguments)
-},{"dup":30,"lodash._isnative":67,"lodash.isobject":95,"lodash.noop":68}],67:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],68:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"dup":27}],66:[function(require,module,exports){
+arguments[4][34][0].apply(exports,arguments)
+},{"dup":34,"lodash._basecreate":67,"lodash._setbinddata":57,"lodash._slice":70,"lodash.isobject":96}],67:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"dup":31,"lodash._isnative":68,"lodash.isobject":96,"lodash.noop":69}],68:[function(require,module,exports){
 arguments[4][26][0].apply(exports,arguments)
 },{"dup":26}],69:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"dup":37}],70:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"dup":27}],70:[function(require,module,exports){
 arguments[4][38][0].apply(exports,arguments)
 },{"dup":38}],71:[function(require,module,exports){
 arguments[4][39][0].apply(exports,arguments)
-},{"dup":39,"lodash._isnative":72}],72:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],73:[function(require,module,exports){
-arguments[4][44][0].apply(exports,arguments)
-},{"dup":44}],74:[function(require,module,exports){
-arguments[4][49][0].apply(exports,arguments)
-},{"dup":49,"lodash._isnative":75,"lodash._shimkeys":76,"lodash.isobject":95}],75:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],76:[function(require,module,exports){
-arguments[4][51][0].apply(exports,arguments)
-},{"dup":51,"lodash._objecttypes":73}],77:[function(require,module,exports){
+},{"dup":39}],72:[function(require,module,exports){
+arguments[4][40][0].apply(exports,arguments)
+},{"dup":40,"lodash._isnative":73}],73:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],74:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],75:[function(require,module,exports){
+arguments[4][50][0].apply(exports,arguments)
+},{"dup":50,"lodash._isnative":76,"lodash._shimkeys":77,"lodash.isobject":96}],76:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],77:[function(require,module,exports){
+arguments[4][52][0].apply(exports,arguments)
+},{"dup":52,"lodash._objecttypes":74}],78:[function(require,module,exports){
 /**
  * lodash 3.0.3 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3255,7 +3420,7 @@ var forEach = createForEach(arrayEach, baseEach);
 
 module.exports = forEach;
 
-},{"lodash._arrayeach":78,"lodash._baseeach":79,"lodash._bindcallback":83,"lodash.isarray":84}],78:[function(require,module,exports){
+},{"lodash._arrayeach":79,"lodash._baseeach":80,"lodash._bindcallback":84,"lodash.isarray":85}],79:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3288,7 +3453,7 @@ function arrayEach(array, iteratee) {
 
 module.exports = arrayEach;
 
-},{}],79:[function(require,module,exports){
+},{}],80:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3471,7 +3636,7 @@ function isObject(value) {
 
 module.exports = baseEach;
 
-},{"lodash.keys":80}],80:[function(require,module,exports){
+},{"lodash.keys":81}],81:[function(require,module,exports){
 /**
  * lodash 3.1.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3709,7 +3874,7 @@ function keysIn(object) {
 
 module.exports = keys;
 
-},{"lodash._getnative":81,"lodash.isarguments":82,"lodash.isarray":84}],81:[function(require,module,exports){
+},{"lodash._getnative":82,"lodash.isarguments":83,"lodash.isarray":85}],82:[function(require,module,exports){
 /**
  * lodash 3.9.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3848,7 +4013,7 @@ function isNative(value) {
 
 module.exports = getNative;
 
-},{}],82:[function(require,module,exports){
+},{}],83:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -3956,7 +4121,7 @@ function isArguments(value) {
 
 module.exports = isArguments;
 
-},{}],83:[function(require,module,exports){
+},{}],84:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4023,7 +4188,7 @@ function identity(value) {
 
 module.exports = bindCallback;
 
-},{}],84:[function(require,module,exports){
+},{}],85:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4205,23 +4370,23 @@ function isNative(value) {
 
 module.exports = isArray;
 
-},{}],85:[function(require,module,exports){
-arguments[4][77][0].apply(exports,arguments)
-},{"dup":77,"lodash._arrayeach":86,"lodash._baseeach":87,"lodash._bindcallback":91,"lodash.isarray":92}],86:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 arguments[4][78][0].apply(exports,arguments)
-},{"dup":78}],87:[function(require,module,exports){
+},{"dup":78,"lodash._arrayeach":87,"lodash._baseeach":88,"lodash._bindcallback":92,"lodash.isarray":93}],87:[function(require,module,exports){
 arguments[4][79][0].apply(exports,arguments)
-},{"dup":79,"lodash.keys":88}],88:[function(require,module,exports){
+},{"dup":79}],88:[function(require,module,exports){
 arguments[4][80][0].apply(exports,arguments)
-},{"dup":80,"lodash._getnative":89,"lodash.isarguments":90,"lodash.isarray":92}],89:[function(require,module,exports){
+},{"dup":80,"lodash.keys":89}],89:[function(require,module,exports){
 arguments[4][81][0].apply(exports,arguments)
-},{"dup":81}],90:[function(require,module,exports){
+},{"dup":81,"lodash._getnative":90,"lodash.isarguments":91,"lodash.isarray":93}],90:[function(require,module,exports){
 arguments[4][82][0].apply(exports,arguments)
 },{"dup":82}],91:[function(require,module,exports){
 arguments[4][83][0].apply(exports,arguments)
 },{"dup":83}],92:[function(require,module,exports){
 arguments[4][84][0].apply(exports,arguments)
 },{"dup":84}],93:[function(require,module,exports){
+arguments[4][85][0].apply(exports,arguments)
+},{"dup":85}],94:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -4260,7 +4425,7 @@ function isString(value) {
 
 module.exports = isString;
 
-},{}],94:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -4289,7 +4454,7 @@ function isFunction(value) {
 
 module.exports = isFunction;
 
-},{}],95:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -4330,9 +4495,9 @@ function isObject(value) {
 
 module.exports = isObject;
 
-},{"lodash._objecttypes":96}],96:[function(require,module,exports){
-arguments[4][44][0].apply(exports,arguments)
-},{"dup":44}],97:[function(require,module,exports){
+},{"lodash._objecttypes":97}],97:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],98:[function(require,module,exports){
 /**
  * lodash 3.1.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4484,7 +4649,7 @@ function map(collection, iteratee, thisArg) {
 
 module.exports = map;
 
-},{"lodash._arraymap":98,"lodash._basecallback":99,"lodash._baseeach":104,"lodash.isarray":105}],98:[function(require,module,exports){
+},{"lodash._arraymap":99,"lodash._basecallback":100,"lodash._baseeach":105,"lodash.isarray":106}],99:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4516,7 +4681,7 @@ function arrayMap(array, iteratee) {
 
 module.exports = arrayMap;
 
-},{}],99:[function(require,module,exports){
+},{}],100:[function(require,module,exports){
 /**
  * lodash 3.3.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -4940,7 +5105,7 @@ function property(path) {
 
 module.exports = baseCallback;
 
-},{"lodash._baseisequal":100,"lodash._bindcallback":102,"lodash.isarray":105,"lodash.pairs":103}],100:[function(require,module,exports){
+},{"lodash._baseisequal":101,"lodash._bindcallback":103,"lodash.isarray":106,"lodash.pairs":104}],101:[function(require,module,exports){
 /**
  * lodash 3.0.7 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5284,7 +5449,7 @@ function isObject(value) {
 
 module.exports = baseIsEqual;
 
-},{"lodash.isarray":105,"lodash.istypedarray":101,"lodash.keys":106}],101:[function(require,module,exports){
+},{"lodash.isarray":106,"lodash.istypedarray":102,"lodash.keys":107}],102:[function(require,module,exports){
 /**
  * lodash 3.0.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5396,9 +5561,9 @@ function isTypedArray(value) {
 
 module.exports = isTypedArray;
 
-},{}],102:[function(require,module,exports){
-arguments[4][83][0].apply(exports,arguments)
-},{"dup":83}],103:[function(require,module,exports){
+},{}],103:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84}],104:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5478,17 +5643,17 @@ function pairs(object) {
 
 module.exports = pairs;
 
-},{"lodash.keys":106}],104:[function(require,module,exports){
-arguments[4][79][0].apply(exports,arguments)
-},{"dup":79,"lodash.keys":106}],105:[function(require,module,exports){
-arguments[4][84][0].apply(exports,arguments)
-},{"dup":84}],106:[function(require,module,exports){
+},{"lodash.keys":107}],105:[function(require,module,exports){
 arguments[4][80][0].apply(exports,arguments)
-},{"dup":80,"lodash._getnative":107,"lodash.isarguments":108,"lodash.isarray":105}],107:[function(require,module,exports){
+},{"dup":80,"lodash.keys":107}],106:[function(require,module,exports){
+arguments[4][85][0].apply(exports,arguments)
+},{"dup":85}],107:[function(require,module,exports){
 arguments[4][81][0].apply(exports,arguments)
-},{"dup":81}],108:[function(require,module,exports){
+},{"dup":81,"lodash._getnative":108,"lodash.isarguments":109,"lodash.isarray":106}],108:[function(require,module,exports){
 arguments[4][82][0].apply(exports,arguments)
 },{"dup":82}],109:[function(require,module,exports){
+arguments[4][83][0].apply(exports,arguments)
+},{"dup":83}],110:[function(require,module,exports){
 /**
  * lodash 3.1.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5558,17 +5723,17 @@ partial.placeholder = {};
 
 module.exports = partial;
 
-},{"lodash._createwrapper":110,"lodash._replaceholders":113,"lodash.restparam":114}],110:[function(require,module,exports){
-arguments[4][16][0].apply(exports,arguments)
-},{"dup":16,"lodash._arraycopy":111,"lodash._basecreate":112,"lodash._replaceholders":113}],111:[function(require,module,exports){
+},{"lodash._createwrapper":111,"lodash._replaceholders":114,"lodash.restparam":115}],111:[function(require,module,exports){
 arguments[4][17][0].apply(exports,arguments)
-},{"dup":17}],112:[function(require,module,exports){
+},{"dup":17,"lodash._arraycopy":112,"lodash._basecreate":113,"lodash._replaceholders":114}],112:[function(require,module,exports){
 arguments[4][18][0].apply(exports,arguments)
 },{"dup":18}],113:[function(require,module,exports){
 arguments[4][19][0].apply(exports,arguments)
 },{"dup":19}],114:[function(require,module,exports){
 arguments[4][20][0].apply(exports,arguments)
 },{"dup":20}],115:[function(require,module,exports){
+arguments[4][21][0].apply(exports,arguments)
+},{"dup":21}],116:[function(require,module,exports){
 /**
  * lodash 3.2.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5676,25 +5841,25 @@ function uniq(array, isSorted, iteratee, thisArg) {
 
 module.exports = uniq;
 
-},{"lodash._basecallback":116,"lodash._baseuniq":125,"lodash._isiterateecall":130}],116:[function(require,module,exports){
-arguments[4][99][0].apply(exports,arguments)
-},{"dup":99,"lodash._baseisequal":117,"lodash._bindcallback":121,"lodash.isarray":131,"lodash.pairs":122}],117:[function(require,module,exports){
+},{"lodash._basecallback":117,"lodash._baseuniq":126,"lodash._isiterateecall":131}],117:[function(require,module,exports){
 arguments[4][100][0].apply(exports,arguments)
-},{"dup":100,"lodash.isarray":131,"lodash.istypedarray":118,"lodash.keys":119}],118:[function(require,module,exports){
+},{"dup":100,"lodash._baseisequal":118,"lodash._bindcallback":122,"lodash.isarray":132,"lodash.pairs":123}],118:[function(require,module,exports){
 arguments[4][101][0].apply(exports,arguments)
-},{"dup":101}],119:[function(require,module,exports){
-arguments[4][80][0].apply(exports,arguments)
-},{"dup":80,"lodash._getnative":129,"lodash.isarguments":120,"lodash.isarray":131}],120:[function(require,module,exports){
-arguments[4][82][0].apply(exports,arguments)
-},{"dup":82}],121:[function(require,module,exports){
+},{"dup":101,"lodash.isarray":132,"lodash.istypedarray":119,"lodash.keys":120}],119:[function(require,module,exports){
+arguments[4][102][0].apply(exports,arguments)
+},{"dup":102}],120:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"dup":81,"lodash._getnative":130,"lodash.isarguments":121,"lodash.isarray":132}],121:[function(require,module,exports){
 arguments[4][83][0].apply(exports,arguments)
 },{"dup":83}],122:[function(require,module,exports){
-arguments[4][103][0].apply(exports,arguments)
-},{"dup":103,"lodash.keys":123}],123:[function(require,module,exports){
-arguments[4][80][0].apply(exports,arguments)
-},{"dup":80,"lodash._getnative":129,"lodash.isarguments":124,"lodash.isarray":131}],124:[function(require,module,exports){
-arguments[4][82][0].apply(exports,arguments)
-},{"dup":82}],125:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84}],123:[function(require,module,exports){
+arguments[4][104][0].apply(exports,arguments)
+},{"dup":104,"lodash.keys":124}],124:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"dup":81,"lodash._getnative":130,"lodash.isarguments":125,"lodash.isarray":132}],125:[function(require,module,exports){
+arguments[4][83][0].apply(exports,arguments)
+},{"dup":83}],126:[function(require,module,exports){
 /**
  * lodash 3.0.3 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5764,7 +5929,7 @@ function baseUniq(array, iteratee) {
 
 module.exports = baseUniq;
 
-},{"lodash._baseindexof":126,"lodash._cacheindexof":127,"lodash._createcache":128}],126:[function(require,module,exports){
+},{"lodash._baseindexof":127,"lodash._cacheindexof":128,"lodash._createcache":129}],127:[function(require,module,exports){
 /**
  * lodash 3.1.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5823,7 +5988,7 @@ function indexOfNaN(array, fromIndex, fromRight) {
 
 module.exports = baseIndexOf;
 
-},{}],127:[function(require,module,exports){
+},{}],128:[function(require,module,exports){
 /**
  * lodash 3.0.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -5878,7 +6043,7 @@ function isObject(value) {
 
 module.exports = cacheIndexOf;
 
-},{}],128:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 (function (global){
 /**
  * lodash 3.1.2 (Custom Build) <https://lodash.com/>
@@ -5973,9 +6138,9 @@ SetCache.prototype.push = cachePush;
 module.exports = createCache;
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"lodash._getnative":129}],129:[function(require,module,exports){
-arguments[4][81][0].apply(exports,arguments)
-},{"dup":81}],130:[function(require,module,exports){
+},{"lodash._getnative":130}],130:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"dup":82}],131:[function(require,module,exports){
 /**
  * lodash 3.0.9 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -6109,9 +6274,9 @@ function isObject(value) {
 
 module.exports = isIterateeCall;
 
-},{}],131:[function(require,module,exports){
-arguments[4][84][0].apply(exports,arguments)
-},{"dup":84}],132:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
+arguments[4][85][0].apply(exports,arguments)
+},{"dup":85}],133:[function(require,module,exports){
 module.exports={
   "name": "elq",
   "description": "Element media queries framework. Solution to modular responsive components.",
@@ -6161,15 +6326,30 @@ module.exports={
   }
 }
 
-},{}],133:[function(require,module,exports){
+},{}],134:[function(require,module,exports){
 "use strict";
 
 var forEach = require("lodash.foreach");
 
-module.exports = function BreakpointStateCalculator() {
+module.exports = function BreakpointStateCalculator(options) {
+    var styleResolver = options.styleResolver;
+
+    function parseSize(size) {
+        return parseFloat(size.replace(/px/, ""));
+    }
+
     function getBreakpointStates(element, breakpoints) {
-        var width = element.offsetWidth;
-        var height = element.offsetHeight;
+        var style = styleResolver.getComputedStyle(element);
+        var width = style.width;
+        var height = style.width;
+
+        if (width.indexOf("px") === -1 || height.indexOf("px") === -1) {
+            // The style of the element could not be resolved, probably due to it being detached from the DOM.
+            return false;
+        }
+
+        width = parseSize(width);
+        height = parseSize(height);
 
         var dimensionValues = {
             width: width,
@@ -6211,7 +6391,7 @@ module.exports = function BreakpointStateCalculator() {
     };
 };
 
-},{"lodash.foreach":85}],134:[function(require,module,exports){
+},{"lodash.foreach":86}],135:[function(require,module,exports){
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
@@ -6273,7 +6453,24 @@ module.exports = function CycleDetector(idHandler, options) {
     };
 };
 
-},{}],135:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
+"use strict";
+
+var utils = module.exports = {};
+
+utils.getAttribute = function (element, attr) {
+    if (element.hasAttribute(attr)) {
+        return element.getAttribute(attr);
+    }
+
+    return element.getAttribute("data-" + attr);
+};
+
+utils.hasAttribute = function (element, attr) {
+    return utils.getAttribute(element, attr) !== null;
+};
+
+},{}],137:[function(require,module,exports){
 "use strict";
 
 var packageJson                 = require("../package.json");
@@ -6307,7 +6504,7 @@ module.exports = function Elq(options) {
     var cycleDetector               = CycleDetector(idHandler);
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
-    var breakpointStateCalculator   = BreakpointStateCalculator();
+    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver });
     var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
@@ -6342,6 +6539,11 @@ module.exports = function Elq(options) {
         });
 
         var breakpointStates = breakpointStateCalculator.getBreakpointStates(element, breakpoints);
+
+        if (!breakpointStates) {
+            // Unable to resolve style for element. Probably due to it being detached from the DOM.
+            return;
+        }
 
         // TODO: This should instead be hashed. Also, maybe there is a more effective way of doing this.
         var breakpointStatesHash = JSON.stringify(breakpointStates);
@@ -6560,7 +6762,7 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
     return createBatchUpdaterOptionsProxy;
 }
 
-},{"../package.json":132,"./breakpoint-state-calculator":133,"./cycle-detector":134,"./id-generator":136,"./id-handler":137,"./plugin-handler":139,"./plugin/elq-breakpoints/elq-breakpoints.js":142,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":144,"./plugin/elq-mirror/elq-mirror.js":145,"./reporter":146,"./style-resolver":147,"batch-updater":3,"element-resize-detector":9,"lodash.forEach":77,"lodash.partial":109,"lodash.uniq":115}],136:[function(require,module,exports){
+},{"../package.json":133,"./breakpoint-state-calculator":134,"./cycle-detector":135,"./id-generator":138,"./id-handler":139,"./plugin-handler":141,"./plugin/elq-breakpoints/elq-breakpoints.js":143,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":145,"./plugin/elq-mirror/elq-mirror.js":146,"./reporter":147,"./style-resolver":148,"batch-updater":14,"element-resize-detector":7,"lodash.forEach":78,"lodash.partial":110,"lodash.uniq":116}],138:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -6580,7 +6782,7 @@ module.exports = function () {
     };
 };
 
-},{}],137:[function(require,module,exports){
+},{}],139:[function(require,module,exports){
 "use strict";
 
 module.exports = function (idGenerator) {
@@ -6620,14 +6822,14 @@ module.exports = function (idGenerator) {
     };
 };
 
-},{}],138:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 "use strict";
 
 var Elq = require("./elq");
 
 module.exports = Elq;
 
-},{"./elq":135}],139:[function(require,module,exports){
+},{"./elq":137}],141:[function(require,module,exports){
 "use strict";
 
 var _ = {};
@@ -6763,7 +6965,7 @@ module.exports = function PluginHandler(reporter) {
     };
 };
 
-},{"lodash.bind":15,"lodash.filter":21,"lodash.isString":93,"lodash.isfunction":94,"lodash.isobject":95,"lodash.map":97}],140:[function(require,module,exports){
+},{"lodash.bind":16,"lodash.filter":22,"lodash.isString":94,"lodash.isfunction":95,"lodash.isobject":96,"lodash.map":98}],142:[function(require,module,exports){
 "use strict";
 
 var BP_UNITS = {};
@@ -6874,26 +7076,13 @@ module.exports = function BreakpointParser(options) {
     };
 };
 
-},{}],141:[function(require,module,exports){
-"use strict";
-
-var utils = module.exports = {};
-
-utils.getAttribute = function (element, attr) {
-    if (element.hasAttribute(attr)) {
-        return element.getAttribute(attr);
-    }
-
-    return element.getAttribute("data-" + attr);
-};
-
-},{}],142:[function(require,module,exports){
+},{}],143:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
 var BreakpointsParser = require("./breakpoint-parser.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
-var elementUtils = require("./element-utils");
+var elementUtils = require("../../element-utils.js");
 
 module.exports = {
     getName: function () {
@@ -6915,7 +7104,7 @@ module.exports = {
         });
 
         function activate(element) {
-            if (!elementUtils.getAttribute(element, "elq-breakpoints")) {
+            if (!elementUtils.hasAttribute(element, "elq-breakpoints")) {
                 return;
             }
 
@@ -6949,7 +7138,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":132,"../../style-resolver.js":147,"./breakpoint-parser.js":140,"./element-utils":141}],143:[function(require,module,exports){
+},{"../../../package.json":133,"../../element-utils.js":136,"../../style-resolver.js":148,"./breakpoint-parser.js":142}],144:[function(require,module,exports){
 "use strict";
 
 var forEach = require("lodash.foreach");
@@ -7022,7 +7211,7 @@ module.exports = function BreakpointStateSerializer() {
     };
 };
 
-},{"lodash.foreach":85}],144:[function(require,module,exports){
+},{"lodash.foreach":86}],145:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -7052,10 +7241,11 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":132,"../../style-resolver.js":147,"./breakpoint-state-serializer.js":143}],145:[function(require,module,exports){
+},{"../../../package.json":133,"../../style-resolver.js":148,"./breakpoint-state-serializer.js":144}],146:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
+var elementUtils = require("../../element-utils.js");
 
 module.exports = {
     getName: function () {
@@ -7100,7 +7290,7 @@ module.exports = {
                 var currentElement = mirrorElement.parentNode;
 
                 while (currentElement && currentElement.hasAttribute) {
-                    if (currentElement.hasAttribute("elq-breakpoints")) {
+                    if (elementUtils.hasAttribute(currentElement, "elq-breakpoints")) {
                         return currentElement;
                     }
 
@@ -7111,7 +7301,7 @@ module.exports = {
                 elq.reporter.error("Mirror elements require an elq-breakpoints ancestor. This error can probably be resolved by making body an elq-breakpoints element. Error caused by mirror element:", mirrorElement);
             }
 
-            if (!element.hasAttribute("elq-mirror")) {
+            if (!elementUtils.hasAttribute(element, "elq-mirror")) {
                 return;
             }
 
@@ -7127,7 +7317,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":132}],146:[function(require,module,exports){
+},{"../../../package.json":133,"../../element-utils.js":136}],147:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -7163,7 +7353,7 @@ module.exports = function (quiet) {
     return reporter;
 };
 
-},{}],147:[function(require,module,exports){
+},{}],148:[function(require,module,exports){
 "use strict";
 
 module.exports = function StyleResolver() {
@@ -7174,5 +7364,5 @@ module.exports = function StyleResolver() {
     };
 };
 
-},{}]},{},[138])(138)
+},{}]},{},[140])(140)
 });
