@@ -31,7 +31,7 @@ module.exports = function Elq(options) {
     var cycleDetector               = CycleDetector(idHandler);
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
-    var breakpointStateCalculator   = BreakpointStateCalculator();
+    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver });
     var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
@@ -66,6 +66,11 @@ module.exports = function Elq(options) {
         });
 
         var breakpointStates = breakpointStateCalculator.getBreakpointStates(element, breakpoints);
+
+        if (!breakpointStates) {
+            // Unable to resolve style for element. Probably due to it being detached from the DOM.
+            return;
+        }
 
         // TODO: This should instead be hashed. Also, maybe there is a more effective way of doing this.
         var breakpointStatesHash = JSON.stringify(breakpointStates);
