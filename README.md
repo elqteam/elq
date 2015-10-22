@@ -32,7 +32,7 @@ We haven't had time to write proper docs yet. What follows is really a minimal e
 
 ## Usage example
 
-Once the `elq.js` file is included intro the page (it is built with UMD, so include it as you wish) it exposes a global `Elq` constructor. It is recommended to only create one instance per application.
+Once the `dist/elq.js` file is included into the HTML (it is built with UMD, so include it as you wish) it exposes a global function `Elq`. This is a constructor that creates ELQ instances. It is recommended to only use one instance per application.
 
 ```js
 // Creating an ELQ instance is easy!
