@@ -5,9 +5,6 @@ var _ = {};
 _.isFunction    = require("lodash.isfunction");
 _.isObject      = require("lodash.isobject");
 _.isString      = require("lodash.isString");
-_.filter        = require("lodash.filter");
-_.map           = require("lodash.map");
-_.bind          = require("lodash.bind");
 var forEach     = require("./utils").forEach;
 
 /**
@@ -107,10 +104,18 @@ module.exports = function PluginHandler(reporter) {
 
         function mapper(plugin) {
             var f = plugin[method];
-            return f ? _.bind(f, plugin) : null;
+            return f ? f.bind(plugin) : null;
         }
 
-        return _.map(_.filter(plugins, filterer), mapper) || [];
+        var pluginObjects = [];
+
+        for (var key in plugins) {
+            if (plugins.hasOwnProperty(key)) {
+                pluginObjects.push(plugins[key]);
+            }
+        }
+
+        return pluginObjects.filter(filterer).map(mapper);
     }
 
     /**

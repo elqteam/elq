@@ -29,3 +29,17 @@ utils.forEach = function (collection, callback) {
         }
     }
 };
+
+utils.uniq = function (collection, hashFunction) {
+    var output = [];
+    var sieveObject = {};
+    utils.forEach(collection, function (element) {
+        var hash = hashFunction(element);
+        if (!sieveObject[hash]) {
+            output.push(element);
+            sieveObject[hash] = true;
+        }
+    });
+
+    return output;
+};
