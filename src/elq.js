@@ -2,9 +2,8 @@
 
 var packageJson                 = require("../package.json");
 var BatchUpdater                = require("batch-updater");
-var partial                     = require("lodash.partial");
 var forEach                     = require("./utils").forEach;
-var unique                      = require("lodash.uniq");
+var unique                      = require("./utils").uniq;
 var ElementResizeDetector       = require("element-resize-detector");
 var PluginHandler               = require("./plugin-handler");
 var Reporter                    = require("./reporter");
@@ -60,8 +59,12 @@ module.exports = function Elq(options) {
             return;
         }
 
-        // Filter so that we only got unique breakpoints.
-        breakpoints = unique(breakpoints, function uniqueFunction(bp) {
+        function onlyUnique(value, index, self) {
+            return self.indexOf(value) === index;
+        }
+
+        // Filter so that we only get unique breakpoints.
+        breakpoints = unique(breakpoints, function hash(bp) {
             return bp.dimension + bp.value + bp.type;
         });
 
@@ -234,7 +237,7 @@ module.exports = function Elq(options) {
     //Public
     elq.getVersion          = getVersion;
     elq.getName             = getName;
-    elq.use                 = partial(pluginHandler.register, elq);
+    elq.use                 = pluginHandler.register.bind(null, elq);
     elq.using               = pluginHandler.isRegistered;
     elq.activate            = activate;
     elq.listenTo            = listenTo;
