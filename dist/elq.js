@@ -1505,15 +1505,9 @@ module.exports={
   "dependencies": {
     "element-resize-detector": "^1.0.1",
     "batch-updater": "^0.1.0",
-    "lodash.filter": "^2.4.1",
     "lodash.isfunction": "^2.4.1",
     "lodash.isobject": "^2.4.1",
-    "lodash.isstring": "^2.4.1",
-    "lodash.map": "^3.0.0",
-    "lodash.partialright": "^2.4.1",
-    "lodash.uniq": "^3.0.0",
-    "lodash.bind": "^3.1.0",
-    "lodash.partial": "^3.1.0"
+    "lodash.isstring": "^2.4.1"
   },
   "scripts": {
     "build": "grunt build",
@@ -1672,7 +1666,7 @@ utils.hasAttribute = function (element, attr) {
 var packageJson                 = require("../package.json");
 var BatchUpdater                = require("batch-updater");
 var forEach                     = require("./utils").forEach;
-var unique                      = require("./utils").uniq;
+var unique                      = require("./utils").unique;
 var ElementResizeDetector       = require("element-resize-detector");
 var PluginHandler               = require("./plugin-handler");
 var Reporter                    = require("./reporter");
@@ -2613,7 +2607,7 @@ utils.forEach = function (collection, callback) {
     }
 };
 
-utils.uniq = function (collection, hashFunction) {
+utils.unique = function (collection, hashFunction) {
     var output = [];
     var sieveObject = {};
     utils.forEach(collection, function (element) {
