@@ -1,6 +1,6 @@
 {
   "name": "elq",
-  "description": "Element media queries framework. Solution to modular responsive components.",
+  "description": "Element queries library. Solution to modular responsive components.",
   "homepage": "https://github.com/elqteam/elq",
   "repository": {
     "type": "git",
