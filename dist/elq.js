@@ -2006,7 +2006,7 @@ utils.hasAttribute = function (element, attr) {
 var packageJson                 = require("../package.json");
 var BatchProcessor              = require("batch-processor");
 var forEach                     = require("./utils").forEach;
-var unique                      = require("./utils").uniq;
+var unique                      = require("./utils").unique;
 var ElementResizeDetector       = require("element-resize-detector");
 var PluginHandler               = require("./plugin-handler");
 var Reporter                    = require("./reporter");
@@ -2908,7 +2908,7 @@ utils.forEach = function (collection, callback) {
     }
 };
 
-utils.uniq = function (collection, hashFunction) {
+utils.unique = function (collection, hashFunction) {
     var output = [];
     var sieveObject = {};
     utils.forEach(collection, function (element) {

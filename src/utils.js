@@ -30,7 +30,7 @@ utils.forEach = function (collection, callback) {
     }
 };
 
-utils.uniq = function (collection, hashFunction) {
+utils.unique = function (collection, hashFunction) {
     var output = [];
     var sieveObject = {};
     utils.forEach(collection, function (element) {
