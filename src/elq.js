@@ -31,7 +31,7 @@ module.exports = function Elq(options) {
     var cycleDetector               = CycleDetector(idHandler);
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
-    var breakpointStateCalculator   = BreakpointStateCalculator();
+    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver });
     var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
@@ -66,6 +66,11 @@ module.exports = function Elq(options) {
         });
 
         var breakpointStates = breakpointStateCalculator.getBreakpointStates(element, breakpoints);
+
+        if (!breakpointStates) {
+            // Unable to resolve style for element. Probably due to it being detached from the DOM.
+            return;
+        }
 
         // TODO: This should instead be hashed. Also, maybe there is a more effective way of doing this.
         var breakpointStatesHash = JSON.stringify(breakpointStates);
@@ -102,6 +107,10 @@ module.exports = function Elq(options) {
     }
 
     function activate(elements) {
+        function isCollection(obj) {
+            return Array.isArray(obj) || obj.length !== undefined;
+        }
+
         function toArray(collection) {
             if (!Array.isArray(collection)) {
                 var array = [];
@@ -114,16 +123,23 @@ module.exports = function Elq(options) {
             }
         }
 
+        function isElement(obj) {
+            return obj && obj.nodeType === 1;
+        }
+
         if (!elements) {
             return;
         }
 
-        if (elements.length === undefined) {
+        if (isElement(elements)) {
+            // A single element has been passed in.
             elements = [elements];
+        } else if (isCollection(elements)) {
+            // Convert collection to array for plugins.
+            elements = toArray(elements);
+        } else {
+            return reporter.error("Invalid arguments. Must be a DOM element or a collection of DOM elements.");
         }
-
-        // Convert collection to array for plugins.
-        elements = toArray(elements);
 
         // Get possible extra elements by plugins.
         forEach(pluginHandler.getMethods("getExtraElements"), function (getExtraElements) {

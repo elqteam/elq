@@ -13,7 +13,9 @@ var styleResolver = {
 describe("BreakpointStateCalculator", function () {
     describe("getBreakpointStates", function () {
         it("should calculate breakpoint states correctly", function () {
-            var breakpointStateCalculator = BreakpointStateCalculator();
+            var breakpointStateCalculator = BreakpointStateCalculator({
+                styleResolver: styleResolver
+            });
 
             var breakpoints = [
                 {
@@ -31,7 +33,10 @@ describe("BreakpointStateCalculator", function () {
             ];
 
             var element = {
-                offsetWidth: 300
+                style: {
+                    width: "300px",
+                    height: "0px"
+                }
             };
 
             var breakpointStates = breakpointStateCalculator.getBreakpointStates(element, breakpoints);

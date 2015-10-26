@@ -27,11 +27,18 @@ var styleResolver = {
     }
 };
 
+var elementUtils = {
+    getAttribute: function (element, attr) {
+        return element.getAttribute(attr);
+    }
+};
+
 describe("BreakpointParser", function () {
     describe("parseBreakpoints", function () {
         it ("should parse breakpoints correctly", function () {
             var parser = BreakpointParser({
-                styleResolver: styleResolver
+                styleResolver: styleResolver,
+                elementUtils: elementUtils
             });
 
             var elementData = {
@@ -62,7 +69,8 @@ describe("BreakpointParser", function () {
 
         it("should parse different types of breakpoints", function () {
             var parser = BreakpointParser({
-                styleResolver: styleResolver
+                styleResolver: styleResolver,
+                elementUtils: elementUtils
             });
 
             var elementData = {
@@ -97,6 +105,7 @@ describe("BreakpointParser", function () {
         it("should allow unit to be left out and then use defaultUnit", function () {
             var parser = BreakpointParser({
                 styleResolver: styleResolver,
+                elementUtils: elementUtils,
                 defaultUnit: "em"
             });
 

@@ -1,6 +1,7 @@
 "use strict";
 
 var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
+var elementUtils = require("../../element-utils.js");
 
 module.exports = {
     getName: function () {
@@ -45,7 +46,7 @@ module.exports = {
                 var currentElement = mirrorElement.parentNode;
 
                 while (currentElement && currentElement.hasAttribute) {
-                    if (currentElement.hasAttribute("elq-breakpoints")) {
+                    if (elementUtils.hasAttribute(currentElement, "elq-breakpoints")) {
                         return currentElement;
                     }
 
@@ -56,7 +57,7 @@ module.exports = {
                 elq.reporter.error("Mirror elements require an elq-breakpoints ancestor. This error can probably be resolved by making body an elq-breakpoints element. Error caused by mirror element:", mirrorElement);
             }
 
-            if (!element.hasAttribute("elq-mirror")) {
+            if (!elementUtils.hasAttribute(element, "elq-mirror")) {
                 return;
             }
 

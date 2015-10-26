@@ -1,8 +1,12 @@
 {
   "name": "elq",
   "description": "Element media queries framework. Solution to modular responsive components.",
-  "homepage": "https://github.com/wnr/elq",
-  "version": "0.3.0",
+  "homepage": "https://github.com/elqteam/elq",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/elqteam/elq.git"
+  },
+  "version": "0.3.1",
   "private": false,
   "license": "MIT",
   "devDependencies": {
@@ -27,7 +31,7 @@
     "lodash": "^3.3.1"
   },
   "dependencies": {
-    "element-resize-detector": "^0.3.7",
+    "element-resize-detector": "^1.0.0",
     "batch-updater": "^0.1.0",
     "lodash.filter": "^2.4.1",
     "lodash.foreach": "^3.0.1",
