@@ -1,7 +1,7 @@
 # ELQ
 Element queries for modular responsive components.
 
-**ELQ currently is in early beta.** Therefore, bugs and API changes may occur frequently. We really appreciate feedback such as GitHub issues and pull requests.
+**ELQ is currently in beta.** Therefore, API changes may occur frequently. We really appreciate feedback such as GitHub issues and pull requests.
 
 File size is a bit big at the moment (237 KB, 16 KB minified + gzip). In the future, we will remove the lodash dependency, reducing the size to something like (70 KB, 6 KB minified + gzip).
 
