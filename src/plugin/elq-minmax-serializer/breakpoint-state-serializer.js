@@ -1,6 +1,6 @@
 "use strict";
 
-var forEach = require("lodash.foreach");
+var forEach = require("../../utils").forEach;
 
 module.exports = function BreakpointStateSerializer() {
     function serializeBreakpointStates(element, breakpointStates) {

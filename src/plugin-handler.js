@@ -8,6 +8,7 @@ _.isString      = require("lodash.isString");
 _.filter        = require("lodash.filter");
 _.map           = require("lodash.map");
 _.bind          = require("lodash.bind");
+var forEach     = require("./utils").forEach;
 
 /**
  * Handles plugins of a system instance.
@@ -119,7 +120,7 @@ module.exports = function PluginHandler(reporter) {
      * @param {Array} args The arguments array to be applied to all plugin methods.
      */
     function callMethods(method, args) {
-        getMethods(method).forEach(function (pluginMethod) {
+        forEach(getMethods(method), function (pluginMethod) {
             pluginMethod.apply(null, args);
         });
     }

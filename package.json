@@ -34,7 +34,6 @@
     "element-resize-detector": "^1.0.1",
     "batch-updater": "^0.1.0",
     "lodash.filter": "^2.4.1",
-    "lodash.foreach": "^3.0.1",
     "lodash.isfunction": "^2.4.1",
     "lodash.isobject": "^2.4.1",
     "lodash.isstring": "^2.4.1",
