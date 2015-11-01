@@ -124,105 +124,6 @@ function getOption(options, name, defaultValue) {
 },{}],3:[function(require,module,exports){
 "use strict";
 
-var utils = require("./utils");
-
-module.exports = function batchUpdaterMaker(options) {
-    options = options || {};
-
-    var reporter    = options.reporter;
-    var async       = utils.getOption(options, "async", true);
-    var autoUpdate  = utils.getOption(options, "auto", true);
-
-    if(autoUpdate && !async) {
-        reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
-        async = true;
-    }
-
-    if(!reporter) {
-        throw new Error("Reporter required.");
-    }
-
-    var batchSize = 0;
-    var batch = {};
-    var handler;
-
-    function queueUpdate(element, updater) {
-        if(autoUpdate && async && batchSize === 0) {
-            updateBatchAsync();
-        }
-
-        if(!batch[element]) {
-            batch[element] = [];
-        }
-
-        batch[element].push(updater);
-        batchSize++;
-    }
-
-    function forceUpdateBatch(updateAsync) {
-        if(updateAsync === undefined) {
-            updateAsync = async;
-        }
-
-        if(handler) {
-            cancelFrame(handler);
-            handler = null;
-        }
-
-        if(async) {
-            updateBatchAsync();
-        } else {
-            updateBatch();
-        }
-    }
-
-    function updateBatch() {
-        for(var element in batch) {
-            if(batch.hasOwnProperty(element)) {
-                var updaters = batch[element];
-
-                for(var i = 0; i < updaters.length; i++) {
-                    var updater = updaters[i];
-                    updater();
-                }
-            }
-        }
-        clearBatch();
-    }
-
-    function updateBatchAsync() {
-        handler = requestFrame(function performUpdate() {
-            updateBatch();
-        });
-    }
-
-    function clearBatch() {
-        batchSize = 0;
-        batch = {};
-    }
-
-    function cancelFrame(listener) {
-        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
-        var cancel = window.clearTimeout;
-        return cancel(listener);
-    }
-
-    function requestFrame(callback) {
-        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
-        var raf = function(fn) { return window.setTimeout(fn, 0); };
-        return raf(callback);
-    }
-
-    return {
-        update: queueUpdate,
-        force: forceUpdateBatch
-    };
-};
-},{"./utils":4}],4:[function(require,module,exports){
-arguments[4][2][0].apply(exports,arguments)
-},{"dup":2}],5:[function(require,module,exports){
-"use strict";
-
 var detector = module.exports = {};
 
 detector.isIE = function(version) {
@@ -261,7 +162,7 @@ detector.isLegacyOpera = function() {
     return !!window.opera;
 };
 
-},{}],6:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -282,7 +183,7 @@ utils.forEach = function(collection, callback) {
     }
 };
 
-},{}],7:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 /**
  * Resize detection strategy that injects objects to elements in order to detect resize events.
  * Heavily inspired by: http://www.backalleycoder.com/2013/03/18/cross-browser-event-based-element-resize-detection/
@@ -332,10 +233,20 @@ module.exports = function(options) {
     /**
      * Makes an element detectable and ready to be listened for resize events. Will call the callback when the element is ready to be listened for resize changes.
      * @private
+     * @param {object} options Optional options object.
      * @param {element} element The element to make detectable
      * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
      */
-    function makeDetectable(element, callback) {
+    function makeDetectable(options, element, callback) {
+        if (!callback) {
+            callback = element;
+            element = options;
+            options = null;
+        }
+
+        options = options || {};
+        var debug = options.debug;
+
         function injectObject(element, callback) {
             var OBJECT_STYLE = "display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; opacity: 0; z-index: -1000; pointer-events: none;";
 
@@ -485,7 +396,7 @@ module.exports = function(options) {
     };
 };
 
-},{"../browser-detector":5}],8:[function(require,module,exports){
+},{"../browser-detector":3}],6:[function(require,module,exports){
 /**
  * Resize detection strategy that injects divs to elements in order to detect resize events on scroll events.
  * Heavily inspired by: https://github.com/marcj/css-element-queries/blob/master/src/ResizeSensor.js
@@ -493,11 +404,14 @@ module.exports = function(options) {
 
 "use strict";
 
+var forEach = require("../collection-utils").forEach;
+
 module.exports = function(options) {
     options             = options || {};
     var reporter        = options.reporter;
     var batchProcessor  = options.batchProcessor;
     var getState        = options.stateHandler.getState;
+    var idHandler       = options.idHandler;
 
     // The injected container needs to have a class, so that it may be styled with CSS (pseudo elements).
     var detectionContainerClass = "erd_scroll_detection_container";
@@ -520,49 +434,32 @@ module.exports = function(options) {
      * @param {function} listener The listener callback to be called for each resize event of the element. The element will be given as a parameter to the listener callback.
      */
     function addListener(element, listener) {
-        var changed = function() {
-            var elementStyle    = getComputedStyle(element);
-            var width           = parseSize(elementStyle.width);
-            var height          = parseSize(elementStyle.height);
+        var listeners = getState(element).listeners;
 
-            // Store the size of the element sync here, so that multiple scroll events may be ignored in the event listeners.
-            // Otherwise the if-check in handleScroll is useless.
-            storeCurrentSize(element, width, height);
-
-            batchProcessor.add(function updateDetectorElements() {
-                updateChildSizes(element, width, height);
-            });
-
-            batchProcessor.add(1, function updateScrollbars() {
-                positionScrollbars(element, width, height);
-                listener(element);
-            });
-        };
-
-        function handleScroll() {
-            var style = getComputedStyle(element);
-            var width = parseSize(style.width);
-            var height = parseSize(style.height);
-
-            if (width !== element.lastWidth || height !== element.lastHeight) {
-                changed();
-            }
+        if (!listeners.push) {
+            throw new Error("Cannot add listener to an element that is not detectable.");
         }
 
-        var expand = getExpandElement(element);
-        var shrink = getShrinkElement(element);
-
-        addEvent(expand, "scroll", handleScroll);
-        addEvent(shrink, "scroll", handleScroll);
+        getState(element).listeners.push(listener);
     }
 
     /**
      * Makes an element detectable and ready to be listened for resize events. Will call the callback when the element is ready to be listened for resize changes.
      * @private
+     * @param {object} options Optional options object.
      * @param {element} element The element to make detectable
      * @param {function} callback The callback to be called when the element is ready to be listened for resize changes. Will be called with the element as first parameter.
      */
-    function makeDetectable(element, callback) {
+    function makeDetectable(options, element, callback) {
+        if (!callback) {
+            callback = element;
+            element = options;
+            options = null;
+        }
+
+        options = options || {};
+        var debug = options.debug;
+
         function isStyleResolved() {
             function isPxValue(length) {
                 return length.indexOf("px") !== -1;
@@ -591,25 +488,38 @@ module.exports = function(options) {
                 return style;
             }
 
-            // Style is to be retrieved in the first level (before mutating the DOM) so that a forced layout is avoided later.
-            var style = getStyle();
+            function storeStartSize() {
+                var style = getStyle();
+                getState(element).startSizeStyle = {
+                    width: style.widthStyle,
+                    height: style.heightStyle
+                };
+            }
 
-            getState(element).startSizeStyle = {
-                width: style.widthStyle,
-                height: style.heightStyle
-            };
+            function initListeners() {
+                getState(element).listeners = [];
+            }
 
-            var readyExpandScroll       = false;
-            var readyShrinkScroll       = false;
-            var readyOverall            = false;
+            debug && reporter.log(idHandler.get(element), "Scroll: Installing scroll elements...");
 
-            function ready() {
-                if(readyExpandScroll && readyShrinkScroll && readyOverall) {
-                    callback(element);
-                }
+            storeStartSize();
+            initListeners();
+
+            debug && reporter.log(idHandler.get(element), "Scroll: Element start size", getState(element).startSizeStyle);
+
+            function storeStyle() {
+                debug && reporter.log(idHandler.get(element), "Scroll: storeStyle invoked.");
+
+                // Style is to be retrieved in the first level (before mutating the DOM) so that a forced layout is avoided later.
+                var style = getStyle();
+                getState(element).style = style;
             }
 
             function mutateDom() {
+                debug && reporter.log(idHandler.get(element), "Scroll: mutateDom invoked.");
+
+                var style = getState(element).style;
+
                 function alterPositionStyles() {
                     if(style.position === "static") {
                         element.style.position = "relative";
@@ -673,46 +583,91 @@ module.exports = function(options) {
                 element.appendChild(container);
                 getState(element).element = container;
 
-                addEvent(expand, "scroll", function onFirstExpandScroll() {
-                    removeEvent(expand, "scroll", onFirstExpandScroll);
-                    readyExpandScroll = true;
-                    ready();
+                function handleScroll() {
+                    function changed() {
+                        var elementStyle    = getComputedStyle(element);
+                        var width           = parseSize(elementStyle.width);
+                        var height          = parseSize(elementStyle.height);
+
+                        // Store the size of the element sync here, so that multiple scroll events may be ignored in the event listeners.
+                        // Otherwise the if-check in handleScroll is useless.
+                        storeCurrentSize(element, width, height);
+
+                        batchProcessor.add(function updateDetectorElements() {
+                            updateChildSizes(element, width, height);
+                        });
+
+                        batchProcessor.add(1, function updateScrollbars() {
+                            positionScrollbars(element, width, height);
+                            forEach(getState(element).listeners, function (listener) {
+                                listener(element);
+                            });
+                        });
+                    };
+
+                    var style = getComputedStyle(element);
+                    var width = parseSize(style.width);
+                    var height = parseSize(style.height);
+
+                    if (width !== element.lastWidth || height !== element.lastHeight) {
+                        changed();
+                    }
+                }
+
+                addEvent(expand, "scroll", function onExpand() {
+                    handleScroll();
                 });
 
-                addEvent(shrink, "scroll", function onFirstShrinkScroll() {
-                    removeEvent(shrink, "scroll", onFirstShrinkScroll);
-                    readyShrinkScroll = true;
-                    ready();
+                addEvent(shrink, "scroll", function onShrink() {
+                    handleScroll();
                 });
 
                 updateChildSizes(element, style.width, style.height);
             }
 
             function finalizeDomMutation() {
+                debug && reporter.log(idHandler.get(element), "Scroll: finalizeDomMutation invoked.");
+
+                var style = getState(element).style;
                 storeCurrentSize(element, style.width, style.height);
                 positionScrollbars(element, style.width, style.height);
-                readyOverall = true;
-                ready();
+            }
+
+            function ready() {
+                callback(element);
             }
 
             if(batchProcessor) {
-                batchProcessor.add(mutateDom);
-                batchProcessor.add(1, finalizeDomMutation);
+                batchProcessor.add(0, storeStyle);
+                batchProcessor.add(1, mutateDom);
+                batchProcessor.add(2, finalizeDomMutation);
+                batchProcessor.add(3, ready);
             } else {
+                storeStyle();
                 mutateDom();
                 finalizeDomMutation();
+                ready();
             }
         }
 
+        debug && reporter.log(idHandler.get(element), "Scroll: Making detectable...");
+
         // Only install the strategy if the style has been resolved (this does not always mean that the element is attached).
         if (isStyleResolved()) {
+            debug && reporter.log(idHandler.get(element), "Scroll: Style resolved");
             install();
         } else {
+            debug && reporter.log(idHandler.get(element), "Scroll: Style not resolved");
+            debug && reporter.log(idHandler.get(element), "Scroll: Polling for style resolution...");
+
             // Need to perform polling in order to detect when the element has been attached to the DOM.
             var timeout = setInterval(function () {
                 if (isStyleResolved()) {
+                    debug && reporter.log(idHandler.get(element), "Scroll: Poll. Style resolved.");
                     install();
                     clearTimeout(timeout);
+                } else {
+                    debug && reporter.log(idHandler.get(element), "Scroll: Poll. Style not resolved.");
                 }
             }, 50);
         }
@@ -842,7 +797,7 @@ module.exports = function(options) {
     };
 };
 
-},{}],9:[function(require,module,exports){
+},{"../collection-utils":4}],7:[function(require,module,exports){
 "use strict";
 
 var forEach                 = require("./collection-utils").forEach;
@@ -926,7 +881,8 @@ module.exports = function(options) {
     var strategyOptions = {
         reporter: reporter,
         batchProcessor: batchProcessor,
-        stateHandler: stateHandler
+        stateHandler: stateHandler,
+        idHandler: idHandler
     };
 
     if(desiredStrategy === "scroll" && browserDetector.isLegacyOpera()) {
@@ -1021,12 +977,18 @@ module.exports = function(options) {
 
         var callOnAdd = getOption(options, "callOnAdd", globalOptions.callOnAdd);
         var onReadyCallback = getOption(options, "onReady", function noop() {});
+        var debug = getOption(options, "debug", false);
 
         forEach(elements, function attachListenerToElement(element) {
             var id = idHandler.get(element);
 
+            debug && reporter.log("Attaching listener to element", id, element);
+
             if(!elementUtils.isDetectable(element)) {
+                debug && reporter.log(id, "Not detectable.");
                 if(elementUtils.isBusy(element)) {
+                    debug && reporter.log(id, "System busy making it detectable");
+
                     //The element is being prepared to be detectable. Do not make it detectable.
                     //Just add the listener, because the element will soon be detectable.
                     addListener(callOnAdd, element, listener);
@@ -1041,9 +1003,12 @@ module.exports = function(options) {
                     return;
                 }
 
+                debug && reporter.log(id, "Making detectable...");
                 //The element is not prepared to be detectable, so do prepare it and add a listener to it.
                 elementUtils.markBusy(element, true);
-                return detectionStrategy.makeDetectable(element, function onElementDetectable(element) {
+                return detectionStrategy.makeDetectable({ debug: debug }, element, function onElementDetectable(element) {
+                    debug && reporter.log(id, "onElementDetectable");
+
                     elementUtils.markAsDetectable(element);
                     elementUtils.markBusy(element, false);
                     detectionStrategy.addListener(element, onResizeCallback);
@@ -1069,6 +1034,8 @@ module.exports = function(options) {
                     }
                 });
             }
+
+            debug && reporter.log(id, "Already detecable, adding listener.");
 
             //The element has been prepared to be detectable and is ready to be listened to.
             addListener(callOnAdd, element, listener);
@@ -1104,7 +1071,7 @@ function getOption(options, name, defaultValue) {
     return value;
 }
 
-},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"./state-handler":15,"batch-processor":1}],10:[function(require,module,exports){
+},{"./browser-detector":3,"./collection-utils":4,"./detection-strategy/object.js":5,"./detection-strategy/scroll.js":6,"./element-utils":8,"./id-generator":9,"./id-handler":10,"./listener-handler":11,"./reporter":12,"./state-handler":13,"batch-processor":1}],8:[function(require,module,exports){
 "use strict";
 
 module.exports = function(options) {
@@ -1157,7 +1124,7 @@ module.exports = function(options) {
     };
 };
 
-},{}],11:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 "use strict";
 
 module.exports = function() {
@@ -1177,7 +1144,7 @@ module.exports = function() {
     };
 };
 
-},{}],12:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 
 module.exports = function(options) {
@@ -1221,7 +1188,7 @@ module.exports = function(options) {
     };
 };
 
-},{}],13:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 
 module.exports = function(idHandler) {
@@ -1277,7 +1244,7 @@ module.exports = function(idHandler) {
     };
 };
 
-},{}],14:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -1314,7 +1281,7 @@ module.exports = function(quiet) {
 
     return reporter;
 };
-},{}],15:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 "use strict";
 
 var prop = "_erd";
@@ -1338,7 +1305,106 @@ module.exports = {
     cleanState: cleanState
 };
 
-},{}],16:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
+"use strict";
+
+var utils = require("./utils");
+
+module.exports = function batchUpdaterMaker(options) {
+    options = options || {};
+
+    var reporter    = options.reporter;
+    var async       = utils.getOption(options, "async", true);
+    var autoUpdate  = utils.getOption(options, "auto", true);
+
+    if(autoUpdate && !async) {
+        reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
+        async = true;
+    }
+
+    if(!reporter) {
+        throw new Error("Reporter required.");
+    }
+
+    var batchSize = 0;
+    var batch = {};
+    var handler;
+
+    function queueUpdate(element, updater) {
+        if(autoUpdate && async && batchSize === 0) {
+            updateBatchAsync();
+        }
+
+        if(!batch[element]) {
+            batch[element] = [];
+        }
+
+        batch[element].push(updater);
+        batchSize++;
+    }
+
+    function forceUpdateBatch(updateAsync) {
+        if(updateAsync === undefined) {
+            updateAsync = async;
+        }
+
+        if(handler) {
+            cancelFrame(handler);
+            handler = null;
+        }
+
+        if(async) {
+            updateBatchAsync();
+        } else {
+            updateBatch();
+        }
+    }
+
+    function updateBatch() {
+        for(var element in batch) {
+            if(batch.hasOwnProperty(element)) {
+                var updaters = batch[element];
+
+                for(var i = 0; i < updaters.length; i++) {
+                    var updater = updaters[i];
+                    updater();
+                }
+            }
+        }
+        clearBatch();
+    }
+
+    function updateBatchAsync() {
+        handler = requestFrame(function performUpdate() {
+            updateBatch();
+        });
+    }
+
+    function clearBatch() {
+        batchSize = 0;
+        batch = {};
+    }
+
+    function cancelFrame(listener) {
+        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
+        var cancel = window.clearTimeout;
+        return cancel(listener);
+    }
+
+    function requestFrame(callback) {
+        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
+        var raf = function(fn) { return window.setTimeout(fn, 0); };
+        return raf(callback);
+    }
+
+    return {
+        update: queueUpdate,
+        force: forceUpdateBatch
+    };
+};
+},{"./utils":15}],15:[function(require,module,exports){
+arguments[4][2][0].apply(exports,arguments)
+},{"dup":2}],16:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -6149,7 +6215,7 @@ module.exports={
     "lodash": "^3.3.1"
   },
   "dependencies": {
-    "element-resize-detector": "^1.0.1",
+    "element-resize-detector": "^1.0.2",
     "batch-updater": "^0.1.0",
     "lodash.filter": "^2.4.1",
     "lodash.isfunction": "^2.4.1",
@@ -6615,7 +6681,7 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
     return createBatchUpdaterOptionsProxy;
 }
 
-},{"../package.json":72,"./breakpoint-state-calculator":73,"./cycle-detector":74,"./id-generator":77,"./id-handler":78,"./plugin-handler":80,"./plugin/elq-breakpoints/elq-breakpoints.js":82,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":84,"./plugin/elq-mirror/elq-mirror.js":85,"./reporter":86,"./style-resolver":87,"./utils":88,"batch-updater":3,"element-resize-detector":9,"lodash.partial":67,"lodash.uniq":71}],77:[function(require,module,exports){
+},{"../package.json":72,"./breakpoint-state-calculator":73,"./cycle-detector":74,"./id-generator":77,"./id-handler":78,"./plugin-handler":80,"./plugin/elq-breakpoints/elq-breakpoints.js":82,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":84,"./plugin/elq-mirror/elq-mirror.js":85,"./reporter":86,"./style-resolver":87,"./utils":88,"batch-updater":14,"element-resize-detector":7,"lodash.partial":67,"lodash.uniq":71}],77:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
