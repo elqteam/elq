@@ -71,14 +71,20 @@ module.exports = function (grunt) {
                     spawn: false
                 }
             }
-        }
+        },
+        uglify: {
+            dist: {
+                src: "dist/elq.js",
+                dest: "dist/elq.min.js"
+            }
+        },
     };
 
     grunt.initConfig(config);
 
     grunt.registerTask("build:dev", ["browserify:dev"]);
     grunt.registerTask("build:test", ["browserify:test"]);
-    grunt.registerTask("build:dist", ["browserify:dist"]);
+    grunt.registerTask("build:dist", ["browserify:dist", "uglify:dist"]);
 
     grunt.registerTask("build", ["build:dev", "build:test"]);
     grunt.registerTask("dist", ["build:dist"]);
