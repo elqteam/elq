@@ -258,10 +258,12 @@ module.exports = function(options) {
             // The element may not yet be attached to the DOM, and therefore the style object may be empty in some browsers.
             // Since the style object is a reference, it will be updated as soon as the element is attached to the DOM.
             var style = getComputedStyle(element);
+            var width = element.offsetWidth;
+            var height = element.offsetHeight;
 
-            getState(element).startSizeStyle = {
-                width: style.width,
-                height: style.height
+            getState(element).startSize = {
+                width: width,
+                height: height
             };
 
             function mutateDom() {
@@ -413,10 +415,11 @@ module.exports = function(options) {
     var getState        = options.stateHandler.getState;
     var idHandler       = options.idHandler;
 
-    // The injected container needs to have a class, so that it may be styled with CSS (pseudo elements).
-    var detectionContainerClass = "erd_scroll_detection_container";
+    if (!batchProcessor) {
+        throw new Error("Missing required dependency: batchProcessor");
+    }
 
-    if(!reporter) {
+    if (!reporter) {
         throw new Error("Missing required dependency: reporter.");
     }
 
@@ -424,8 +427,64 @@ module.exports = function(options) {
     var scrollbarSizes = getScrollbarSizes();
 
     // Inject the scrollbar styling that prevents them from appearing sometimes in Chrome.
+    // The injected container needs to have a class, so that it may be styled with CSS (pseudo elements).
     var styleId = "erd_scroll_detection_scrollbar_style";
+    var detectionContainerClass = "erd_scroll_detection_container";
     injectScrollStyle(styleId, detectionContainerClass);
+
+    function getScrollbarSizes() {
+        var width = 500;
+        var height = 500;
+
+        var child = document.createElement("div");
+        child.style.cssText = "position: absolute; width: " + width*2 + "px; height: " + height*2 + "px; visibility: hidden;";
+
+        var container = document.createElement("div");
+        container.style.cssText = "position: absolute; width: " + width + "px; height: " + height + "px; overflow: scroll; visibility: none; top: " + -width*3 + "px; left: " + -height*3 + "px; visibility: hidden;";
+
+        container.appendChild(child);
+
+        document.body.insertBefore(container, document.body.firstChild);
+
+        var widthSize = width - container.clientWidth;
+        var heightSize = height - container.clientHeight;
+
+        document.body.removeChild(container);
+
+        return {
+            width: widthSize,
+            height: heightSize
+        };
+    }
+
+    function injectScrollStyle(styleId, containerClass) {
+        function injectStyle(style, method) {
+            method = method || function (element) {
+                document.head.appendChild(element);
+            };
+
+            var styleElement = document.createElement("style");
+            styleElement.innerHTML = style;
+            styleElement.id = styleId;
+            method(styleElement);
+            return styleElement;
+        }
+
+        if (!document.getElementById(styleId)) {
+            var containerAnimationClass = containerClass + "_animation";
+            var containerAnimationActiveClass = containerClass + "_animation_active";
+            var style = "/* Created by the element-resize-detector library. */\n";
+            style += "." + containerClass + " > div::-webkit-scrollbar { display: none; }\n\n";
+            style += "." + containerAnimationActiveClass + " { -webkit-animation-duration: 0.1s; animation-duration: 0.1s; -webkit-animation-name: " + containerAnimationClass + "; animation-name: " + containerAnimationClass + "; }\n";
+            style += "@-webkit-keyframes " + containerAnimationClass +  " { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }\n";
+            style += "@keyframes " + containerAnimationClass +          " { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }";
+            injectStyle(style);
+        }
+    }
+
+    function addAnimationClass(element) {
+        element.className += " " + detectionContainerClass + "_animation_active";
+    }
 
     /**
      * Adds a resize event listener to the element.
@@ -467,365 +526,401 @@ module.exports = function(options) {
             }
         }
 
-        function isStyleResolved() {
-            function isPxValue(length) {
-                return length.indexOf("px") !== -1;
+        function isDetached(element) {
+            function isInDocument(element) {
+                return element === element.ownerDocument.body || element.ownerDocument.body.contains(element);
+            }
+            return !isInDocument(element);
+        }
+
+        function isUnrendered(element) {
+            // Check the absolute positioned container since the top level container is display: inline.
+            var container = getState(element).container.childNodes[0];
+            return getComputedStyle(container).width === "auto";
+        }
+
+        function renderElement() {
+            debug("Rendering element");
+            getState(element).previousDisplay = getComputedStyle(element).display;
+            element.style.display = "block";
+        }
+
+        function unrenderElement() {
+            debug("Unrendering element");
+            element.style.display = getState(element).previousDisplay;
+        }
+
+        function getStyle() {
+            // Some browsers only force layouts when actually reading the style properties of the style object, so make sure that they are all read here,
+            // so that the user of the function can be sure that it will perform the layout here, instead of later (important for batching).
+            var elementStyle            = getComputedStyle(element);
+            var style                   = {};
+            style.position              = elementStyle.position;
+            style.width                 = element.offsetWidth;
+            style.height                = element.offsetHeight;
+            style.top                   = elementStyle.top;
+            style.right                 = elementStyle.right;
+            style.bottom                = elementStyle.bottom;
+            style.left                  = elementStyle.left;
+            style.widthCSS              = elementStyle.width;
+            style.heightCSS             = elementStyle.height;
+            return style;
+        }
+
+        function storeStartSize() {
+            var style = getStyle();
+            getState(element).startSize = {
+                width: style.width,
+                height: style.height
+            };
+            debug("Element start size", getState(element).startSize);
+        }
+
+        function initListeners() {
+            getState(element).listeners = [];
+        }
+
+        function storeStyle() {
+            debug("storeStyle invoked.");
+            var style = getStyle();
+            getState(element).style = style;
+        }
+
+        function storeCurrentSize(element, width, height) {
+            element.lastWidth   = width;
+            element.lastHeight  = height;
+        }
+
+        function getExpandElement(element) {
+            return getState(element).container.childNodes[0].childNodes[0];
+        }
+
+        function getExpandChildElement(element) {
+            return getExpandElement(element).childNodes[0];
+        }
+
+        function getShrinkElement(element) {
+            return getState(element).container.childNodes[0].childNodes[1];
+        }
+
+        function getWidthOffset() {
+            return 2 * scrollbarSizes.width + 1;
+        }
+
+        function getHeightOffset() {
+            return 2 * scrollbarSizes.height + 1;
+        }
+
+        function getExpandWidth(width) {
+            return width + 10 + getWidthOffset();
+        }
+
+        function getExpandHeight(height) {
+            return height + 10 + getHeightOffset();
+        }
+
+        function getShrinkWidth(width) {
+            return width * 2 + getWidthOffset();
+        }
+
+        function getShrinkHeight(height) {
+            return height * 2 + getHeightOffset();
+        }
+
+        function positionScrollbars(element, width, height) {
+            var expand          = getExpandElement(element);
+            var shrink          = getShrinkElement(element);
+            var expandWidth     = getExpandWidth(width);
+            var expandHeight    = getExpandHeight(height);
+            var shrinkWidth     = getShrinkWidth(width);
+            var shrinkHeight    = getShrinkHeight(height);
+            expand.scrollLeft   = expandWidth;
+            expand.scrollTop    = expandHeight;
+            shrink.scrollLeft   = shrinkWidth;
+            shrink.scrollTop    = shrinkHeight;
+        }
+
+        function addEvent(el, name, cb) {
+            if (el.attachEvent) {
+                el.attachEvent("on" + name, cb);
+            } else {
+                el.addEventListener(name, cb);
+            }
+        }
+
+        function injectContainerElement() {
+            var container = getState(element).container;
+
+            if (!container) {
+                container                   = document.createElement("div");
+                container.className         = detectionContainerClass;
+                container.style.cssText     = "visibility: hidden; display: inline; width: 0px; height: 0px; overflow: none; z-index: -1; overflow: scroll;";
+                getState(element).container = container;
+                addAnimationClass(container);
+                element.appendChild(container);
+
+                addEvent(container, "animationstart", function onAnimationStart () {
+                    getState(element).onRendered && getState(element).onRendered();
+                });
             }
 
-            var style = getComputedStyle(element);
+            return container;
+        }
 
-            return style.position && isPxValue(style.width) && isPxValue(style.height);
+        function injectScrollElements() {
+            function alterPositionStyles() {
+                var style = getState(element).style;
+
+                if(style.position === "static") {
+                    element.style.position = "relative";
+
+                    var removeRelativeStyles = function(reporter, element, style, property) {
+                        function getNumericalValue(value) {
+                            return value.replace(/[^-\d\.]/g, "");
+                        }
+
+                        var value = style[property];
+
+                        if(value !== "auto" && getNumericalValue(value) !== "0") {
+                            reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
+                            element.style[property] = 0;
+                        }
+                    };
+
+                    //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
+                    //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
+                    removeRelativeStyles(reporter, element, style, "top");
+                    removeRelativeStyles(reporter, element, style, "right");
+                    removeRelativeStyles(reporter, element, style, "bottom");
+                    removeRelativeStyles(reporter, element, style, "left");
+                }
+            }
+
+            function getTopBottomBottomRightCssText(left, top, bottom, right) {
+                left = (!left ? "0" : (left + "px"));
+                top = (!top ? "0" : (top + "px"));
+                bottom = (!bottom ? "0" : (bottom + "px"));
+                right = (!right ? "0" : (right + "px"));
+
+                return "left: " + left + "; top: " + top + "; right: " + right + "; bottom: " + bottom + ";";
+            }
+
+            debug("Injecting elements");
+
+            alterPositionStyles();
+
+            var rootContainer = getState(element).container;
+
+            if (!rootContainer) {
+                rootContainer = injectContainerElement();
+            }
+
+            var scrollbarWidth          = scrollbarSizes.width;
+            var scrollbarHeight         = scrollbarSizes.height;
+            var containerStyle          = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; " + getTopBottomBottomRightCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth);
+            var expandStyle             = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
+            var shrinkStyle             = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
+            var expandChildStyle        = "position: absolute; left: 0; top: 0;";
+            var shrinkChildStyle        = "position: absolute; width: 200%; height: 200%;";
+
+            var container               = document.createElement("div");
+            var expand                  = document.createElement("div");
+            var expandChild             = document.createElement("div");
+            var shrink                  = document.createElement("div");
+            var shrinkChild             = document.createElement("div");
+
+            container.className         = detectionContainerClass;
+            container.style.cssText     = containerStyle;
+            expand.style.cssText        = expandStyle;
+            expandChild.style.cssText   = expandChildStyle;
+            shrink.style.cssText        = shrinkStyle;
+            shrinkChild.style.cssText   = shrinkChildStyle;
+
+            expand.appendChild(expandChild);
+            shrink.appendChild(shrinkChild);
+            container.appendChild(expand);
+            container.appendChild(shrink);
+            rootContainer.appendChild(container);
+
+            addEvent(expand, "scroll", function onExpandScroll() {
+                getState(element).onExpand && getState(element).onExpand();
+            });
+
+            addEvent(shrink, "scroll", function onShrinkScroll() {
+                getState(element).onShrink && getState(element).onShrink();
+            });
+        }
+
+        function registerListenersAndPositionElements() {
+            debug("registerListenersAndPositionElements invoked.");
+
+            function updateChildSizes(element, width, height) {
+                var expandChild             = getExpandChildElement(element);
+                var expandWidth             = getExpandWidth(width);
+                var expandHeight            = getExpandHeight(height);
+                expandChild.style.width     = expandWidth + "px";
+                expandChild.style.height    = expandHeight + "px";
+            }
+
+            function updateDetectorElements(done) {
+                var width           = element.offsetWidth;
+                var height          = element.offsetHeight;
+
+                debug("Storing current size", width, height);
+
+                // Store the size of the element sync here, so that multiple scroll events may be ignored in the event listeners.
+                // Otherwise the if-check in handleScroll is useless.
+                storeCurrentSize(element, width, height);
+
+                batchProcessor.add(0, function performUpdateChildSizes() {
+                    if (options.debug) {
+                        var w = element.offsetWidth;
+                        var h = element.offsetHeight;
+
+                        if (w !== width || h !== height) {
+                            reporter.warn(idHandler.get(element), "Scroll: Size changed before updating detector elements.");
+                        }
+                    }
+
+                    updateChildSizes(element, width, height);
+                });
+
+                batchProcessor.add(1, function updateScrollbars() {
+                    positionScrollbars(element, width, height);
+                });
+
+                if (done) {
+                    batchProcessor.add(2, done);
+                }
+            }
+
+            function areElementsInjected() {
+                return !!getState(element).container;
+            }
+
+            function handleRender() {
+                debug("startanimation triggered.");
+
+                if (isUnrendered(element)) {
+                    debug("Ignoring since element is still unrendered...");
+                    return;
+                }
+
+                debug("Element rendered.");
+                var expand = getExpandElement(element);
+                var shrink = getShrinkElement(element);
+                if (expand.scrollLeft === 0 || expand.scrollTop === 0 || shrink.scrollLeft === 0 || shrink.scrollTop === 0) {
+                    debug("Scrollbars out of sync. Updating detector elements...");
+                    updateDetectorElements();
+                }
+            }
+
+            function handleScroll() {
+                debug("Scroll detected.");
+
+                if (isUnrendered(element)) {
+                    // Element is still unrendered. Skip this scroll event.
+                    debug("Scroll event fired while unrendered. Ignoring...");
+                    return;
+                }
+
+                var width = element.offsetWidth;
+                var height = element.offsetHeight;
+
+                if (width !== element.lastWidth || height !== element.lastHeight) {
+                    debug("Element size changed.");
+                    updateDetectorElements(function notifyListeners() {
+                        forEach(getState(element).listeners, function (listener) {
+                            listener(element);
+                        });
+                    });
+                }
+            }
+
+            getState(element).onRendered = handleRender;
+            getState(element).onExpand = handleScroll;
+            getState(element).onShrink = handleScroll;
+
+            var style = getState(element).style;
+            updateChildSizes(element, style.width, style.height);
+        }
+
+        function finalizeDomMutation() {
+            debug("finalizeDomMutation invoked.");
+
+            var style = getState(element).style;
+            storeCurrentSize(element, style.width, style.height);
+            positionScrollbars(element, style.width, style.height);
+        }
+
+        function ready() {
+            callback(element);
         }
 
         function install() {
-            function getStyle() {
-                // Some browsers only force layouts when actually reading the style properties of the style object, so make sure that they are all read here,
-                // so that the user of the function can be sure that it will perform the layout here, instead of later (important for batching).
-                var style                   = {};
-                var elementStyle            = getComputedStyle(element);
-                style.position              = elementStyle.position;
-                style.width                 = parseSize(elementStyle.width);
-                style.height                = parseSize(elementStyle.height);
-                style.top                   = elementStyle.top;
-                style.right                 = elementStyle.right;
-                style.bottom                = elementStyle.bottom;
-                style.left                  = elementStyle.left;
-                style.widthStyle            = elementStyle.width;
-                style.heightStyle           = elementStyle.height;
-                return style;
-            }
-
-            function storeStartSize() {
-                var style = getStyle();
-                getState(element).startSizeStyle = {
-                    width: style.widthStyle,
-                    height: style.heightStyle
-                };
-            }
-
-            function initListeners() {
-                getState(element).listeners = [];
-            }
-
-            debug("Installing scroll elements...");
-
-            storeStartSize();
+            debug("Installing...");
             initListeners();
+            storeStartSize();
 
-            debug("Element start size", getState(element).startSizeStyle);
+            batchProcessor.add(-1, storeStyle);
+            batchProcessor.add(0, function decideInstallPath() {
+                if (getState(element).style.widthCSS === "auto" || getState(element).style.heightCSS === "auto") {
+                    debug("Element is either inline or unrendered. Taking slow path...");
 
-            function storeStyle() {
-                debug("storeStyle invoked.");
+                    // Inject the elements since they are needed needed in order to check if the target element is unrendered or not.
+                    injectContainerElement();
+                    injectScrollElements();
 
-                // Style is to be retrieved in the first level (before mutating the DOM) so that a forced layout is avoided later.
-                var style = getStyle();
-                getState(element).style = style;
-            }
-
-            function mutateDom() {
-                debug("mutateDom invoked.");
-
-                var style = getState(element).style;
-
-                function alterPositionStyles() {
-                    if(style.position === "static") {
-                        element.style.position = "relative";
-
-                        var removeRelativeStyles = function(reporter, element, style, property) {
-                            function getNumericalValue(value) {
-                                return value.replace(/[^-\d\.]/g, "");
-                            }
-
-                            var value = style[property];
-
-                            if(value !== "auto" && getNumericalValue(value) !== "0") {
-                                reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
-                                element.style[property] = 0;
-                            }
-                        };
-
-                        //Check so that there are no accidental styles that will make the element styled differently now that is is relative.
-                        //If there are any, set them to 0 (this should be okay with the user since the style properties did nothing before [since the element was positioned static] anyway).
-                        removeRelativeStyles(reporter, element, style, "top");
-                        removeRelativeStyles(reporter, element, style, "right");
-                        removeRelativeStyles(reporter, element, style, "bottom");
-                        removeRelativeStyles(reporter, element, style, "left");
-                    }
+                    batchProcessor.add(1, function takeInlineOrUnrenderedPath() {
+                        if (isUnrendered(element)) {
+                            debug("Element is unrendered.");
+                            // TODO: Instead of rendering/unrendering the element, maybe its enough to wait for the element to get rendered with the animationstart event.
+                            batchProcessor.add(2, renderElement);
+                            batchProcessor.add(3, storeStyle);
+                            batchProcessor.add(4, registerListenersAndPositionElements);
+                            batchProcessor.add(5, finalizeDomMutation);
+                            batchProcessor.add(6, unrenderElement);
+                            batchProcessor.add(7, ready);
+                        } else {
+                            debug("Element is inline.");
+                            batchProcessor.add(2, registerListenersAndPositionElements);
+                            batchProcessor.add(3, finalizeDomMutation);
+                            batchProcessor.add(4, ready);
+                        }
+                    });
+                } else {
+                    debug("Installing: normal.");
+                    batchProcessor.add(1, injectScrollElements);
+                    batchProcessor.add(2, registerListenersAndPositionElements);
+                    batchProcessor.add(3, finalizeDomMutation);
+                    batchProcessor.add(4, ready);
                 }
-
-                function getContainerCssText(left, top, bottom, right) {
-                    left = (!left ? "0" : (left + "px"));
-                    top = (!top ? "0" : (top + "px"));
-                    bottom = (!bottom ? "0" : (bottom + "px"));
-                    right = (!right ? "0" : (right + "px"));
-
-                    return "position: absolute; left: " + left + "; top: " + top + "; right: " + right + "; bottom: " + bottom + "; overflow: scroll; z-index: -1; visibility: hidden;";
-                }
-
-                alterPositionStyles(style);
-
-                var scrollbarWidth          = scrollbarSizes.width;
-                var scrollbarHeight         = scrollbarSizes.height;
-                var containerStyle          = getContainerCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth);
-                var shrinkExpandstyle       = getContainerCssText(0, 0, -scrollbarHeight, -scrollbarWidth);
-                var shrinkExpandChildStyle  = "position: absolute; left: 0; top: 0;";
-
-                var container               = document.createElement("div");
-                var expand                  = document.createElement("div");
-                var expandChild             = document.createElement("div");
-                var shrink                  = document.createElement("div");
-                var shrinkChild             = document.createElement("div");
-
-                container.className         = detectionContainerClass;
-                container.style.cssText     = containerStyle;
-                expand.style.cssText        = shrinkExpandstyle;
-                expandChild.style.cssText   = shrinkExpandChildStyle;
-                shrink.style.cssText        = shrinkExpandstyle;
-                shrinkChild.style.cssText   = shrinkExpandChildStyle + " width: 200%; height: 200%;";
-
-                expand.appendChild(expandChild);
-                shrink.appendChild(shrinkChild);
-                container.appendChild(expand);
-                container.appendChild(shrink);
-                element.appendChild(container);
-                getState(element).element = container;
-
-                function handleScroll() {
-                    function changed() {
-                        var elementStyle    = getComputedStyle(element);
-                        var width           = parseSize(elementStyle.width);
-                        var height          = parseSize(elementStyle.height);
-
-                        debug("Storing current size", width, height);
-
-                        // Store the size of the element sync here, so that multiple scroll events may be ignored in the event listeners.
-                        // Otherwise the if-check in handleScroll is useless.
-                        storeCurrentSize(element, width, height);
-
-                        batchProcessor.add(function updateDetectorElements() {
-                            if (options.debug) {
-                                var style = getComputedStyle(element);
-                                var w = parseSize(style.width);
-                                var h = parseSize(style.height);
-
-                                if (w !== width || h !== height) {
-                                    reporter.warn(idHandler.get(element), "Scroll: Size changed before updating detector elements.");
-                                }
-                            }
-
-                            updateChildSizes(element, width, height);
-                        });
-
-                        batchProcessor.add(1, function updateScrollbars() {
-                            positionScrollbars(element, width, height);
-                            forEach(getState(element).listeners, function (listener) {
-                                listener(element);
-                            });
-                        });
-                    }
-
-                    debug("Scroll detected.");
-
-                    var style = getComputedStyle(element);
-                    var width = parseSize(style.width);
-                    var height = parseSize(style.height);
-
-                    if (width !== element.lastWidth || height !== element.lastHeight) {
-                        debug("Element size changed.");
-                        changed();
-                    }
-                }
-
-                addEvent(expand, "scroll", function onExpand() {
-                    handleScroll();
-                });
-
-                addEvent(shrink, "scroll", function onShrink() {
-                    handleScroll();
-                });
-
-                updateChildSizes(element, style.width, style.height);
-            }
-
-            function finalizeDomMutation() {
-                debug("finalizeDomMutation invoked.");
-
-                var style = getState(element).style;
-                storeCurrentSize(element, style.width, style.height);
-                positionScrollbars(element, style.width, style.height);
-            }
-
-            function ready() {
-                callback(element);
-            }
-
-            if(batchProcessor) {
-                batchProcessor.add(0, storeStyle);
-                batchProcessor.add(1, mutateDom);
-                batchProcessor.add(2, finalizeDomMutation);
-                batchProcessor.add(3, ready);
-            } else {
-                storeStyle();
-                mutateDom();
-                finalizeDomMutation();
-                ready();
-            }
+            });
         }
 
         debug("Making detectable...");
 
-        // Only install the strategy if the style has been resolved (this does not always mean that the element is attached).
-        if (isStyleResolved()) {
-            debug("Style resolved");
-            install();
-        } else {
-            debug("Style not resolved");
-            debug("Polling for style resolution...");
+        if (isDetached(element)) {
+            debug("Element is detached");
 
-            // Need to perform polling in order to detect when the element has been attached to the DOM.
-            var timeout = setInterval(function () {
-                if (isStyleResolved()) {
-                    debug("Poll. Style resolved.");
-                    install();
-                    clearTimeout(timeout);
-                } else {
-                    debug("Poll. Style not resolved.");
-                }
-            }, 50);
-        }
-    }
+            injectContainerElement();
 
-    function getExpandElement(element) {
-        return getState(element).element.childNodes[0];
-    }
+            debug("Waiting until element is attached...");
 
-    function getExpandChildElement(element) {
-        return getExpandElement(element).childNodes[0];
-    }
-
-    function getShrinkElement(element) {
-        return getState(element).element.childNodes[1];
-    }
-
-    function getWidthOffset() {
-        return 2 * scrollbarSizes.width + 1;
-    }
-
-    function getHeightOffset() {
-        return 2 * scrollbarSizes.height + 1;
-    }
-
-    function getExpandWidth(width) {
-        return width + 10 + getWidthOffset();
-    }
-
-    function getExpandHeight(height) {
-        return height + 10 + getHeightOffset();
-    }
-
-    function getShrinkWidth(width) {
-        return width * 2 + getWidthOffset();
-    }
-
-    function getShrinkHeight(height) {
-        return height * 2 + getHeightOffset();
-    }
-
-    function updateChildSizes(element, width, height) {
-        var expandChild             = getExpandChildElement(element);
-        var expandWidth             = getExpandWidth(width);
-        var expandHeight            = getExpandHeight(height);
-        expandChild.style.width     = expandWidth + "px";
-        expandChild.style.height    = expandHeight + "px";
-    }
-
-    function storeCurrentSize(element, width, height) {
-        element.lastWidth   = width;
-        element.lastHeight  = height;
-    }
-
-    function positionScrollbars(element, width, height) {
-        var expand          = getExpandElement(element);
-        var shrink          = getShrinkElement(element);
-        var expandWidth     = getExpandWidth(width);
-        var expandHeight    = getExpandHeight(height);
-        var shrinkWidth     = getShrinkWidth(width);
-        var shrinkHeight    = getShrinkHeight(height);
-        expand.scrollLeft   = expandWidth;
-        expand.scrollTop    = expandHeight;
-        shrink.scrollLeft   = shrinkWidth;
-        shrink.scrollTop    = shrinkHeight;
-    }
-
-    function addEvent(el, name, cb) {
-        if (el.attachEvent) {
-            el.attachEvent("on" + name, cb);
-        } else {
-            el.addEventListener(name, cb);
-        }
-    }
-
-    function removeEvent(el, name, cb) {
-        if(el.attachEvent) {
-            el.detachEvent("on" + name, cb);
-        } else {
-            el.removeEventListener(name, cb);
-        }
-    }
-
-    function parseSize(size) {
-        return parseFloat(size.replace(/px/, ""));
-    }
-
-    function getScrollbarSizes() {
-        var width = 500;
-        var height = 500;
-
-        var child = document.createElement("div");
-        child.style.cssText = "position: absolute; width: " + width*2 + "px; height: " + height*2 + "px; visibility: hidden;";
-
-        var container = document.createElement("div");
-        container.style.cssText = "position: absolute; width: " + width + "px; height: " + height + "px; overflow: scroll; visibility: none; top: " + -width*3 + "px; left: " + -height*3 + "px; visibility: hidden;";
-
-        container.appendChild(child);
-
-        document.body.insertBefore(container, document.body.firstChild);
-
-        var widthSize = width - container.clientWidth;
-        var heightSize = height - container.clientHeight;
-
-        document.body.removeChild(container);
-
-        return {
-            width: widthSize,
-            height: heightSize
-        };
-    }
-
-    function injectScrollStyle(styleId, containerClass) {
-        function injectStyle(style, method) {
-            method = method || function (element) {
-                document.head.appendChild(element);
+            getState(element).onRendered = function () {
+                debug("Element is now attached");
+                install();
             };
-
-            var styleElement = document.createElement("style");
-            styleElement.innerHTML = style;
-            styleElement.id = styleId;
-            method(styleElement);
-            return styleElement;
-        }
-
-        if (!document.getElementById(styleId)) {
-            var style = "/* Created by the element-resize-detector library. */\n";
-            style += "." + containerClass + " > div::-webkit-scrollbar { display: none; }";
-            injectStyle(style);
+        } else {
+            install();
         }
     }
 
     function uninstall(element) {
+        //TODO: This should also delete the added state object of the element.
         var state = getState(element);
-        element.removeChild(state.element);
-        delete state.element;
+        element.removeChild(state.container);
+        delete state.container;
     }
 
     return {
@@ -1056,9 +1151,13 @@ module.exports = function(options) {
 
                     // Since the element size might have changed since the call to "listenTo", we need to check for this change,
                     // so that a resize event may be emitted.
-                    var style = getComputedStyle(element);
-                    if (stateHandler.getState(element).startSizeStyle.width !== style.width || stateHandler.getState(element).startSizeStyle.height !== style.height) {
-                        onResizeCallback(element);
+                    // Having the startSize object is optional (since it does not make sense in some cases such as unrendered elements), so check for its existance before.
+                    if (stateHandler.getState(element).startSize) {
+                        var width = element.offsetWidth;
+                        var height = element.offsetHeight;
+                        if (stateHandler.getState(element).startSize.width !== width || stateHandler.getState(element).startSize.height !== height) {
+                            onResizeCallback(element);
+                        }
                     }
 
                     elementsReady++;
@@ -6238,6 +6337,7 @@ module.exports={
     "grunt-banner": "^0.3.1",
     "grunt-browserify": "^3.3.0",
     "grunt-contrib-jshint": "^0.11.0",
+    "grunt-contrib-uglify": "^0.11.0",
     "grunt-contrib-watch": "^0.6.1",
     "grunt-jscs": "^1.2.0",
     "grunt-karma": "^0.10.1",
