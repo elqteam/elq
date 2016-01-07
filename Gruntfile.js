@@ -77,7 +77,7 @@ module.exports = function (grunt) {
                 src: "dist/elq.js",
                 dest: "dist/elq.min.js"
             }
-        },
+        }
     };
 
     grunt.initConfig(config);
