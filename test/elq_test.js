@@ -31,7 +31,7 @@ function createDummyPlugin(name, make) {
 
 describe("elq", function () {
     describe("Public API", function () {
-        it("getName should return the name of the isntance", function () {
+        it("getName should return the name of the instance", function () {
             var elq = Elq();
             var name = elq.getName();
             expect(name).toEqual(packageJson.name); //TODO: This should be checked against the package.json file.
