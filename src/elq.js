@@ -73,6 +73,7 @@ module.exports = function Elq(options) {
         }
 
         // TODO: This should instead be hashed. Also, maybe there is a more effective way of doing this.
+        // TODO: The problem with this is that if the order changes, then the hash changes.
         var breakpointStatesHash = JSON.stringify(breakpointStates);
 
         if (element.elq.currentBreakpointStatesHash !== breakpointStatesHash) {

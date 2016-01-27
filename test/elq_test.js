@@ -1,4 +1,4 @@
-/* global describe:false, it:false, expect:false, Elq:false, jasmine: false, _:false, spyOn: false */
+/* global beforeAll:false, beforeEach:false, describe:false, it:false, expect:false, Elq:false, jasmine: false, _:false, spyOn: false */
 
 "use strict";
 
@@ -30,6 +30,20 @@ function createDummyPlugin(name, make) {
 }
 
 describe("elq", function () {
+    beforeAll(function () {
+        var fixtures = document.createElement("div");
+        fixtures.id = "fixtures";
+        document.body.appendChild(fixtures);
+    });
+
+    beforeEach(function () {
+        var test = document.createElement("div");
+        test.id = "test";
+        var fixtures = document.getElementById("fixtures");
+        fixtures.innerHTML = "";
+        fixtures.appendChild(test);
+    });
+
     describe("Public API", function () {
         it("getName should return the name of the instance", function () {
             var elq = Elq();
@@ -212,6 +226,45 @@ describe("elq", function () {
         //         myOtherPluginInstance.activate.calls.reset();
         //     });
         // });
+
+        describe("breakpointStatesChanged", function () {
+            it("should be triggered sync with the new breakpoint state when activating an element", function () {
+                var elq = Elq();
+                var test = document.getElementById("test");
+                test.style.width = "200px";
+                test.innerHTML = "<div elq-breakpoints elq-breakpoints-widths=\"100px 300px\"></div>";
+                var el = test.children[0];
+
+                var listener = jasmine.createSpy("listener");
+
+                elq.listenTo(el, "breakpointStatesChanged", listener);
+                elq.activate(el);
+
+                expect(listener).toHaveBeenCalledWith(el, {
+                    width: [{
+                        breakpoint: {
+                            dimension: "width",
+                            pixelValue: 100,
+                            value: 100,
+                            type: "px"
+                        },
+                        over: true,
+                        under: false
+                    },
+                    {
+                        breakpoint: {
+                            dimension: "width",
+                            pixelValue: 300,
+                            value: 300,
+                            type: "px"
+                        },
+                        over: false,
+                        under: true
+                    }],
+                    height: []
+                });
+            });
+        });
 
         it("listenTo should be defined", function () {
             var elq = Elq();

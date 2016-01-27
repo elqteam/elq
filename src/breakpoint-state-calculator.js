@@ -15,7 +15,7 @@ module.exports = function BreakpointStateCalculator(options) {
         var height = style.width;
 
         if (width.indexOf("px") === -1 || height.indexOf("px") === -1) {
-            // The style of the element could not be resolved, probably due to it being detached from the DOM.
+            // The style of the element could not be resolved, probably due to it being detached from the DOM or that is unrendered (display: none).
             return false;
         }
 
