@@ -23,38 +23,6 @@ module.exports = function BreakpointParser(options) {
 
     function parseBreakpoints(element) {
         function getBreakpoints(element, dimension) {
-            function getElementFontSizeInPixels(element) {
-                return parseFloat(styleResolver.getComputedStyle(element).fontSize.replace("px", ""));
-            }
-
-            var breakpointPixelValueConverters = {};
-
-            breakpointPixelValueConverters[BP_UNITS.PX] = function (value) {
-                return value;
-            };
-
-            var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same element.
-            breakpointPixelValueConverters[BP_UNITS.REM] = function (value) {
-                function getRootElementFontSize() {
-                    if (!cachedRootFontSize) {
-                        cachedRootFontSize = getElementFontSizeInPixels(document.documentElement);
-                    }
-                    return cachedRootFontSize;
-                }
-                return value * getRootElementFontSize();
-            };
-
-            var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same element.
-            breakpointPixelValueConverters[BP_UNITS.EM] = function (value) {
-                function getElementFontSize() {
-                    if (!cachedElementFontSize) {
-                        cachedElementFontSize = getElementFontSizeInPixels(element);
-                    }
-                    return cachedElementFontSize;
-                }
-                return value * getElementFontSize();
-            };
-
             function getFromMainAttr(element, dimension) {
                 var breakpoints = elementUtils.getAttribute(element, "elq-breakpoints-" + dimension + "s");
 
@@ -80,11 +48,9 @@ module.exports = function BreakpointParser(options) {
                     }
 
                     var value = parseFloat(valueMatch[0]);
-                    var valuePx = breakpointPixelValueConverters[unit](value);
 
                     return {
                         dimension: dimension,
-                        pixelValue: valuePx,
                         value: value,
                         type: unit
                     };
