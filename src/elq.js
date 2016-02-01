@@ -31,7 +31,7 @@ module.exports = function Elq(options) {
     var cycleDetector               = CycleDetector(idHandler);
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
-    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver });
+    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver, reporter: reporter });
     var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 

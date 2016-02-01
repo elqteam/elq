@@ -4,6 +4,7 @@ var forEach = require("./utils").forEach;
 
 module.exports = function BreakpointStateCalculator(options) {
     var styleResolver = options.styleResolver;
+    var reporter = options.reporter;
     var BP_UNITS = {};
     BP_UNITS.PX = "px";
     BP_UNITS.EM = "em";
@@ -48,6 +49,16 @@ module.exports = function BreakpointStateCalculator(options) {
     }
 
     function getBreakpointStates(element, breakpoints) {
+        function cloneBreakpoint(bp) {
+            var o = {};
+            for (var key in bp) {
+                if (bp.hasOwnProperty(key)) {
+                    o[key] = bp[key];
+                }
+            }
+            return o;
+        }
+
         var style = styleResolver.getComputedStyle(element);
         var width = style.width;
         var height = style.width;
@@ -79,7 +90,17 @@ module.exports = function BreakpointStateCalculator(options) {
             var over = false;
             var under = false;
 
-            var pixelValue = breakpoint.hasOwnProperty("pixelValue") ? breakpoint.pixelValue : breakpointPixelValueConverters[breakpoint.type](breakpoint.value, styleCache);
+            // The pixelValue shadows the value attribute, if set.
+            var pixelValue;
+            if (breakpoint.hasOwnProperty("pixelValue")) {
+                pixelValue = breakpoint.pixelValue;
+            } else {
+                var converter = breakpointPixelValueConverters[breakpoint.type];
+                if (!converter) {
+                    reporter.error("Converter not found for breakpoint type '" + breakpoint.type + "'.");
+                }
+                pixelValue = converter(breakpoint.value, styleCache);
+            }
 
             if (elementValue > pixelValue) {
                 over = true;
@@ -87,8 +108,12 @@ module.exports = function BreakpointStateCalculator(options) {
                 under = true;
             }
 
+            // The breakpoint output should always have the pixelValue property.
+            var computedBreakpoint = cloneBreakpoint(breakpoint);
+            computedBreakpoint.pixelValue = pixelValue;
+
             var breakpointState = {
-                breakpoint: breakpoint,
+                breakpoint: computedBreakpoint,
                 over: over,
                 under: under
             };

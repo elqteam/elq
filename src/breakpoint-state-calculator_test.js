@@ -15,11 +15,18 @@ var styleResolver = {
     }
 };
 
+var reporter = {
+    error: function (e) {
+        throw new Error(e);
+    }
+};
+
 describe("BreakpointStateCalculator", function () {
     describe("getBreakpointStates", function () {
         it("should calculate breakpoint states correctly with pixelValue", function () {
             var breakpointStateCalculator = BreakpointStateCalculator({
-                styleResolver: styleResolver
+                styleResolver: styleResolver,
+                reporter: reporter
             });
             var breakpoints = [
                 {
@@ -28,7 +35,8 @@ describe("BreakpointStateCalculator", function () {
                 },
                 {
                     dimension: "width",
-                    pixelValue: 300
+                    value: 300,
+                    type: "px"
                 },
                 {
                     dimension: "width",
@@ -49,34 +57,48 @@ describe("BreakpointStateCalculator", function () {
             expect(breakpointStates.width[0]).toEqual({
                 over: true,
                 under: false,
-                breakpoint: breakpoints[0]
+                breakpoint: {
+                    dimension: "width",
+                    pixelValue: 200
+                }
             });
             expect(breakpointStates.width[1]).toEqual({
                 over: false,
                 under: false,
-                breakpoint: breakpoints[1]
+                breakpoint: {
+                    dimension: "width",
+                    value: 300,
+                    pixelValue: 300,
+                    type: "px"
+                }
             });
             expect(breakpointStates.width[2]).toEqual({
                 over: false,
                 under: true,
-                breakpoint: breakpoints[2]
+                breakpoint: {
+                    dimension: "width",
+                    pixelValue: 400
+                }
             });
         });
 
         it("should calculate breakpoint states correctly for different types", function () {
             var breakpointStateCalculator = BreakpointStateCalculator({
-                styleResolver: styleResolver
+                styleResolver: styleResolver,
+                reporter: reporter
             });
 
             var breakpoints = [
                 {
                     dimension: "width",
                     value: 200,
+                    pixelValue: 200,
                     type: "px"
                 },
                 {
                     dimension: "width",
                     value: 400,
+                    pixelValue: 400,
                     type: "px"
                 },
                 {
@@ -86,12 +108,12 @@ describe("BreakpointStateCalculator", function () {
                 },
                 {
                     dimension: "width",
-                    pixelValue: 16 * 30,
+                    value: 30,
                     type: "em"
                 },
                 {
                     dimension: "width",
-                    pixelValue: 22 * 10,
+                    value: 10,
                     type: "rem"
                 },
                 {
@@ -115,32 +137,60 @@ describe("BreakpointStateCalculator", function () {
             expect(breakpointStates.width[0]).toEqual({
                 over: true,
                 under: false,
-                breakpoint: breakpoints[0]
+                breakpoint: {
+                    dimension: "width",
+                    value: 200,
+                    pixelValue: 200,
+                    type: "px"
+                }
             });
             expect(breakpointStates.width[1]).toEqual({
                 over: false,
                 under: true,
-                breakpoint: breakpoints[1]
+                breakpoint: {
+                    dimension: "width",
+                    value: 400,
+                    pixelValue: 400,
+                    type: "px"
+                }
             });
             expect(breakpointStates.width[2]).toEqual({
                 over: true,
                 under: false,
-                breakpoint: breakpoints[2]
+                breakpoint: {
+                    dimension: "width",
+                    pixelValue: 16 * 15,
+                    type: "em"
+                }
             });
             expect(breakpointStates.width[3]).toEqual({
                 over: false,
                 under: true,
-                breakpoint: breakpoints[3]
+                breakpoint: {
+                    dimension: "width",
+                    value: 30,
+                    type: "em",
+                    pixelValue: 16 * 30
+                }
             });
             expect(breakpointStates.width[4]).toEqual({
                 over: true,
                 under: false,
-                breakpoint: breakpoints[4]
+                breakpoint: {
+                    dimension: "width",
+                    value: 10,
+                    type: "rem",
+                    pixelValue: 22 * 10
+                }
             });
             expect(breakpointStates.width[5]).toEqual({
                 over: false,
                 under: true,
-                breakpoint: breakpoints[5]
+                breakpoint: {
+                    dimension: "width",
+                    pixelValue: 22 * 20,
+                    type: "rem"
+                }
             });
         });
     });

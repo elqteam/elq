@@ -124,6 +124,105 @@ function getOption(options, name, defaultValue) {
 },{}],3:[function(require,module,exports){
 "use strict";
 
+var utils = require("./utils");
+
+module.exports = function batchUpdaterMaker(options) {
+    options = options || {};
+
+    var reporter    = options.reporter;
+    var async       = utils.getOption(options, "async", true);
+    var autoUpdate  = utils.getOption(options, "auto", true);
+
+    if(autoUpdate && !async) {
+        reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
+        async = true;
+    }
+
+    if(!reporter) {
+        throw new Error("Reporter required.");
+    }
+
+    var batchSize = 0;
+    var batch = {};
+    var handler;
+
+    function queueUpdate(element, updater) {
+        if(autoUpdate && async && batchSize === 0) {
+            updateBatchAsync();
+        }
+
+        if(!batch[element]) {
+            batch[element] = [];
+        }
+
+        batch[element].push(updater);
+        batchSize++;
+    }
+
+    function forceUpdateBatch(updateAsync) {
+        if(updateAsync === undefined) {
+            updateAsync = async;
+        }
+
+        if(handler) {
+            cancelFrame(handler);
+            handler = null;
+        }
+
+        if(async) {
+            updateBatchAsync();
+        } else {
+            updateBatch();
+        }
+    }
+
+    function updateBatch() {
+        for(var element in batch) {
+            if(batch.hasOwnProperty(element)) {
+                var updaters = batch[element];
+
+                for(var i = 0; i < updaters.length; i++) {
+                    var updater = updaters[i];
+                    updater();
+                }
+            }
+        }
+        clearBatch();
+    }
+
+    function updateBatchAsync() {
+        handler = requestFrame(function performUpdate() {
+            updateBatch();
+        });
+    }
+
+    function clearBatch() {
+        batchSize = 0;
+        batch = {};
+    }
+
+    function cancelFrame(listener) {
+        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
+        var cancel = window.clearTimeout;
+        return cancel(listener);
+    }
+
+    function requestFrame(callback) {
+        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
+        var raf = function(fn) { return window.setTimeout(fn, 0); };
+        return raf(callback);
+    }
+
+    return {
+        update: queueUpdate,
+        force: forceUpdateBatch
+    };
+};
+},{"./utils":4}],4:[function(require,module,exports){
+arguments[4][2][0].apply(exports,arguments)
+},{"dup":2}],5:[function(require,module,exports){
+"use strict";
+
 var detector = module.exports = {};
 
 detector.isIE = function(version) {
@@ -162,7 +261,7 @@ detector.isLegacyOpera = function() {
     return !!window.opera;
 };
 
-},{}],4:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -183,7 +282,7 @@ utils.forEach = function(collection, callback) {
     }
 };
 
-},{}],5:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 /**
  * Resize detection strategy that injects objects to elements in order to detect resize events.
  * Heavily inspired by: http://www.backalleycoder.com/2013/03/18/cross-browser-event-based-element-resize-detection/
@@ -398,7 +497,7 @@ module.exports = function(options) {
     };
 };
 
-},{"../browser-detector":3}],6:[function(require,module,exports){
+},{"../browser-detector":5}],8:[function(require,module,exports){
 /**
  * Resize detection strategy that injects divs to elements in order to detect resize events on scroll events.
  * Heavily inspired by: https://github.com/marcj/css-element-queries/blob/master/src/ResizeSensor.js
@@ -536,7 +635,7 @@ module.exports = function(options) {
         function isUnrendered(element) {
             // Check the absolute positioned container since the top level container is display: inline.
             var container = getState(element).container.childNodes[0];
-            return getComputedStyle(container).width === "auto";
+            return getComputedStyle(container).width.indexOf("px") === -1; //Can only compute pixel value when rendered.
         }
 
         function renderElement() {
@@ -587,12 +686,12 @@ module.exports = function(options) {
         }
 
         function storeCurrentSize(element, width, height) {
-            element.lastWidth   = width;
-            element.lastHeight  = height;
+            getState(element).lastWidth = width;
+            getState(element).lastHeight  = height;
         }
 
         function getExpandElement(element) {
-            return getState(element).container.childNodes[0].childNodes[0];
+            return getState(element).container.childNodes[0].childNodes[0].childNodes[0];
         }
 
         function getExpandChildElement(element) {
@@ -600,7 +699,7 @@ module.exports = function(options) {
         }
 
         function getShrinkElement(element) {
-            return getState(element).container.childNodes[0].childNodes[1];
+            return getState(element).container.childNodes[0].childNodes[0].childNodes[1];
         }
 
         function getWidthOffset() {
@@ -715,32 +814,45 @@ module.exports = function(options) {
                 rootContainer = injectContainerElement();
             }
 
+            // Due to this WebKit bug https://bugs.webkit.org/show_bug.cgi?id=80808 (currently fixed in Blink, but still present in WebKit browsers such as Safari),
+            // we need to inject two containers, one that is width/height 100% and another that is left/top -1px so that the final container always is 1x1 pixels bigger than
+            // the targeted element.
+            // When the bug is resolved, "containerContainer" may be removed.
+
+            // The outer container can occasionally be less wide than the targeted when inside inline elements element in WebKit (see https://bugs.webkit.org/show_bug.cgi?id=152980).
+            // This should be no problem since the inner container either way makes sure the injected scroll elements are at least 1x1 px.
+
             var scrollbarWidth          = scrollbarSizes.width;
             var scrollbarHeight         = scrollbarSizes.height;
+            var containerContainerStyle = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%; left: 0px; top: 0px;";
             var containerStyle          = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; " + getTopBottomBottomRightCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth);
             var expandStyle             = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
             var shrinkStyle             = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
             var expandChildStyle        = "position: absolute; left: 0; top: 0;";
             var shrinkChildStyle        = "position: absolute; width: 200%; height: 200%;";
 
+            var containerContainer      = document.createElement("div");
             var container               = document.createElement("div");
             var expand                  = document.createElement("div");
             var expandChild             = document.createElement("div");
             var shrink                  = document.createElement("div");
             var shrinkChild             = document.createElement("div");
 
-            container.className         = detectionContainerClass;
-            container.style.cssText     = containerStyle;
-            expand.style.cssText        = expandStyle;
-            expandChild.style.cssText   = expandChildStyle;
-            shrink.style.cssText        = shrinkStyle;
-            shrinkChild.style.cssText   = shrinkChildStyle;
+            containerContainer.style.cssText    = containerContainerStyle;
+            containerContainer.className        = detectionContainerClass;
+            container.className                 = detectionContainerClass;
+            container.style.cssText             = containerStyle;
+            expand.style.cssText                = expandStyle;
+            expandChild.style.cssText           = expandChildStyle;
+            shrink.style.cssText                = shrinkStyle;
+            shrinkChild.style.cssText           = shrinkChildStyle;
 
             expand.appendChild(expandChild);
             shrink.appendChild(shrinkChild);
             container.appendChild(expand);
             container.appendChild(shrink);
-            rootContainer.appendChild(container);
+            containerContainer.appendChild(container);
+            rootContainer.appendChild(containerContainer);
 
             addEvent(expand, "scroll", function onExpandScroll() {
                 getState(element).onExpand && getState(element).onExpand();
@@ -798,6 +910,19 @@ module.exports = function(options) {
                 return !!getState(element).container;
             }
 
+            function notifyListenersIfNeeded() {
+                var state = getState(element);
+                // Don't notify the if the current size is the start size, or if it already has been notified.
+                if ((state.lastWidth !== state.startSize.width && state.lastWidth !== state.lastNotifiedWidth) || (state.lastHeight !== state.startSize.height && state.lastHeight !== state.lastNotifiedHeight)) {
+                    debug("Current size not notified, notifying...");
+                    state.lastNotifiedWidth = state.lastWidth;
+                    state.lastNotifiedHeight = state.lastHeight;
+                    forEach(getState(element).listeners, function (listener) {
+                        listener(element);
+                    });
+                }
+            }
+
             function handleRender() {
                 debug("startanimation triggered.");
 
@@ -811,7 +936,7 @@ module.exports = function(options) {
                 var shrink = getShrinkElement(element);
                 if (expand.scrollLeft === 0 || expand.scrollTop === 0 || shrink.scrollLeft === 0 || shrink.scrollTop === 0) {
                     debug("Scrollbars out of sync. Updating detector elements...");
-                    updateDetectorElements();
+                    updateDetectorElements(notifyListenersIfNeeded);
                 }
             }
 
@@ -829,11 +954,9 @@ module.exports = function(options) {
 
                 if (width !== element.lastWidth || height !== element.lastHeight) {
                     debug("Element size changed.");
-                    updateDetectorElements(function notifyListeners() {
-                        forEach(getState(element).listeners, function (listener) {
-                            listener(element);
-                        });
-                    });
+                    updateDetectorElements(notifyListenersIfNeeded);
+                } else {
+                    debug("Element size has not changed (" + width + "x" + height + ").");
                 }
             }
 
@@ -862,40 +985,11 @@ module.exports = function(options) {
             initListeners();
             storeStartSize();
 
-            batchProcessor.add(-1, storeStyle);
-            batchProcessor.add(0, function decideInstallPath() {
-                if (getState(element).style.widthCSS === "auto" || getState(element).style.heightCSS === "auto") {
-                    debug("Element is either inline or unrendered. Taking slow path...");
-
-                    // Inject the elements since they are needed needed in order to check if the target element is unrendered or not.
-                    injectContainerElement();
-                    injectScrollElements();
-
-                    batchProcessor.add(1, function takeInlineOrUnrenderedPath() {
-                        if (isUnrendered(element)) {
-                            debug("Element is unrendered.");
-                            // TODO: Instead of rendering/unrendering the element, maybe its enough to wait for the element to get rendered with the animationstart event.
-                            batchProcessor.add(2, renderElement);
-                            batchProcessor.add(3, storeStyle);
-                            batchProcessor.add(4, registerListenersAndPositionElements);
-                            batchProcessor.add(5, finalizeDomMutation);
-                            batchProcessor.add(6, unrenderElement);
-                            batchProcessor.add(7, ready);
-                        } else {
-                            debug("Element is inline.");
-                            batchProcessor.add(2, registerListenersAndPositionElements);
-                            batchProcessor.add(3, finalizeDomMutation);
-                            batchProcessor.add(4, ready);
-                        }
-                    });
-                } else {
-                    debug("Installing: normal.");
-                    batchProcessor.add(1, injectScrollElements);
-                    batchProcessor.add(2, registerListenersAndPositionElements);
-                    batchProcessor.add(3, finalizeDomMutation);
-                    batchProcessor.add(4, ready);
-                }
-            });
+            batchProcessor.add(0, storeStyle);
+            batchProcessor.add(1, injectScrollElements);
+            batchProcessor.add(2, registerListenersAndPositionElements);
+            batchProcessor.add(3, finalizeDomMutation);
+            batchProcessor.add(4, ready);
         }
 
         debug("Making detectable...");
@@ -930,7 +1024,7 @@ module.exports = function(options) {
     };
 };
 
-},{"../collection-utils":4}],7:[function(require,module,exports){
+},{"../collection-utils":6}],9:[function(require,module,exports){
 "use strict";
 
 var forEach                 = require("./collection-utils").forEach;
@@ -1103,6 +1197,7 @@ module.exports = function(options) {
             elements = [elements];
         } else if (isCollection(elements)) {
             // Convert collection to array for plugins.
+            // TODO: May want to check so that all the elements in the collection are valid elements.
             elements = toArray(elements);
         } else {
             return reporter.error("Invalid arguments. Must be a DOM element or a collection of DOM elements.");
@@ -1210,7 +1305,7 @@ function getOption(options, name, defaultValue) {
     return value;
 }
 
-},{"./browser-detector":3,"./collection-utils":4,"./detection-strategy/object.js":5,"./detection-strategy/scroll.js":6,"./element-utils":8,"./id-generator":9,"./id-handler":10,"./listener-handler":11,"./reporter":12,"./state-handler":13,"batch-processor":1}],8:[function(require,module,exports){
+},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"./state-handler":15,"batch-processor":1}],10:[function(require,module,exports){
 "use strict";
 
 module.exports = function(options) {
@@ -1263,7 +1358,7 @@ module.exports = function(options) {
     };
 };
 
-},{}],9:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 
 module.exports = function() {
@@ -1283,7 +1378,7 @@ module.exports = function() {
     };
 };
 
-},{}],10:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 
 module.exports = function(options) {
@@ -1327,7 +1422,7 @@ module.exports = function(options) {
     };
 };
 
-},{}],11:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 "use strict";
 
 module.exports = function(idHandler) {
@@ -1383,7 +1478,7 @@ module.exports = function(idHandler) {
     };
 };
 
-},{}],12:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -1420,7 +1515,7 @@ module.exports = function(quiet) {
 
     return reporter;
 };
-},{}],13:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 "use strict";
 
 var prop = "_erd";
@@ -1444,106 +1539,7 @@ module.exports = {
     cleanState: cleanState
 };
 
-},{}],14:[function(require,module,exports){
-"use strict";
-
-var utils = require("./utils");
-
-module.exports = function batchUpdaterMaker(options) {
-    options = options || {};
-
-    var reporter    = options.reporter;
-    var async       = utils.getOption(options, "async", true);
-    var autoUpdate  = utils.getOption(options, "auto", true);
-
-    if(autoUpdate && !async) {
-        reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
-        async = true;
-    }
-
-    if(!reporter) {
-        throw new Error("Reporter required.");
-    }
-
-    var batchSize = 0;
-    var batch = {};
-    var handler;
-
-    function queueUpdate(element, updater) {
-        if(autoUpdate && async && batchSize === 0) {
-            updateBatchAsync();
-        }
-
-        if(!batch[element]) {
-            batch[element] = [];
-        }
-
-        batch[element].push(updater);
-        batchSize++;
-    }
-
-    function forceUpdateBatch(updateAsync) {
-        if(updateAsync === undefined) {
-            updateAsync = async;
-        }
-
-        if(handler) {
-            cancelFrame(handler);
-            handler = null;
-        }
-
-        if(async) {
-            updateBatchAsync();
-        } else {
-            updateBatch();
-        }
-    }
-
-    function updateBatch() {
-        for(var element in batch) {
-            if(batch.hasOwnProperty(element)) {
-                var updaters = batch[element];
-
-                for(var i = 0; i < updaters.length; i++) {
-                    var updater = updaters[i];
-                    updater();
-                }
-            }
-        }
-        clearBatch();
-    }
-
-    function updateBatchAsync() {
-        handler = requestFrame(function performUpdate() {
-            updateBatch();
-        });
-    }
-
-    function clearBatch() {
-        batchSize = 0;
-        batch = {};
-    }
-
-    function cancelFrame(listener) {
-        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
-        var cancel = window.clearTimeout;
-        return cancel(listener);
-    }
-
-    function requestFrame(callback) {
-        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
-        var raf = function(fn) { return window.setTimeout(fn, 0); };
-        return raf(callback);
-    }
-
-    return {
-        update: queueUpdate,
-        force: forceUpdateBatch
-    };
-};
-},{"./utils":15}],15:[function(require,module,exports){
-arguments[4][2][0].apply(exports,arguments)
-},{"dup":2}],16:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -6355,7 +6351,7 @@ module.exports={
     "lodash": "^3.3.1"
   },
   "dependencies": {
-    "element-resize-detector": "^1.0.3",
+    "element-resize-detector": "wnr/element-resize-detector#WIP-1.1.0",
     "batch-updater": "^0.1.0",
     "lodash.filter": "^2.4.1",
     "lodash.isfunction": "^2.4.1",
@@ -6381,18 +6377,67 @@ var forEach = require("./utils").forEach;
 
 module.exports = function BreakpointStateCalculator(options) {
     var styleResolver = options.styleResolver;
+    var reporter = options.reporter;
+    var BP_UNITS = {};
+    BP_UNITS.PX = "px";
+    BP_UNITS.EM = "em";
+    BP_UNITS.REM = "rem";
+
+    function elementStyleCache(element) {
+        function getElementFontSizeInPixels(element) {
+            return parseFloat(styleResolver.getComputedStyle(element).fontSize.replace("px", ""));
+        }
+
+        var cache = {};
+        return {
+            getRootFontSize: function () {
+                if (!cache.rootFontSize) {
+                    cache.rootFontSize = getElementFontSizeInPixels(document.documentElement);
+                }
+                return cache.rootFontSize;
+            },
+            getElementFontSize: function () {
+                if (!cache.elementFontSize) {
+                    cache.elementFontSize = getElementFontSizeInPixels(element);
+                }
+                return cache.elementFontSize;
+            }
+        };
+    }
+
+    var breakpointPixelValueConverters = {
+        px: function (value) {
+            return value;
+        },
+        em: function (value, elementStyleCache) {
+            return value * elementStyleCache.getElementFontSize();
+        },
+        rem: function (value, elementStyleCache) {
+            return value * elementStyleCache.getRootFontSize();
+        }
+    };
 
     function parseSize(size) {
         return parseFloat(size.replace(/px/, ""));
     }
 
     function getBreakpointStates(element, breakpoints) {
+        function cloneBreakpoint(bp) {
+            var o = {};
+            for (var key in bp) {
+                if (bp.hasOwnProperty(key)) {
+                    o[key] = bp[key];
+                }
+            }
+            return o;
+        }
+
         var style = styleResolver.getComputedStyle(element);
         var width = style.width;
         var height = style.width;
 
         if (width.indexOf("px") === -1 || height.indexOf("px") === -1) {
-            // The style of the element could not be resolved, probably due to it being detached from the DOM.
+            // The style of the element could not be resolved, probably due to it being detached from the DOM or that is unrendered (display: none).
             return false;
         }
 
@@ -6409,6 +6454,8 @@ module.exports = function BreakpointStateCalculator(options) {
             height: []
         };
 
+        var styleCache = elementStyleCache(element);
+
         forEach(breakpoints, function (breakpoint) {
             var dimension = breakpoint.dimension;
             var elementValue = dimensionValues[dimension];
@@ -6416,14 +6463,30 @@ module.exports = function BreakpointStateCalculator(options) {
             var over = false;
             var under = false;
 
-            if (elementValue > breakpoint.pixelValue) {
+            // The pixelValue shadows the value attribute, if set.
+            var pixelValue;
+            if (breakpoint.hasOwnProperty("pixelValue")) {
+                pixelValue = breakpoint.pixelValue;
+            } else {
+                var converter = breakpointPixelValueConverters[breakpoint.type];
+                if (!converter) {
+                    reporter.error("Converter not found for breakpoint type '" + breakpoint.type + "'.");
+                }
+                pixelValue = converter(breakpoint.value, styleCache);
+            }
+
+            if (elementValue > pixelValue) {
                 over = true;
-            } else if (elementValue < breakpoint.pixelValue) {
+            } else if (elementValue < pixelValue) {
                 under = true;
             }
 
+            // The breakpoint output should always have the pixelValue property.
+            var computedBreakpoint = cloneBreakpoint(breakpoint);
+            computedBreakpoint.pixelValue = pixelValue;
+
             var breakpointState = {
-                breakpoint: breakpoint,
+                breakpoint: computedBreakpoint,
                 over: over,
                 under: under
             };
@@ -6552,7 +6615,7 @@ module.exports = function Elq(options) {
     var cycleDetector               = CycleDetector(idHandler);
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
-    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver });
+    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver, reporter: reporter });
     var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
 
@@ -6594,6 +6657,7 @@ module.exports = function Elq(options) {
         }
 
         // TODO: This should instead be hashed. Also, maybe there is a more effective way of doing this.
+        // TODO: The problem with this is that if the order changes, then the hash changes.
         var breakpointStatesHash = JSON.stringify(breakpointStates);
 
         if (element.elq.currentBreakpointStatesHash !== breakpointStatesHash) {
@@ -6821,7 +6885,7 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
     return createBatchUpdaterOptionsProxy;
 }
 
-},{"../package.json":72,"./breakpoint-state-calculator":73,"./cycle-detector":74,"./id-generator":77,"./id-handler":78,"./plugin-handler":80,"./plugin/elq-breakpoints/elq-breakpoints.js":82,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":84,"./plugin/elq-mirror/elq-mirror.js":85,"./reporter":86,"./style-resolver":87,"./utils":88,"batch-updater":14,"element-resize-detector":7,"lodash.partial":67,"lodash.uniq":71}],77:[function(require,module,exports){
+},{"../package.json":72,"./breakpoint-state-calculator":73,"./cycle-detector":74,"./id-generator":77,"./id-handler":78,"./plugin-handler":80,"./plugin/elq-breakpoints/elq-breakpoints.js":82,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":84,"./plugin/elq-mirror/elq-mirror.js":85,"./reporter":86,"./style-resolver":87,"./utils":88,"batch-updater":3,"element-resize-detector":9,"lodash.partial":67,"lodash.uniq":71}],77:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -7051,38 +7115,6 @@ module.exports = function BreakpointParser(options) {
 
     function parseBreakpoints(element) {
         function getBreakpoints(element, dimension) {
-            function getElementFontSizeInPixels(element) {
-                return parseFloat(styleResolver.getComputedStyle(element).fontSize.replace("px", ""));
-            }
-
-            var breakpointPixelValueConverters = {};
-
-            breakpointPixelValueConverters[BP_UNITS.PX] = function (value) {
-                return value;
-            };
-
-            var cachedRootFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same element.
-            breakpointPixelValueConverters[BP_UNITS.REM] = function (value) {
-                function getRootElementFontSize() {
-                    if (!cachedRootFontSize) {
-                        cachedRootFontSize = getElementFontSizeInPixels(document.documentElement);
-                    }
-                    return cachedRootFontSize;
-                }
-                return value * getRootElementFontSize();
-            };
-
-            var cachedElementFontSize; // to avoid unnecessarily asking the DOM for the font-size multiple times for the same element.
-            breakpointPixelValueConverters[BP_UNITS.EM] = function (value) {
-                function getElementFontSize() {
-                    if (!cachedElementFontSize) {
-                        cachedElementFontSize = getElementFontSizeInPixels(element);
-                    }
-                    return cachedElementFontSize;
-                }
-                return value * getElementFontSize();
-            };
-
             function getFromMainAttr(element, dimension) {
                 var breakpoints = elementUtils.getAttribute(element, "elq-breakpoints-" + dimension + "s");
 
@@ -7108,11 +7140,9 @@ module.exports = function BreakpointParser(options) {
                     }
 
                     var value = parseFloat(valueMatch[0]);
-                    var valuePx = breakpointPixelValueConverters[unit](value);
 
                     return {
                         dimension: dimension,
-                        pixelValue: valuePx,
                         value: value,
                         type: unit
                     };
