@@ -4,6 +4,44 @@ var forEach = require("./utils").forEach;
 
 module.exports = function BreakpointStateCalculator(options) {
     var styleResolver = options.styleResolver;
+    var BP_UNITS = {};
+    BP_UNITS.PX = "px";
+    BP_UNITS.EM = "em";
+    BP_UNITS.REM = "rem";
+
+    function elementStyleCache(element) {
+        function getElementFontSizeInPixels(element) {
+            return parseFloat(styleResolver.getComputedStyle(element).fontSize.replace("px", ""));
+        }
+
+        var cache = {};
+        return {
+            getRootFontSize: function () {
+                if (!cache.rootFontSize) {
+                    cache.rootFontSize = getElementFontSizeInPixels(document.documentElement);
+                }
+                return cache.rootFontSize;
+            },
+            getElementFontSize: function () {
+                if (!cache.elementFontSize) {
+                    cache.elementFontSize = getElementFontSizeInPixels(element);
+                }
+                return cache.elementFontSize;
+            }
+        };
+    }
+
+    var breakpointPixelValueConverters = {
+        px: function (value) {
+            return value;
+        },
+        em: function (value, elementStyleCache) {
+            return value * elementStyleCache.getElementFontSize();
+        },
+        rem: function (value, elementStyleCache) {
+            return value * elementStyleCache.getRootFontSize();
+        }
+    };
 
     function parseSize(size) {
         return parseFloat(size.replace(/px/, ""));
@@ -32,6 +70,8 @@ module.exports = function BreakpointStateCalculator(options) {
             height: []
         };
 
+        var styleCache = elementStyleCache(element);
+
         forEach(breakpoints, function (breakpoint) {
             var dimension = breakpoint.dimension;
             var elementValue = dimensionValues[dimension];
@@ -39,9 +79,11 @@ module.exports = function BreakpointStateCalculator(options) {
             var over = false;
             var under = false;
 
-            if (elementValue > breakpoint.pixelValue) {
+            var pixelValue = breakpoint.hasOwnProperty("pixelValue") ? breakpoint.pixelValue : breakpointPixelValueConverters[breakpoint.type](breakpoint.value, styleCache);
+
+            if (elementValue > pixelValue) {
                 over = true;
-            } else if (elementValue < breakpoint.pixelValue) {
+            } else if (elementValue < pixelValue) {
                 under = true;
             }
 
