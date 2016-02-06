@@ -70,6 +70,7 @@ describe("elq", function () {
                     expect(elq.reporter).toEqual(jasmine.any(Object));
                     expect(elq.cycleDetector).toEqual(jasmine.any(Object));
                     expect(elq.BatchUpdater).toEqual(jasmine.any(Function));
+                    expect(elq.BatchProcessor).toEqual(jasmine.any(Function));
                     expect(elq.pluginHandler).toEqual(jasmine.any(Object));
                 }
 

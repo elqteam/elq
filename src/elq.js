@@ -1,7 +1,7 @@
 "use strict";
 
 var packageJson                 = require("../package.json");
-var BatchUpdater                = require("batch-updater");
+var BatchProcessor              = require("batch-processor");
 var partial                     = require("lodash.partial");
 var forEach                     = require("./utils").forEach;
 var unique                      = require("lodash.uniq");
@@ -33,9 +33,9 @@ module.exports = function Elq(options) {
     var styleResolver               = StyleResolver();
     var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver, reporter: reporter });
     var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
-    var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
+    var BatchProcessor              = createBatchProcessorConstructorWithDefaultOptions({ reporter: reporter });
 
-    var batchUpdater                = BatchUpdater();
+    var batchProcessor              = BatchProcessor();
     var globalListeners             = {};
 
     function notifyListeners(element, event, args) {
@@ -167,13 +167,13 @@ module.exports = function Elq(options) {
             pluginHandler.callMethods("activate", [element]);
         });
 
-        var manualBatchUpdater = BatchUpdater({ async: false, auto: false });
+        var manualBatchProcessor = BatchProcessor({ async: false, auto: false });
 
         //Before listening to each element (which is a heavy task) it is important to apply the right classes
         //to the elements so that a correct render can occur before the installation.
         forEach(elements, function (element) {
             if (element.elq.updateBreakpoints) {
-                updateBreakpoints(element, manualBatchUpdater);
+                updateBreakpoints(element, manualBatchProcessor);
             }
         });
 
@@ -181,7 +181,7 @@ module.exports = function Elq(options) {
             notifyListeners(element, "resize");
 
             if (element.elq.updateBreakpoints) {
-                updateBreakpoints(element, batchUpdater);
+                updateBreakpoints(element, batchProcessor);
             }
         }
 
@@ -189,14 +189,14 @@ module.exports = function Elq(options) {
             if (element.elq.resizeDetection) {
                 elementResizeDetector.listenTo({
                     callOnAdd: true, // TODO: Shouldn't this be false?
-                    batchUpdater: batchUpdater
+                    batchProcessor: batchProcessor
                 }, element, onElementResizeProxy);
             }
         });
 
         //Force everything currently in the batch to execute synchronously.
         //Important that his is done after the listenToLoop since it reads the DOM style and the batch will write to the DOM.
-        manualBatchUpdater.force();
+        manualBatchProcessor.force();
     }
 
     function listenTo(element, event, callback) {
@@ -247,7 +247,8 @@ module.exports = function Elq(options) {
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.BatchUpdater        = BatchUpdater;
+    elq.BatchUpdater        = BatchProcessor; // Deprecated.
+    elq.BatchProcessor      = BatchProcessor;
     elq.pluginHandler       = pluginHandler;
 
     // Register core plugins
@@ -283,10 +284,10 @@ function copy(o) {
     return c;
 }
 
-function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
+function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     globalOptions = globalOptions || {};
 
-    function createBatchUpdaterOptionsProxy(options) {
+    function createBatchProcessorOptionsProxy(options) {
         options = options || globalOptions;
 
         for (var prop in globalOptions) {
@@ -295,8 +296,8 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
             }
         }
 
-        return BatchUpdater(options);
+        return BatchProcessor(options);
     }
 
-    return createBatchUpdaterOptionsProxy;
+    return createBatchProcessorOptionsProxy;
 }

@@ -14,6 +14,163 @@ module.exports = function batchProcessorMaker(options) {
         asyncProcess = true;
     }
 
+    var batch = Batch();
+    var asyncFrameHandler;
+    var isProcessing = false;
+
+    function addFunction(level, fn) {
+        if(!isProcessing && autoProcess && asyncProcess && batch.size() === 0) {
+            // Since this is async, it is guaranteed to be executed after that the fn is added to the batch.
+            // This needs to be done before, since we're checking the size of the batch to be 0.
+            processBatchAsync();
+        }
+
+        batch.add(level, fn);
+    }
+
+    function processBatch() {
+        // Save the current batch, and create a new batch so that incoming functions are not added into the currently processing batch.
+        // Continue processing until the top-level batch is empty (functions may be added to the new batch while processing, and so on).
+        isProcessing = true;
+        while (batch.size()) {
+            var processingBatch = batch;
+            batch = Batch();
+            processingBatch.process();
+        }
+        isProcessing = false;
+    }
+
+    function forceProcessBatch(localAsyncProcess) {
+        if (isProcessing) {
+            return;
+        }
+
+        if(localAsyncProcess === undefined) {
+            localAsyncProcess = asyncProcess;
+        }
+
+        if(asyncFrameHandler) {
+            cancelFrame(asyncFrameHandler);
+            asyncFrameHandler = null;
+        }
+
+        if(localAsyncProcess) {
+            processBatchAsync();
+        } else {
+            processBatch();
+        }
+    }
+
+    function processBatchAsync() {
+        asyncFrameHandler = requestFrame(processBatch);
+    }
+
+    function clearBatch() {
+        batch           = {};
+        batchSize       = 0;
+        topLevel        = 0;
+        bottomLevel     = 0;
+    }
+
+    function cancelFrame(listener) {
+        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
+        var cancel = clearTimeout;
+        return cancel(listener);
+    }
+
+    function requestFrame(callback) {
+        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
+        var raf = function(fn) { return setTimeout(fn, 0); };
+        return raf(callback);
+    }
+
+    return {
+        add: addFunction,
+        force: forceProcessBatch
+    };
+};
+
+function Batch() {
+    var batch       = {};
+    var size        = 0;
+    var topLevel    = 0;
+    var bottomLevel = 0;
+
+    function add(level, fn) {
+        if(!fn) {
+            fn = level;
+            level = 0;
+        }
+
+        if(level > topLevel) {
+            topLevel = level;
+        } else if(level < bottomLevel) {
+            bottomLevel = level;
+        }
+
+        if(!batch[level]) {
+            batch[level] = [];
+        }
+
+        batch[level].push(fn);
+        size++;
+    }
+
+    function process() {
+        for(var level = bottomLevel; level <= topLevel; level++) {
+            var fns = batch[level];
+
+            for(var i = 0; i < fns.length; i++) {
+                var fn = fns[i];
+                fn();
+            }
+        }
+    }
+
+    function getSize() {
+        return size;
+    }
+
+    return {
+        add: add,
+        process: process,
+        size: getSize
+    };
+}
+
+},{"./utils":2}],2:[function(require,module,exports){
+"use strict";
+
+var utils = module.exports = {};
+
+utils.getOption = getOption;
+
+function getOption(options, name, defaultValue) {
+    var value = options[name];
+
+    if((value === undefined || value === null) && defaultValue !== undefined) {
+        return defaultValue;
+    }
+
+    return value;
+}
+
+},{}],3:[function(require,module,exports){
+"use strict";
+
+var utils = require("./utils");
+
+module.exports = function batchProcessorMaker(options) {
+    options             = options || {};
+    var reporter        = options.reporter;
+    var asyncProcess    = utils.getOption(options, "async", true);
+    var autoProcess     = utils.getOption(options, "auto", true);
+
+    if(autoProcess && !asyncProcess) {
+        reporter && reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
+        asyncProcess = true;
+    }
+
     var batch;
     var batchSize;
     var topLevel;
@@ -102,120 +259,6 @@ module.exports = function batchProcessorMaker(options) {
     return {
         add: addFunction,
         force: forceProcessBatch
-    };
-};
-},{"./utils":2}],2:[function(require,module,exports){
-"use strict";
-
-var utils = module.exports = {};
-
-utils.getOption = getOption;
-
-function getOption(options, name, defaultValue) {
-    var value = options[name];
-
-    if((value === undefined || value === null) && defaultValue !== undefined) {
-        return defaultValue;
-    }
-
-    return value;
-}
-
-},{}],3:[function(require,module,exports){
-"use strict";
-
-var utils = require("./utils");
-
-module.exports = function batchUpdaterMaker(options) {
-    options = options || {};
-
-    var reporter    = options.reporter;
-    var async       = utils.getOption(options, "async", true);
-    var autoUpdate  = utils.getOption(options, "auto", true);
-
-    if(autoUpdate && !async) {
-        reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
-        async = true;
-    }
-
-    if(!reporter) {
-        throw new Error("Reporter required.");
-    }
-
-    var batchSize = 0;
-    var batch = {};
-    var handler;
-
-    function queueUpdate(element, updater) {
-        if(autoUpdate && async && batchSize === 0) {
-            updateBatchAsync();
-        }
-
-        if(!batch[element]) {
-            batch[element] = [];
-        }
-
-        batch[element].push(updater);
-        batchSize++;
-    }
-
-    function forceUpdateBatch(updateAsync) {
-        if(updateAsync === undefined) {
-            updateAsync = async;
-        }
-
-        if(handler) {
-            cancelFrame(handler);
-            handler = null;
-        }
-
-        if(async) {
-            updateBatchAsync();
-        } else {
-            updateBatch();
-        }
-    }
-
-    function updateBatch() {
-        for(var element in batch) {
-            if(batch.hasOwnProperty(element)) {
-                var updaters = batch[element];
-
-                for(var i = 0; i < updaters.length; i++) {
-                    var updater = updaters[i];
-                    updater();
-                }
-            }
-        }
-        clearBatch();
-    }
-
-    function updateBatchAsync() {
-        handler = requestFrame(function performUpdate() {
-            updateBatch();
-        });
-    }
-
-    function clearBatch() {
-        batchSize = 0;
-        batch = {};
-    }
-
-    function cancelFrame(listener) {
-        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
-        var cancel = window.clearTimeout;
-        return cancel(listener);
-    }
-
-    function requestFrame(callback) {
-        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
-        var raf = function(fn) { return window.setTimeout(fn, 0); };
-        return raf(callback);
-    }
-
-    return {
-        update: queueUpdate,
-        force: forceUpdateBatch
     };
 };
 },{"./utils":4}],4:[function(require,module,exports){
@@ -1305,7 +1348,7 @@ function getOption(options, name, defaultValue) {
     return value;
 }
 
-},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"./state-handler":15,"batch-processor":1}],10:[function(require,module,exports){
+},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"./state-handler":15,"batch-processor":3}],10:[function(require,module,exports){
 "use strict";
 
 module.exports = function(options) {
@@ -6352,7 +6395,7 @@ module.exports={
   },
   "dependencies": {
     "element-resize-detector": "wnr/element-resize-detector#WIP-1.1.0",
-    "batch-updater": "^0.1.0",
+    "batch-processor": "^1.0.0",
     "lodash.filter": "^2.4.1",
     "lodash.isfunction": "^2.4.1",
     "lodash.isobject": "^2.4.1",
@@ -6585,7 +6628,7 @@ utils.hasAttribute = function (element, attr) {
 "use strict";
 
 var packageJson                 = require("../package.json");
-var BatchUpdater                = require("batch-updater");
+var BatchProcessor              = require("batch-processor");
 var partial                     = require("lodash.partial");
 var forEach                     = require("./utils").forEach;
 var unique                      = require("lodash.uniq");
@@ -6617,9 +6660,9 @@ module.exports = function Elq(options) {
     var styleResolver               = StyleResolver();
     var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver, reporter: reporter });
     var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
-    var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
+    var BatchProcessor              = createBatchProcessorConstructorWithDefaultOptions({ reporter: reporter });
 
-    var batchUpdater                = BatchUpdater();
+    var batchProcessor              = BatchProcessor();
     var globalListeners             = {};
 
     function notifyListeners(element, event, args) {
@@ -6751,13 +6794,13 @@ module.exports = function Elq(options) {
             pluginHandler.callMethods("activate", [element]);
         });
 
-        var manualBatchUpdater = BatchUpdater({ async: false, auto: false });
+        var manualBatchProcessor = BatchProcessor({ async: false, auto: false });
 
         //Before listening to each element (which is a heavy task) it is important to apply the right classes
         //to the elements so that a correct render can occur before the installation.
         forEach(elements, function (element) {
             if (element.elq.updateBreakpoints) {
-                updateBreakpoints(element, manualBatchUpdater);
+                updateBreakpoints(element, manualBatchProcessor);
             }
         });
 
@@ -6765,7 +6808,7 @@ module.exports = function Elq(options) {
             notifyListeners(element, "resize");
 
             if (element.elq.updateBreakpoints) {
-                updateBreakpoints(element, batchUpdater);
+                updateBreakpoints(element, batchProcessor);
             }
         }
 
@@ -6773,14 +6816,14 @@ module.exports = function Elq(options) {
             if (element.elq.resizeDetection) {
                 elementResizeDetector.listenTo({
                     callOnAdd: true, // TODO: Shouldn't this be false?
-                    batchUpdater: batchUpdater
+                    batchProcessor: batchProcessor
                 }, element, onElementResizeProxy);
             }
         });
 
         //Force everything currently in the batch to execute synchronously.
         //Important that his is done after the listenToLoop since it reads the DOM style and the batch will write to the DOM.
-        manualBatchUpdater.force();
+        manualBatchProcessor.force();
     }
 
     function listenTo(element, event, callback) {
@@ -6831,7 +6874,8 @@ module.exports = function Elq(options) {
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.BatchUpdater        = BatchUpdater;
+    elq.BatchUpdater        = BatchProcessor; // Deprecated.
+    elq.BatchProcessor      = BatchProcessor;
     elq.pluginHandler       = pluginHandler;
 
     // Register core plugins
@@ -6867,10 +6911,10 @@ function copy(o) {
     return c;
 }
 
-function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
+function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     globalOptions = globalOptions || {};
 
-    function createBatchUpdaterOptionsProxy(options) {
+    function createBatchProcessorOptionsProxy(options) {
         options = options || globalOptions;
 
         for (var prop in globalOptions) {
@@ -6879,13 +6923,13 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
             }
         }
 
-        return BatchUpdater(options);
+        return BatchProcessor(options);
     }
 
-    return createBatchUpdaterOptionsProxy;
+    return createBatchProcessorOptionsProxy;
 }
 
-},{"../package.json":72,"./breakpoint-state-calculator":73,"./cycle-detector":74,"./id-generator":77,"./id-handler":78,"./plugin-handler":80,"./plugin/elq-breakpoints/elq-breakpoints.js":82,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":84,"./plugin/elq-mirror/elq-mirror.js":85,"./reporter":86,"./style-resolver":87,"./utils":88,"batch-updater":3,"element-resize-detector":9,"lodash.partial":67,"lodash.uniq":71}],77:[function(require,module,exports){
+},{"../package.json":72,"./breakpoint-state-calculator":73,"./cycle-detector":74,"./id-generator":77,"./id-handler":78,"./plugin-handler":80,"./plugin/elq-breakpoints/elq-breakpoints.js":82,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":84,"./plugin/elq-mirror/elq-mirror.js":85,"./reporter":86,"./style-resolver":87,"./utils":88,"batch-processor":1,"element-resize-detector":9,"lodash.partial":67,"lodash.uniq":71}],77:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
