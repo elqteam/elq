@@ -95,8 +95,8 @@
 
             elq.activate($("[elq]"));
 
-            elq.listenTo(container[0], "resize", updateElement);
-            updateElement(container[0]);
+            elq.listenTo(container, "resize", updateElement);
+            updateElement(container);
 
             container.click(function() {
                 function rand(min, max) {

@@ -108,27 +108,27 @@ module.exports = function Elq(options) {
         return !!(element.elq && element.elq.id);
     }
 
+    function isCollection(obj) {
+        return Array.isArray(obj) || obj.length !== undefined;
+    }
+
+    function toArray(collection) {
+        if (!Array.isArray(collection)) {
+            var array = [];
+            forEach(collection, function (e) {
+                array.push(e);
+            });
+            return array;
+        } else {
+            return collection;
+        }
+    }
+
+    function isElement(obj) {
+        return obj && obj.nodeType === 1;
+    }
+
     function activate(elements) {
-        function isCollection(obj) {
-            return Array.isArray(obj) || obj.length !== undefined;
-        }
-
-        function toArray(collection) {
-            if (!Array.isArray(collection)) {
-                var array = [];
-                forEach(elements, function (element) {
-                    array.push(element);
-                });
-                return array;
-            } else {
-                return collection;
-            }
-        }
-
-        function isElement(obj) {
-            return obj && obj.nodeType === 1;
-        }
-
         if (!elements) {
             return;
         }
@@ -216,6 +216,14 @@ module.exports = function Elq(options) {
         }
 
         if (element) {
+            if (isCollection(element)) {
+                element = element[0]; // To accept jQuery-styled element selector.
+            }
+
+            if (!isElement(element)) {
+                return reporter.error("Invalid arguments. Element must be a DOM element, or a collection of a DOM element.");
+            }
+
             // A local element event listener.
 
             if (!isInited(element)) {
