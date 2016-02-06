@@ -2,7 +2,6 @@
 
 var packageJson                 = require("../package.json");
 var BatchProcessor              = require("batch-processor");
-var partial                     = require("lodash.partial");
 var forEach                     = require("./utils").forEach;
 var unique                      = require("./utils").uniq;
 var ElementResizeDetector       = require("element-resize-detector");
