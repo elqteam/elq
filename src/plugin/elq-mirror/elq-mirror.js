@@ -16,9 +16,9 @@ module.exports = {
     },
     make: function (elq) {
         function mirror(mirrorElement, targetElement) {
-            // Mirror serialization overrides any serializations since a mirror element may have breakpoints as well (that doesn't get serialized).
-            // Therefore, serialization must be disable for mirror elements.
-            mirrorElement.elq.serialize = false;
+            // Mirror applyBreakpointStates overrides any applyBreakpointStates since a mirror element may have breakpoints as well (that doesn't get applied).
+            // Therefore, applyBreakpointStates must be disable for mirror elements.
+            mirrorElement.elq.applyBreakpoints = false;
 
             if (mirrorElement.elq.mirror) {
                 // This element is already mirroring an element.
@@ -37,7 +37,7 @@ module.exports = {
             };
 
             elq.listenTo(targetElement, "breakpointStatesChanged", function mirrorNewBreakpointStates(targetElement, newBreakpointStates) {
-                elq.pluginHandler.callMethods("serializeBreakpointStates", [mirrorElement, newBreakpointStates]);
+                elq.pluginHandler.callMethods("applyBreakpointStates", [mirrorElement, newBreakpointStates]);
             });
         }
 

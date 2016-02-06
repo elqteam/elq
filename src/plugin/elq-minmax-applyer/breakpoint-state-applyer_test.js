@@ -2,12 +2,12 @@
 
 "use strict";
 
-var BreakpointStateSerializer = require("./breakpoint-state-serializer.js");
+var BreakpointStateApplyer = require("./breakpoint-state-applyer.js");
 
-describe("BreakpointStateSerializer", function () {
-    describe("serializeBreakpointStates", function () {
+describe("BreakpointStateApplyer", function () {
+    describe("applyBreakpointStates", function () {
         it("should add classes to an element for the breakpoint states", function () {
-            var breakpointStateSerializer = BreakpointStateSerializer();
+            var breakpointStateApplyer = BreakpointStateApplyer();
 
             var element = {
                 className: ""
@@ -49,7 +49,7 @@ describe("BreakpointStateSerializer", function () {
                 height: []
             };
 
-            breakpointStateSerializer.serializeBreakpointStates(element, breakpointStates);
+            breakpointStateApplyer.applyBreakpointStates(element, breakpointStates);
 
             expect(element.className).toEqual("elq-min-width-300px elq-min-width-10em elq-max-width-20rem");
         });

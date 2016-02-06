@@ -6394,7 +6394,7 @@ module.exports={
     "lodash": "^3.3.1"
   },
   "dependencies": {
-    "element-resize-detector": "wnr/element-resize-detector#WIP-1.1.0",
+    "element-resize-detector": "^1.1.0",
     "batch-processor": "^1.0.0",
     "lodash.filter": "^2.4.1",
     "lodash.isfunction": "^2.4.1",
@@ -6643,7 +6643,7 @@ var StyleResolver               = require("./style-resolver");
 
 // Core plugins
 var elqBreakpoints              = require("./plugin/elq-breakpoints/elq-breakpoints.js");
-var elqMinMaxSerializer         = require("./plugin/elq-minmax-serializer/elq-minmax-serializer.js");
+var elqMinMaxApplyer            = require("./plugin/elq-minmax-applyer/elq-minmax-applyer.js");
 var elqMirror                   = require("./plugin/elq-mirror/elq-mirror.js");
 
 module.exports = function Elq(options) {
@@ -6713,8 +6713,9 @@ module.exports = function Elq(options) {
 
             element.elq.currentBreakpointStatesHash = breakpointStatesHash;
 
-            if (element.elq.serialize) {
-                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]);
+            if (element.elq.applyBreakpoints) {
+                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]); // Deprecated. Will be removed in 1.0.0
+                pluginHandler.callMethods("applyBreakpointStates", [element, breakpointStates]);
             }
 
             notifyListeners(element, "breakpointStatesChanged", [breakpointStates]);
@@ -6884,7 +6885,7 @@ module.exports = function Elq(options) {
         defaultUnit: defaultUnit
     });
 
-    elq.use(elqMinMaxSerializer);
+    elq.use(elqMinMaxApplyer);
     elq.use(elqMirror);
 
     return publicElq;
@@ -6928,7 +6929,7 @@ function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     return createBatchProcessorOptionsProxy;
 }
 
-},{"../package.json":72,"./breakpoint-state-calculator":73,"./cycle-detector":74,"./id-generator":77,"./id-handler":78,"./plugin-handler":80,"./plugin/elq-breakpoints/elq-breakpoints.js":82,"./plugin/elq-minmax-serializer/elq-minmax-serializer.js":84,"./plugin/elq-mirror/elq-mirror.js":85,"./reporter":86,"./style-resolver":87,"./utils":88,"batch-processor":1,"element-resize-detector":9,"lodash.partial":67,"lodash.uniq":71}],77:[function(require,module,exports){
+},{"../package.json":72,"./breakpoint-state-calculator":73,"./cycle-detector":74,"./id-generator":77,"./id-handler":78,"./plugin-handler":80,"./plugin/elq-breakpoints/elq-breakpoints.js":82,"./plugin/elq-minmax-applyer/elq-minmax-applyer.js":84,"./plugin/elq-mirror/elq-mirror.js":85,"./reporter":86,"./style-resolver":87,"./utils":88,"batch-processor":1,"element-resize-detector":9,"lodash.partial":67,"lodash.uniq":71}],77:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -7245,9 +7246,9 @@ module.exports = {
             element.elq.resizeDetection = true;
             element.elq.updateBreakpoints = true;
 
-            // Enable serialization unless some other system explicitly has disabled it.
-            if (element.elq.serialize !== false) {
-                element.elq.serialize = true;
+            // Enable applyBreakpoints unless some other system explicitly has disabled it.
+            if (element.elq.applyBreakpoints !== false) {
+                element.elq.applyBreakpoints = true;
             }
 
             if (elementUtils.getAttribute(element, "elq-breakpoints").indexOf("notcyclic") !== -1) {
@@ -7276,8 +7277,8 @@ module.exports = {
 
 var forEach = require("../../utils").forEach;
 
-module.exports = function BreakpointStateSerializer() {
-    function serializeBreakpointStates(element, breakpointStates) {
+module.exports = function BreakpointStateApplyer() {
+    function applyBreakpointStates(element, breakpointStates) {
         function sortBreakpointStates(breakpointStates) {
             return breakpointStates.sort(function (bp1, bp2) {
                 return bp1.breakpoint.pixelValue - bp2.breakpoint.pixelValue;
@@ -7340,7 +7341,7 @@ module.exports = function BreakpointStateSerializer() {
     }
 
     return {
-        serializeBreakpointStates: serializeBreakpointStates
+        applyBreakpointStates: applyBreakpointStates
     };
 };
 
@@ -7348,7 +7349,7 @@ module.exports = function BreakpointStateSerializer() {
 "use strict";
 
 var packageJson = require("../../../package.json");
-var BreakpointStateSerializer = require("./breakpoint-state-serializer.js");
+var BreakpointStateApplyer = require("./breakpoint-state-applyer.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
 
 module.exports = {
@@ -7362,19 +7363,19 @@ module.exports = {
         return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
     },
     make: function (elq, options) {
-        var breakpointSerializer = BreakpointStateSerializer();
+        var breakpointApplyer = BreakpointStateApplyer();
 
-        function serializeBreakpointStates(element, breakpointStates) {
-            breakpointSerializer.serializeBreakpointStates(element, breakpointStates);
+        function applyBreakpointStates(element, breakpointStates) {
+            breakpointApplyer.applyBreakpointStates(element, breakpointStates);
         }
 
         return {
-            serializeBreakpointStates: serializeBreakpointStates
+            applyBreakpointStates: applyBreakpointStates
         };
     }
 };
 
-},{"../../../package.json":72,"../../style-resolver.js":87,"./breakpoint-state-serializer.js":83}],85:[function(require,module,exports){
+},{"../../../package.json":72,"../../style-resolver.js":87,"./breakpoint-state-applyer.js":83}],85:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
@@ -7393,9 +7394,9 @@ module.exports = {
     },
     make: function (elq) {
         function mirror(mirrorElement, targetElement) {
-            // Mirror serialization overrides any serializations since a mirror element may have breakpoints as well (that doesn't get serialized).
-            // Therefore, serialization must be disable for mirror elements.
-            mirrorElement.elq.serialize = false;
+            // Mirror applyBreakpointStates overrides any applyBreakpointStates since a mirror element may have breakpoints as well (that doesn't get applied).
+            // Therefore, applyBreakpointStates must be disable for mirror elements.
+            mirrorElement.elq.applyBreakpoints = false;
 
             if (mirrorElement.elq.mirror) {
                 // This element is already mirroring an element.
@@ -7414,7 +7415,7 @@ module.exports = {
             };
 
             elq.listenTo(targetElement, "breakpointStatesChanged", function mirrorNewBreakpointStates(targetElement, newBreakpointStates) {
-                elq.pluginHandler.callMethods("serializeBreakpointStates", [mirrorElement, newBreakpointStates]);
+                elq.pluginHandler.callMethods("applyBreakpointStates", [mirrorElement, newBreakpointStates]);
             });
         }
 

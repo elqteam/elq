@@ -2,8 +2,8 @@
 
 var forEach = require("../../utils").forEach;
 
-module.exports = function BreakpointStateSerializer() {
-    function serializeBreakpointStates(element, breakpointStates) {
+module.exports = function BreakpointStateApplyer() {
+    function applyBreakpointStates(element, breakpointStates) {
         function sortBreakpointStates(breakpointStates) {
             return breakpointStates.sort(function (bp1, bp2) {
                 return bp1.breakpoint.pixelValue - bp2.breakpoint.pixelValue;
@@ -66,6 +66,6 @@ module.exports = function BreakpointStateSerializer() {
     }
 
     return {
-        serializeBreakpointStates: serializeBreakpointStates
+        applyBreakpointStates: applyBreakpointStates
     };
 };

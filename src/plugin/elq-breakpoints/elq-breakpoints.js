@@ -33,9 +33,9 @@ module.exports = {
             element.elq.resizeDetection = true;
             element.elq.updateBreakpoints = true;
 
-            // Enable serialization unless some other system explicitly has disabled it.
-            if (element.elq.serialize !== false) {
-                element.elq.serialize = true;
+            // Enable applyBreakpoints unless some other system explicitly has disabled it.
+            if (element.elq.applyBreakpoints !== false) {
+                element.elq.applyBreakpoints = true;
             }
 
             if (elementUtils.getAttribute(element, "elq-breakpoints").indexOf("notcyclic") !== -1) {

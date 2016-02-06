@@ -16,7 +16,7 @@ var StyleResolver               = require("./style-resolver");
 
 // Core plugins
 var elqBreakpoints              = require("./plugin/elq-breakpoints/elq-breakpoints.js");
-var elqMinMaxSerializer         = require("./plugin/elq-minmax-serializer/elq-minmax-serializer.js");
+var elqMinMaxApplyer            = require("./plugin/elq-minmax-applyer/elq-minmax-applyer.js");
 var elqMirror                   = require("./plugin/elq-mirror/elq-mirror.js");
 
 module.exports = function Elq(options) {
@@ -86,8 +86,9 @@ module.exports = function Elq(options) {
 
             element.elq.currentBreakpointStatesHash = breakpointStatesHash;
 
-            if (element.elq.serialize) {
-                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]);
+            if (element.elq.applyBreakpoints) {
+                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]); // Deprecated. Will be removed in 1.0.0
+                pluginHandler.callMethods("applyBreakpointStates", [element, breakpointStates]);
             }
 
             notifyListeners(element, "breakpointStatesChanged", [breakpointStates]);
@@ -257,7 +258,7 @@ module.exports = function Elq(options) {
         defaultUnit: defaultUnit
     });
 
-    elq.use(elqMinMaxSerializer);
+    elq.use(elqMinMaxApplyer);
     elq.use(elqMirror);
 
     return publicElq;
