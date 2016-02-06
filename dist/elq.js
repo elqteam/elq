@@ -6368,7 +6368,7 @@ module.exports={
     "type": "git",
     "url": "git://github.com/elqteam/elq.git"
   },
-  "version": "0.3.6",
+  "version": "0.4.0",
   "private": false,
   "license": "MIT",
   "devDependencies": {
