@@ -42,6 +42,25 @@ module.exports = function (grunt) {
                     }
                 }
             },
+            devWithoutPlugins: {
+                src: ["src/bundle/without-plugins.js"],
+                dest: "build/elq-without-plugins.js",
+                options: {
+                    browserifyOptions: {
+                        standalone: "Elq",
+                        debug: true
+                    }
+                }
+            },
+            distWithoutPlugins: {
+                src: ["src/bundle/without-plugins.js"],
+                dest: "dist/elq-without-plugins.js",
+                options: {
+                    browserifyOptions: {
+                        standalone: "Elq"
+                    }
+                }
+            },
             test: {
                 src: ["test/**/*_test.js", "src/**/*_test.js"],
                 dest: "build/tests.js"
@@ -76,15 +95,19 @@ module.exports = function (grunt) {
             dist: {
                 src: "dist/elq.js",
                 dest: "dist/elq.min.js"
+            },
+            distWithoutPlugins: {
+                src: "dist/elq-without-plugins.js",
+                dest: "dist/elq-without-plugins.min.js"
             }
         }
     };
 
     grunt.initConfig(config);
 
-    grunt.registerTask("build:dev", ["browserify:dev"]);
+    grunt.registerTask("build:dev", ["browserify:dev", "browserify:devWithoutPlugins"]);
     grunt.registerTask("build:test", ["browserify:test"]);
-    grunt.registerTask("build:dist", ["browserify:dist", "uglify:dist"]);
+    grunt.registerTask("build:dist", ["browserify:dist", "browserify:distWithoutPlugins", "uglify"]);
 
     grunt.registerTask("build", ["build:dev", "build:test"]);
     grunt.registerTask("dist", ["build:dist"]);

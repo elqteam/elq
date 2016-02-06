@@ -1,5 +1,5 @@
 "use strict";
 
-var Elq = require("./elq");
+var Elq = require("./bundle/default");
 
 module.exports = Elq;

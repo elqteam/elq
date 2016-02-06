@@ -14,17 +14,11 @@ var CycleDetector               = require("./cycle-detector");
 var BreakpointStateCalculator   = require("./breakpoint-state-calculator");
 var StyleResolver               = require("./style-resolver");
 
-// Core plugins
-var elqBreakpoints              = require("./plugin/elq-breakpoints/elq-breakpoints.js");
-var elqMinMaxApplyer            = require("./plugin/elq-minmax-applyer/elq-minmax-applyer.js");
-var elqMirror                   = require("./plugin/elq-mirror/elq-mirror.js");
-
 module.exports = function Elq(options) {
     options = options || {};
 
     var elq                         = {};
     var reporter                    = options.reporter || Reporter();
-    var defaultUnit                 = options.defaultUnit || "px";
     var cycleDetection              = options.cycleDetection || false;
     var idGenerator                 = IdGenerator();
     var idHandler                   = IdHandler(idGenerator);
@@ -258,16 +252,6 @@ module.exports = function Elq(options) {
     elq.BatchUpdater        = BatchProcessor; // Deprecated. To be removed in 1.0.0
     elq.BatchProcessor      = BatchProcessor;
     elq.pluginHandler       = pluginHandler;
-
-    // Register core plugins
-    // TODO: These should be registered at a higher level, such as index.js so that they can be omitted in a slim build.
-
-    elq.use(elqBreakpoints, {
-        defaultUnit: defaultUnit
-    });
-
-    elq.use(elqMinMaxApplyer);
-    elq.use(elqMirror);
 
     return publicElq;
 };
