@@ -32,10 +32,10 @@ module.exports = function Elq(options) {
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
     var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver, reporter: reporter });
-    var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var BatchProcessor              = createBatchProcessorConstructorWithDefaultOptions({ reporter: reporter });
-
     var batchProcessor              = BatchProcessor();
+    var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll", batchProcessor: batchProcessor });
+
     var globalListeners             = {};
 
     function notifyListeners(element, event, args) {
@@ -188,8 +188,7 @@ module.exports = function Elq(options) {
         forEach(elements, function listenToLoop(element) {
             if (element.elq.resizeDetection) {
                 elementResizeDetector.listenTo({
-                    callOnAdd: true, // TODO: Shouldn't this be false?
-                    batchProcessor: batchProcessor
+                    callOnAdd: true // TODO: Shouldn't this be false?
                 }, element, onElementResizeProxy);
             }
         });

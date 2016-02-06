@@ -6659,10 +6659,10 @@ module.exports = function Elq(options) {
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
     var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver, reporter: reporter });
-    var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
     var BatchProcessor              = createBatchProcessorConstructorWithDefaultOptions({ reporter: reporter });
-
     var batchProcessor              = BatchProcessor();
+    var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll", batchProcessor: batchProcessor });
+
     var globalListeners             = {};
 
     function notifyListeners(element, event, args) {
@@ -6815,8 +6815,7 @@ module.exports = function Elq(options) {
         forEach(elements, function listenToLoop(element) {
             if (element.elq.resizeDetection) {
                 elementResizeDetector.listenTo({
-                    callOnAdd: true, // TODO: Shouldn't this be false?
-                    batchProcessor: batchProcessor
+                    callOnAdd: true // TODO: Shouldn't this be false?
                 }, element, onElementResizeProxy);
             }
         });
@@ -6874,7 +6873,7 @@ module.exports = function Elq(options) {
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.BatchUpdater        = BatchProcessor; // Deprecated.
+    elq.BatchUpdater        = BatchProcessor; // Deprecated. To be removed in 1.0.0
     elq.BatchProcessor      = BatchProcessor;
     elq.pluginHandler       = pluginHandler;
 
