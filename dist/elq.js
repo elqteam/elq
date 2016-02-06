@@ -6670,7 +6670,8 @@ var BreakpointStateCalculator   = require("./breakpoint-state-calculator");
 var StyleResolver               = require("./style-resolver");
 
 module.exports = function Elq(options) {
-    options = options || {};
+    options     = options || {};
+    var debug   = options.debug;
 
     var elq                         = {};
     var reporter                    = options.reporter || Reporter();
@@ -6683,7 +6684,7 @@ module.exports = function Elq(options) {
     var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver, reporter: reporter });
     var BatchProcessor              = createBatchProcessorConstructorWithDefaultOptions({ reporter: reporter });
     var batchProcessor              = BatchProcessor();
-    var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll", batchProcessor: batchProcessor });
+    var elementResizeDetector       = ElementResizeDetector({ debug: debug, idHandler: idHandler, reporter: reporter, strategy: "scroll", batchProcessor: batchProcessor });
 
     var globalListeners             = {};
 
