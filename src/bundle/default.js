@@ -16,7 +16,7 @@ module.exports = function DefaultElq(options) {
     var defaultUnit = options.defaultUnit || "px";
 
     elq.use(elqBreakpoints, {
-        defaultUnit: options.defaultUnit
+        defaultUnit: defaultUnit
     });
 
     elq.use(elqMinMaxApplyer);
