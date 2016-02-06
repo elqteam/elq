@@ -1,7 +1,7 @@
 "use strict";
 
 var packageJson = require("../../../package.json");
-var BreakpointStateSerializer = require("./breakpoint-state-serializer.js");
+var BreakpointStateApplyer = require("./breakpoint-state-applyer.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
 
 module.exports = {
@@ -15,14 +15,14 @@ module.exports = {
         return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
     },
     make: function (elq, options) {
-        var breakpointSerializer = BreakpointStateSerializer();
+        var breakpointApplyer = BreakpointStateApplyer();
 
-        function serializeBreakpointStates(element, breakpointStates) {
-            breakpointSerializer.serializeBreakpointStates(element, breakpointStates);
+        function applyBreakpointStates(element, breakpointStates) {
+            breakpointApplyer.applyBreakpointStates(element, breakpointStates);
         }
 
         return {
-            serializeBreakpointStates: serializeBreakpointStates
+            applyBreakpointStates: applyBreakpointStates
         };
     }
 };

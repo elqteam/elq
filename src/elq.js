@@ -1,7 +1,7 @@
 "use strict";
 
 var packageJson                 = require("../package.json");
-var BatchUpdater                = require("batch-updater");
+var BatchProcessor              = require("batch-processor");
 var partial                     = require("lodash.partial");
 var forEach                     = require("./utils").forEach;
 var unique                      = require("lodash.uniq");
@@ -14,28 +14,23 @@ var CycleDetector               = require("./cycle-detector");
 var BreakpointStateCalculator   = require("./breakpoint-state-calculator");
 var StyleResolver               = require("./style-resolver");
 
-// Core plugins
-var elqBreakpoints              = require("./plugin/elq-breakpoints/elq-breakpoints.js");
-var elqMinMaxSerializer         = require("./plugin/elq-minmax-serializer/elq-minmax-serializer.js");
-var elqMirror                   = require("./plugin/elq-mirror/elq-mirror.js");
-
 module.exports = function Elq(options) {
-    options = options || {};
+    options     = options || {};
+    var debug   = options.debug;
 
     var elq                         = {};
     var reporter                    = options.reporter || Reporter();
-    var defaultUnit                 = options.defaultUnit || "px";
     var cycleDetection              = options.cycleDetection || false;
     var idGenerator                 = IdGenerator();
     var idHandler                   = IdHandler(idGenerator);
     var cycleDetector               = CycleDetector(idHandler);
     var pluginHandler               = PluginHandler(reporter);
     var styleResolver               = StyleResolver();
-    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver });
-    var elementResizeDetector       = ElementResizeDetector({ idHandler: idHandler, reporter: reporter, strategy: "scroll" });
-    var BatchUpdater                = createBatchUpdaterConstructorWithDefaultOptions({ reporter: reporter });
+    var breakpointStateCalculator   = BreakpointStateCalculator({ styleResolver: styleResolver, reporter: reporter });
+    var BatchProcessor              = createBatchProcessorConstructorWithDefaultOptions({ reporter: reporter });
+    var batchProcessor              = BatchProcessor();
+    var elementResizeDetector       = ElementResizeDetector({ debug: debug, idHandler: idHandler, reporter: reporter, strategy: "scroll", batchProcessor: batchProcessor });
 
-    var batchUpdater                = BatchUpdater();
     var globalListeners             = {};
 
     function notifyListeners(element, event, args) {
@@ -73,6 +68,7 @@ module.exports = function Elq(options) {
         }
 
         // TODO: This should instead be hashed. Also, maybe there is a more effective way of doing this.
+        // TODO: The problem with this is that if the order changes, then the hash changes.
         var breakpointStatesHash = JSON.stringify(breakpointStates);
 
         if (element.elq.currentBreakpointStatesHash !== breakpointStatesHash) {
@@ -85,8 +81,9 @@ module.exports = function Elq(options) {
 
             element.elq.currentBreakpointStatesHash = breakpointStatesHash;
 
-            if (element.elq.serialize) {
-                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]);
+            if (element.elq.applyBreakpoints || element.elq.serialize) { // elq.serialize is deprecated. Will be removed in 1.0.0
+                pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]); // Deprecated. Will be removed in 1.0.0
+                pluginHandler.callMethods("applyBreakpointStates", [element, breakpointStates]);
             }
 
             notifyListeners(element, "breakpointStatesChanged", [breakpointStates]);
@@ -106,27 +103,27 @@ module.exports = function Elq(options) {
         return !!(element.elq && element.elq.id);
     }
 
+    function isCollection(obj) {
+        return Array.isArray(obj) || obj.length !== undefined;
+    }
+
+    function toArray(collection) {
+        if (!Array.isArray(collection)) {
+            var array = [];
+            forEach(collection, function (e) {
+                array.push(e);
+            });
+            return array;
+        } else {
+            return collection;
+        }
+    }
+
+    function isElement(obj) {
+        return obj && obj.nodeType === 1;
+    }
+
     function activate(elements) {
-        function isCollection(obj) {
-            return Array.isArray(obj) || obj.length !== undefined;
-        }
-
-        function toArray(collection) {
-            if (!Array.isArray(collection)) {
-                var array = [];
-                forEach(elements, function (element) {
-                    array.push(element);
-                });
-                return array;
-            } else {
-                return collection;
-            }
-        }
-
-        function isElement(obj) {
-            return obj && obj.nodeType === 1;
-        }
-
         if (!elements) {
             return;
         }
@@ -166,13 +163,13 @@ module.exports = function Elq(options) {
             pluginHandler.callMethods("activate", [element]);
         });
 
-        var manualBatchUpdater = BatchUpdater({ async: false, auto: false });
+        var manualBatchProcessor = BatchProcessor({ async: false, auto: false });
 
         //Before listening to each element (which is a heavy task) it is important to apply the right classes
         //to the elements so that a correct render can occur before the installation.
         forEach(elements, function (element) {
             if (element.elq.updateBreakpoints) {
-                updateBreakpoints(element, manualBatchUpdater);
+                updateBreakpoints(element, manualBatchProcessor);
             }
         });
 
@@ -180,22 +177,21 @@ module.exports = function Elq(options) {
             notifyListeners(element, "resize");
 
             if (element.elq.updateBreakpoints) {
-                updateBreakpoints(element, batchUpdater);
+                updateBreakpoints(element, batchProcessor);
             }
         }
 
         forEach(elements, function listenToLoop(element) {
             if (element.elq.resizeDetection) {
                 elementResizeDetector.listenTo({
-                    callOnAdd: true, // TODO: Shouldn't this be false?
-                    batchUpdater: batchUpdater
+                    callOnAdd: true // TODO: Shouldn't this be false?
                 }, element, onElementResizeProxy);
             }
         });
 
         //Force everything currently in the batch to execute synchronously.
         //Important that his is done after the listenToLoop since it reads the DOM style and the batch will write to the DOM.
-        manualBatchUpdater.force();
+        manualBatchProcessor.force();
     }
 
     function listenTo(element, event, callback) {
@@ -215,6 +211,14 @@ module.exports = function Elq(options) {
         }
 
         if (element) {
+            if (isCollection(element)) {
+                element = element[0]; // To accept jQuery-styled element selector.
+            }
+
+            if (!isElement(element)) {
+                return reporter.error("Invalid arguments. Element must be a DOM element, or a collection of a DOM element.");
+            }
+
             // A local element event listener.
 
             if (!isInited(element)) {
@@ -246,18 +250,9 @@ module.exports = function Elq(options) {
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.BatchUpdater        = BatchUpdater;
+    elq.BatchUpdater        = BatchProcessor; // Deprecated. To be removed in 1.0.0
+    elq.BatchProcessor      = BatchProcessor;
     elq.pluginHandler       = pluginHandler;
-
-    // Register core plugins
-    // TODO: These should be registered at a higher level, such as index.js so that they can be omitted in a slim build.
-
-    elq.use(elqBreakpoints, {
-        defaultUnit: defaultUnit
-    });
-
-    elq.use(elqMinMaxSerializer);
-    elq.use(elqMirror);
 
     return publicElq;
 };
@@ -282,10 +277,10 @@ function copy(o) {
     return c;
 }
 
-function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
+function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     globalOptions = globalOptions || {};
 
-    function createBatchUpdaterOptionsProxy(options) {
+    function createBatchProcessorOptionsProxy(options) {
         options = options || globalOptions;
 
         for (var prop in globalOptions) {
@@ -294,8 +289,8 @@ function createBatchUpdaterConstructorWithDefaultOptions(globalOptions) {
             }
         }
 
-        return BatchUpdater(options);
+        return BatchProcessor(options);
     }
 
-    return createBatchUpdaterOptionsProxy;
+    return createBatchProcessorOptionsProxy;
 }
