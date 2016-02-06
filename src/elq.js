@@ -247,7 +247,7 @@ module.exports = function Elq(options) {
     elq.idHandler           = idHandler;
     elq.reporter            = reporter;
     elq.cycleDetector       = cycleDetector;
-    elq.BatchUpdater        = BatchProcessor; // Deprecated.
+    elq.BatchUpdater        = BatchProcessor; // Deprecated. To be removed in 1.0.0
     elq.BatchProcessor      = BatchProcessor;
     elq.pluginHandler       = pluginHandler;
 
