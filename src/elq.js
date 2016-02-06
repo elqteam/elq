@@ -86,7 +86,7 @@ module.exports = function Elq(options) {
 
             element.elq.currentBreakpointStatesHash = breakpointStatesHash;
 
-            if (element.elq.applyBreakpoints) {
+            if (element.elq.applyBreakpoints || element.elq.serialize) { // elq.serialize is deprecated. Will be removed in 1.0.0
                 pluginHandler.callMethods("serializeBreakpointStates", [element, breakpointStates]); // Deprecated. Will be removed in 1.0.0
                 pluginHandler.callMethods("applyBreakpointStates", [element, breakpointStates]);
             }
