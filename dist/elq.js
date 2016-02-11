@@ -158,114 +158,6 @@ function getOption(options, name, defaultValue) {
 },{}],3:[function(require,module,exports){
 "use strict";
 
-var utils = require("./utils");
-
-module.exports = function batchProcessorMaker(options) {
-    options             = options || {};
-    var reporter        = options.reporter;
-    var asyncProcess    = utils.getOption(options, "async", true);
-    var autoProcess     = utils.getOption(options, "auto", true);
-
-    if(autoProcess && !asyncProcess) {
-        reporter && reporter.warn("Invalid options combination. auto=true and async=false is invalid. Setting async=true.");
-        asyncProcess = true;
-    }
-
-    var batch;
-    var batchSize;
-    var topLevel;
-    var bottomLevel;
-
-    clearBatch();
-
-    var asyncFrameHandler;
-
-    function addFunction(level, fn) {
-        if(!fn) {
-            fn = level;
-            level = 0;
-        }
-
-        if(level > topLevel) {
-            topLevel = level;
-        } else if(level < bottomLevel) {
-            bottomLevel = level;
-        }
-
-        if(!batch[level]) {
-            batch[level] = [];
-        }
-
-        if(autoProcess && asyncProcess && batchSize === 0) {
-            processBatchAsync();
-        }
-
-        batch[level].push(fn);
-        batchSize++;
-    }
-
-    function forceProcessBatch(localAsyncProcess) {
-        if(localAsyncProcess === undefined) {
-            localAsyncProcess = asyncProcess;
-        }
-
-        if(asyncFrameHandler) {
-            cancelFrame(asyncFrameHandler);
-            asyncFrameHandler = null;
-        }
-
-        if(localAsyncProcess) {
-            processBatchAsync();
-        } else {
-            processBatch();
-        }
-    }
-
-    function processBatch() {
-        for(var level = bottomLevel; level <= topLevel; level++) {
-            var fns = batch[level];
-
-            for(var i = 0; i < fns.length; i++) {
-                var fn = fns[i];
-                fn();
-            }
-        }
-        clearBatch();
-    }
-
-    function processBatchAsync() {
-        asyncFrameHandler = requestFrame(processBatch);
-    }
-
-    function clearBatch() {
-        batch           = {};
-        batchSize       = 0;
-        topLevel        = 0;
-        bottomLevel     = 0;
-    }
-
-    function cancelFrame(listener) {
-        // var cancel = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.clearTimeout;
-        var cancel = window.clearTimeout;
-        return cancel(listener);
-    }
-
-    function requestFrame(callback) {
-        // var raf = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || function(fn) { return window.setTimeout(fn, 20); };
-        var raf = function(fn) { return window.setTimeout(fn, 0); };
-        return raf(callback);
-    }
-
-    return {
-        add: addFunction,
-        force: forceProcessBatch
-    };
-};
-},{"./utils":4}],4:[function(require,module,exports){
-arguments[4][2][0].apply(exports,arguments)
-},{"dup":2}],5:[function(require,module,exports){
-"use strict";
-
 var detector = module.exports = {};
 
 detector.isIE = function(version) {
@@ -304,7 +196,7 @@ detector.isLegacyOpera = function() {
     return !!window.opera;
 };
 
-},{}],6:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -325,7 +217,7 @@ utils.forEach = function(collection, callback) {
     }
 };
 
-},{}],7:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 /**
  * Resize detection strategy that injects objects to elements in order to detect resize events.
  * Heavily inspired by: http://www.backalleycoder.com/2013/03/18/cross-browser-event-based-element-resize-detection/
@@ -540,7 +432,7 @@ module.exports = function(options) {
     };
 };
 
-},{"../browser-detector":5}],8:[function(require,module,exports){
+},{"../browser-detector":3}],6:[function(require,module,exports){
 /**
  * Resize detection strategy that injects divs to elements in order to detect resize events on scroll events.
  * Heavily inspired by: https://github.com/marcj/css-element-queries/blob/master/src/ResizeSensor.js
@@ -664,7 +556,13 @@ module.exports = function(options) {
             if (options.debug) {
                 var args = Array.prototype.slice.call(arguments);
                 args.unshift(idHandler.get(element), "Scroll: ");
-                reporter.log.apply(null, args);
+                if (reporter.log.apply) {
+                    reporter.log.apply(null, args);
+                } else {
+                    for (var i = 0; i < args.length; i++) {
+                        reporter.log(args[i]);
+                    }
+                }
             }
         }
 
@@ -679,17 +577,6 @@ module.exports = function(options) {
             // Check the absolute positioned container since the top level container is display: inline.
             var container = getState(element).container.childNodes[0];
             return getComputedStyle(container).width.indexOf("px") === -1; //Can only compute pixel value when rendered.
-        }
-
-        function renderElement() {
-            debug("Rendering element");
-            getState(element).previousDisplay = getComputedStyle(element).display;
-            element.style.display = "block";
-        }
-
-        function unrenderElement() {
-            debug("Unrendering element");
-            element.style.display = getState(element).previousDisplay;
         }
 
         function getStyle() {
@@ -783,10 +670,12 @@ module.exports = function(options) {
         }
 
         function addEvent(el, name, cb) {
-            if (el.attachEvent) {
+            if (el.addEventListener) {
+                el.addEventListener(name, cb);
+            } else if(el.attachEvent) {
                 el.attachEvent("on" + name, cb);
             } else {
-                el.addEventListener(name, cb);
+                return reporter.error("[scroll] Don't know how to add event listeners.");
             }
         }
 
@@ -796,7 +685,7 @@ module.exports = function(options) {
             if (!container) {
                 container                   = document.createElement("div");
                 container.className         = detectionContainerClass;
-                container.style.cssText     = "visibility: hidden; display: inline; width: 0px; height: 0px; overflow: none; z-index: -1; overflow: scroll;";
+                container.style.cssText     = "visibility: hidden; display: inline; width: 0px; height: 0px; z-index: -1; overflow: hidden;";
                 getState(element).container = container;
                 addAnimationClass(container);
                 element.appendChild(container);
@@ -867,8 +756,8 @@ module.exports = function(options) {
 
             var scrollbarWidth          = scrollbarSizes.width;
             var scrollbarHeight         = scrollbarSizes.height;
-            var containerContainerStyle = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%; left: 0px; top: 0px;";
-            var containerStyle          = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; " + getTopBottomBottomRightCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth);
+            var containerContainerStyle = "position: absolute; overflow: hidden; z-index: -1; visibility: hidden; width: 100%; height: 100%; left: 0px; top: 0px;";
+            var containerStyle          = "position: absolute; overflow: hidden; z-index: -1; visibility: hidden; " + getTopBottomBottomRightCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth);
             var expandStyle             = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
             var shrinkStyle             = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
             var expandChildStyle        = "position: absolute; left: 0; top: 0;";
@@ -954,16 +843,31 @@ module.exports = function(options) {
             }
 
             function notifyListenersIfNeeded() {
-                var state = getState(element);
-                // Don't notify the if the current size is the start size, or if it already has been notified.
-                if ((state.lastWidth !== state.startSize.width && state.lastWidth !== state.lastNotifiedWidth) || (state.lastHeight !== state.startSize.height && state.lastHeight !== state.lastNotifiedHeight)) {
-                    debug("Current size not notified, notifying...");
-                    state.lastNotifiedWidth = state.lastWidth;
-                    state.lastNotifiedHeight = state.lastHeight;
-                    forEach(getState(element).listeners, function (listener) {
-                        listener(element);
-                    });
+                function isFirstNotify() {
+                    return getState(element).lastNotifiedWidth === undefined;
                 }
+
+                debug("notifyListenersIfNeeded invoked");
+
+                var state = getState(element);
+
+                // Don't notify the if the current size is the start size, and this is the first notification.
+                if (isFirstNotify() && state.lastWidth === state.startSize.width && state.lastHeight === state.startSize.height) {
+                    return debug("Not notifying: Size is the same as the start size, and there has been no notification yet.");
+                }
+
+                // Don't notify if the size already has been notified.
+                if (state.lastWidth === state.lastNotifiedWidth && state.lastHeight === state.lastNotifiedHeight) {
+                    return debug("Not notifying: Size already notified");
+                }
+
+
+                debug("Current size not notified, notifying...");
+                state.lastNotifiedWidth = state.lastWidth;
+                state.lastNotifiedHeight = state.lastHeight;
+                forEach(getState(element).listeners, function (listener) {
+                    listener(element);
+                });
             }
 
             function handleRender() {
@@ -1067,7 +971,7 @@ module.exports = function(options) {
     };
 };
 
-},{"../collection-utils":6}],9:[function(require,module,exports){
+},{"../collection-utils":4}],7:[function(require,module,exports){
 "use strict";
 
 var forEach                 = require("./collection-utils").forEach;
@@ -1157,9 +1061,14 @@ module.exports = function(options) {
         idHandler: idHandler
     };
 
-    if(desiredStrategy === "scroll" && browserDetector.isLegacyOpera()) {
-        reporter.warn("Scroll strategy is not supported on legacy Opera. Changing to object strategy.");
-        desiredStrategy = "object";
+    if(desiredStrategy === "scroll") {
+        if (browserDetector.isLegacyOpera()) {
+            reporter.warn("Scroll strategy is not supported on legacy Opera. Changing to object strategy.");
+            desiredStrategy = "object";
+        } else if (browserDetector.isIE(9)) {
+            reporter.warn("Scroll strategy is not supported on IE9. Changing to object strategy.");
+            desiredStrategy = "object";
+        }
     }
 
     if(desiredStrategy === "scroll") {
@@ -1348,7 +1257,7 @@ function getOption(options, name, defaultValue) {
     return value;
 }
 
-},{"./browser-detector":5,"./collection-utils":6,"./detection-strategy/object.js":7,"./detection-strategy/scroll.js":8,"./element-utils":10,"./id-generator":11,"./id-handler":12,"./listener-handler":13,"./reporter":14,"./state-handler":15,"batch-processor":3}],10:[function(require,module,exports){
+},{"./browser-detector":3,"./collection-utils":4,"./detection-strategy/object.js":5,"./detection-strategy/scroll.js":6,"./element-utils":8,"./id-generator":9,"./id-handler":10,"./listener-handler":11,"./reporter":12,"./state-handler":13,"batch-processor":1}],8:[function(require,module,exports){
 "use strict";
 
 module.exports = function(options) {
@@ -1401,7 +1310,7 @@ module.exports = function(options) {
     };
 };
 
-},{}],11:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 "use strict";
 
 module.exports = function() {
@@ -1421,7 +1330,7 @@ module.exports = function() {
     };
 };
 
-},{}],12:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 "use strict";
 
 module.exports = function(options) {
@@ -1465,7 +1374,7 @@ module.exports = function(options) {
     };
 };
 
-},{}],13:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 "use strict";
 
 module.exports = function(idHandler) {
@@ -1521,7 +1430,7 @@ module.exports = function(idHandler) {
     };
 };
 
-},{}],14:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -1547,7 +1456,14 @@ module.exports = function(quiet) {
             //The proxy is needed to be able to call the method with the console context,
             //since we cannot use bind.
             reporter[name] = function reporterProxy() {
-                console[name].apply(console, arguments);
+                var f = console[name];
+                if (f.apply) { //IE9 does not support console.log.apply :)
+                    f.apply(console, arguments);
+                } else {
+                    for (var i = 0; i < arguments.length; i++) {
+                        f(arguments[i]);
+                    }
+                }
             };
         };
 
@@ -1558,7 +1474,7 @@ module.exports = function(quiet) {
 
     return reporter;
 };
-},{}],15:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 "use strict";
 
 var prop = "_erd";
@@ -1582,7 +1498,7 @@ module.exports = {
     cleanState: cleanState
 };
 
-},{}],16:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1604,7 +1520,7 @@ var objectTypes = {
 
 module.exports = objectTypes;
 
-},{}],17:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1643,7 +1559,7 @@ function isString(value) {
 
 module.exports = isString;
 
-},{}],18:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1672,7 +1588,7 @@ function isFunction(value) {
 
 module.exports = isFunction;
 
-},{}],19:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 /**
  * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
  * Build: `lodash modularize modern exports="npm" -o ./npm/`
@@ -1713,7 +1629,7 @@ function isObject(value) {
 
 module.exports = isObject;
 
-},{"lodash._objecttypes":16}],20:[function(require,module,exports){
+},{"lodash._objecttypes":14}],18:[function(require,module,exports){
 module.exports={
   "name": "elq",
   "description": "Element queries library. Solution to modular responsive components.",
@@ -1761,7 +1677,7 @@ module.exports={
   }
 }
 
-},{}],21:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 "use strict";
 
 var forEach = require("./utils").forEach;
@@ -1893,7 +1809,7 @@ module.exports = function BreakpointStateCalculator(options) {
     };
 };
 
-},{"./utils":37}],22:[function(require,module,exports){
+},{"./utils":35}],20:[function(require,module,exports){
 "use strict";
 
 var Elq = require("../elq");
@@ -1921,7 +1837,7 @@ module.exports = function DefaultElq(options) {
     return elq;
 };
 
-},{"../elq":25,"../plugin/elq-breakpoints/elq-breakpoints.js":31,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":33,"../plugin/elq-mirror/elq-mirror.js":34}],23:[function(require,module,exports){
+},{"../elq":23,"../plugin/elq-breakpoints/elq-breakpoints.js":29,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":31,"../plugin/elq-mirror/elq-mirror.js":32}],21:[function(require,module,exports){
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
@@ -1983,7 +1899,7 @@ module.exports = function CycleDetector(idHandler, options) {
     };
 };
 
-},{}],24:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -2000,7 +1916,7 @@ utils.hasAttribute = function (element, attr) {
     return utils.getAttribute(element, attr) !== null;
 };
 
-},{}],25:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 "use strict";
 
 var packageJson                 = require("../package.json");
@@ -2301,7 +2217,7 @@ function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     return createBatchProcessorOptionsProxy;
 }
 
-},{"../package.json":20,"./breakpoint-state-calculator":21,"./cycle-detector":23,"./id-generator":26,"./id-handler":27,"./plugin-handler":29,"./reporter":35,"./style-resolver":36,"./utils":37,"batch-processor":1,"element-resize-detector":9}],26:[function(require,module,exports){
+},{"../package.json":18,"./breakpoint-state-calculator":19,"./cycle-detector":21,"./id-generator":24,"./id-handler":25,"./plugin-handler":27,"./reporter":33,"./style-resolver":34,"./utils":35,"batch-processor":1,"element-resize-detector":7}],24:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -2321,7 +2237,7 @@ module.exports = function () {
     };
 };
 
-},{}],27:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 "use strict";
 
 module.exports = function (idGenerator) {
@@ -2361,14 +2277,14 @@ module.exports = function (idGenerator) {
     };
 };
 
-},{}],28:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 "use strict";
 
 var Elq = require("./bundle/default");
 
 module.exports = Elq;
 
-},{"./bundle/default":22}],29:[function(require,module,exports){
+},{"./bundle/default":20}],27:[function(require,module,exports){
 "use strict";
 
 var _ = {};
@@ -2510,7 +2426,7 @@ module.exports = function PluginHandler(reporter) {
     };
 };
 
-},{"./utils":37,"lodash.isString":17,"lodash.isfunction":18,"lodash.isobject":19}],30:[function(require,module,exports){
+},{"./utils":35,"lodash.isString":15,"lodash.isfunction":16,"lodash.isobject":17}],28:[function(require,module,exports){
 "use strict";
 
 var BP_UNITS = {};
@@ -2587,7 +2503,7 @@ module.exports = function BreakpointParser(options) {
     };
 };
 
-},{}],31:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -2649,7 +2565,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":20,"../../element-utils.js":24,"../../style-resolver.js":36,"./breakpoint-parser.js":30}],32:[function(require,module,exports){
+},{"../../../package.json":18,"../../element-utils.js":22,"../../style-resolver.js":34,"./breakpoint-parser.js":28}],30:[function(require,module,exports){
 "use strict";
 
 var forEach = require("../../utils").forEach;
@@ -2722,7 +2638,7 @@ module.exports = function BreakpointStateApplyer() {
     };
 };
 
-},{"../../utils":37}],33:[function(require,module,exports){
+},{"../../utils":35}],31:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -2752,7 +2668,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":20,"../../style-resolver.js":36,"./breakpoint-state-applyer.js":32}],34:[function(require,module,exports){
+},{"../../../package.json":18,"../../style-resolver.js":34,"./breakpoint-state-applyer.js":30}],32:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
@@ -2828,7 +2744,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":20,"../../element-utils.js":24}],35:[function(require,module,exports){
+},{"../../../package.json":18,"../../element-utils.js":22}],33:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -2864,7 +2780,7 @@ module.exports = function (quiet) {
     return reporter;
 };
 
-},{}],36:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 "use strict";
 
 module.exports = function StyleResolver() {
@@ -2875,7 +2791,7 @@ module.exports = function StyleResolver() {
     };
 };
 
-},{}],37:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -2922,5 +2838,5 @@ utils.unique = function (collection, hashFunction) {
     return output;
 };
 
-},{}]},{},[28])(28)
+},{}]},{},[26])(26)
 });
