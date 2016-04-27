@@ -1,3 +1,4 @@
+<img alt="ELQ logo" src="http://gergeo.se/images/elq-logo-v1-github.png" width="230">
 # ELQ
 Element queries for modular responsive components.
 
