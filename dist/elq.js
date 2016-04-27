@@ -1638,9 +1638,10 @@ module.exports={
     "type": "git",
     "url": "git://github.com/elqteam/elq.git"
   },
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": false,
   "license": "MIT",
+  "main": "src/index.js",
   "devDependencies": {
     "grunt": "^0.4.5",
     "grunt-banner": "^0.3.1",
