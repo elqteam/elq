@@ -4,7 +4,7 @@ var _ = {};
 
 _.isFunction    = require("lodash.isfunction");
 _.isObject      = require("lodash.isobject");
-_.isString      = require("lodash.isString");
+_.isString      = require("lodash.isstring");
 var forEach     = require("./utils").forEach;
 
 /**
