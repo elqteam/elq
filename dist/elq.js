@@ -291,7 +291,7 @@ module.exports = function(options) {
 
             // The element may not yet be attached to the DOM, and therefore the style object may be empty in some browsers.
             // Since the style object is a reference, it will be updated as soon as the element is attached to the DOM.
-            var style = getComputedStyle(element);
+            var style = window.getComputedStyle(element);
             var width = element.offsetWidth;
             var height = element.offsetHeight;
 
@@ -1500,114 +1500,100 @@ module.exports = {
 
 },{}],14:[function(require,module,exports){
 /**
- * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
- * Build: `lodash modularize modern exports="npm" -o ./npm/`
- * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.5.2 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <http://lodash.com/license>
+ * lodash 3.0.8 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modularize exports="npm" -o ./`
+ * Copyright 2012-2016 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2016 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
  */
 
-/** Used to determine if values are of the language type Object */
-var objectTypes = {
-  'boolean': false,
-  'function': true,
-  'object': true,
-  'number': false,
-  'string': false,
-  'undefined': false
-};
+/** `Object#toString` result references. */
+var funcTag = '[object Function]',
+    genTag = '[object GeneratorFunction]';
 
-module.exports = objectTypes;
-
-},{}],15:[function(require,module,exports){
-/**
- * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
- * Build: `lodash modularize modern exports="npm" -o ./npm/`
- * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.5.2 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <http://lodash.com/license>
- */
-
-/** `Object#toString` result shortcuts */
-var stringClass = '[object String]';
-
-/** Used for native method references */
+/** Used for built-in method references. */
 var objectProto = Object.prototype;
 
-/** Used to resolve the internal [[Class]] of values */
-var toString = objectProto.toString;
+/**
+ * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var objectToString = objectProto.toString;
 
 /**
- * Checks if `value` is a string.
+ * Checks if `value` is classified as a `Function` object.
  *
  * @static
  * @memberOf _
- * @category Objects
+ * @category Lang
  * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if the `value` is a string, else `false`.
- * @example
- *
- * _.isString('fred');
- * // => true
- */
-function isString(value) {
-  return typeof value == 'string' ||
-    value && typeof value == 'object' && toString.call(value) == stringClass || false;
-}
-
-module.exports = isString;
-
-},{}],16:[function(require,module,exports){
-/**
- * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
- * Build: `lodash modularize modern exports="npm" -o ./npm/`
- * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.5.2 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <http://lodash.com/license>
- */
-
-/**
- * Checks if `value` is a function.
- *
- * @static
- * @memberOf _
- * @category Objects
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if the `value` is a function, else `false`.
+ * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
  * @example
  *
  * _.isFunction(_);
  * // => true
+ *
+ * _.isFunction(/abc/);
+ * // => false
  */
 function isFunction(value) {
-  return typeof value == 'function';
+  // The use of `Object#toString` avoids issues with the `typeof` operator
+  // in Safari 8 which returns 'object' for typed array constructors, and
+  // PhantomJS 1.9 which returns 'function' for `NodeList` instances.
+  var tag = isObject(value) ? objectToString.call(value) : '';
+  return tag == funcTag || tag == genTag;
 }
 
-module.exports = isFunction;
-
-},{}],17:[function(require,module,exports){
 /**
- * Lo-Dash 2.4.1 (Custom Build) <http://lodash.com/>
- * Build: `lodash modularize modern exports="npm" -o ./npm/`
- * Copyright 2012-2013 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.5.2 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2013 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <http://lodash.com/license>
- */
-var objectTypes = require('lodash._objecttypes');
-
-/**
- * Checks if `value` is the language type of Object.
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
  * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
  *
  * @static
  * @memberOf _
- * @category Objects
+ * @category Lang
  * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if the `value` is an object, else `false`.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+ * @example
+ *
+ * _.isObject({});
+ * // => true
+ *
+ * _.isObject([1, 2, 3]);
+ * // => true
+ *
+ * _.isObject(_.noop);
+ * // => true
+ *
+ * _.isObject(null);
+ * // => false
+ */
+function isObject(value) {
+  var type = typeof value;
+  return !!value && (type == 'object' || type == 'function');
+}
+
+module.exports = isFunction;
+
+},{}],15:[function(require,module,exports){
+/**
+ * lodash 3.0.2 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modern modularize exports="npm" -o ./`
+ * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/**
+ * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
+ * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is an object, else `false`.
  * @example
  *
  * _.isObject({});
@@ -1620,16 +1606,112 @@ var objectTypes = require('lodash._objecttypes');
  * // => false
  */
 function isObject(value) {
-  // check if the value is the ECMAScript language type of Object
-  // http://es5.github.io/#x8
-  // and avoid a V8 bug
-  // http://code.google.com/p/v8/issues/detail?id=2291
-  return !!(value && objectTypes[typeof value]);
+  // Avoid a V8 JIT bug in Chrome 19-20.
+  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
+  var type = typeof value;
+  return !!value && (type == 'object' || type == 'function');
 }
 
 module.exports = isObject;
 
-},{"lodash._objecttypes":14}],18:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
+/**
+ * lodash 4.0.1 (Custom Build) <https://lodash.com/>
+ * Build: `lodash modularize exports="npm" -o ./`
+ * Copyright 2012-2016 The Dojo Foundation <http://dojofoundation.org/>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright 2009-2016 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ * Available under MIT license <https://lodash.com/license>
+ */
+
+/** `Object#toString` result references. */
+var stringTag = '[object String]';
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/**
+ * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var objectToString = objectProto.toString;
+
+/**
+ * Checks if `value` is classified as an `Array` object.
+ *
+ * @static
+ * @memberOf _
+ * @type Function
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
+ * @example
+ *
+ * _.isArray([1, 2, 3]);
+ * // => true
+ *
+ * _.isArray(document.body.children);
+ * // => false
+ *
+ * _.isArray('abc');
+ * // => false
+ *
+ * _.isArray(_.noop);
+ * // => false
+ */
+var isArray = Array.isArray;
+
+/**
+ * Checks if `value` is object-like. A value is object-like if it's not `null`
+ * and has a `typeof` result of "object".
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+ * @example
+ *
+ * _.isObjectLike({});
+ * // => true
+ *
+ * _.isObjectLike([1, 2, 3]);
+ * // => true
+ *
+ * _.isObjectLike(_.noop);
+ * // => false
+ *
+ * _.isObjectLike(null);
+ * // => false
+ */
+function isObjectLike(value) {
+  return !!value && typeof value == 'object';
+}
+
+/**
+ * Checks if `value` is classified as a `String` primitive or object.
+ *
+ * @static
+ * @memberOf _
+ * @category Lang
+ * @param {*} value The value to check.
+ * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
+ * @example
+ *
+ * _.isString('abc');
+ * // => true
+ *
+ * _.isString(1);
+ * // => false
+ */
+function isString(value) {
+  return typeof value == 'string' ||
+    (!isArray(value) && isObjectLike(value) && objectToString.call(value) == stringTag);
+}
+
+module.exports = isString;
+
+},{}],17:[function(require,module,exports){
 module.exports={
   "name": "elq",
   "description": "Element queries library. Solution to modular responsive components.",
@@ -1638,7 +1720,7 @@ module.exports={
     "type": "git",
     "url": "git://github.com/elqteam/elq.git"
   },
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": false,
   "license": "MIT",
   "main": "src/index.js",
@@ -1667,9 +1749,9 @@ module.exports={
   "dependencies": {
     "element-resize-detector": "^1.1.0",
     "batch-processor": "^1.0.0",
-    "lodash.isfunction": "^2.4.1",
-    "lodash.isobject": "^2.4.1",
-    "lodash.isstring": "^2.4.1"
+    "lodash.isfunction": "^3.0.0",
+    "lodash.isobject": "^3.0.0",
+    "lodash.isstring": "^4.0.0"
   },
   "scripts": {
     "build": "grunt build",
@@ -1678,7 +1760,7 @@ module.exports={
   }
 }
 
-},{}],19:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 "use strict";
 
 var forEach = require("./utils").forEach;
@@ -1810,7 +1892,7 @@ module.exports = function BreakpointStateCalculator(options) {
     };
 };
 
-},{"./utils":35}],20:[function(require,module,exports){
+},{"./utils":34}],19:[function(require,module,exports){
 "use strict";
 
 var Elq = require("../elq");
@@ -1838,7 +1920,7 @@ module.exports = function DefaultElq(options) {
     return elq;
 };
 
-},{"../elq":23,"../plugin/elq-breakpoints/elq-breakpoints.js":29,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":31,"../plugin/elq-mirror/elq-mirror.js":32}],21:[function(require,module,exports){
+},{"../elq":22,"../plugin/elq-breakpoints/elq-breakpoints.js":28,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":30,"../plugin/elq-mirror/elq-mirror.js":31}],20:[function(require,module,exports){
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
@@ -1900,7 +1982,7 @@ module.exports = function CycleDetector(idHandler, options) {
     };
 };
 
-},{}],22:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -1917,7 +1999,7 @@ utils.hasAttribute = function (element, attr) {
     return utils.getAttribute(element, attr) !== null;
 };
 
-},{}],23:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 "use strict";
 
 var packageJson                 = require("../package.json");
@@ -2218,7 +2300,7 @@ function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     return createBatchProcessorOptionsProxy;
 }
 
-},{"../package.json":18,"./breakpoint-state-calculator":19,"./cycle-detector":21,"./id-generator":24,"./id-handler":25,"./plugin-handler":27,"./reporter":33,"./style-resolver":34,"./utils":35,"batch-processor":1,"element-resize-detector":7}],24:[function(require,module,exports){
+},{"../package.json":17,"./breakpoint-state-calculator":18,"./cycle-detector":20,"./id-generator":23,"./id-handler":24,"./plugin-handler":26,"./reporter":32,"./style-resolver":33,"./utils":34,"batch-processor":1,"element-resize-detector":7}],23:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -2238,7 +2320,7 @@ module.exports = function () {
     };
 };
 
-},{}],25:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 "use strict";
 
 module.exports = function (idGenerator) {
@@ -2278,21 +2360,21 @@ module.exports = function (idGenerator) {
     };
 };
 
-},{}],26:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 "use strict";
 
 var Elq = require("./bundle/default");
 
 module.exports = Elq;
 
-},{"./bundle/default":20}],27:[function(require,module,exports){
+},{"./bundle/default":19}],26:[function(require,module,exports){
 "use strict";
 
 var _ = {};
 
 _.isFunction    = require("lodash.isfunction");
 _.isObject      = require("lodash.isobject");
-_.isString      = require("lodash.isString");
+_.isString      = require("lodash.isstring");
 var forEach     = require("./utils").forEach;
 
 /**
@@ -2427,7 +2509,7 @@ module.exports = function PluginHandler(reporter) {
     };
 };
 
-},{"./utils":35,"lodash.isString":15,"lodash.isfunction":16,"lodash.isobject":17}],28:[function(require,module,exports){
+},{"./utils":34,"lodash.isfunction":14,"lodash.isobject":15,"lodash.isstring":16}],27:[function(require,module,exports){
 "use strict";
 
 var BP_UNITS = {};
@@ -2504,7 +2586,7 @@ module.exports = function BreakpointParser(options) {
     };
 };
 
-},{}],29:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -2566,7 +2648,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":18,"../../element-utils.js":22,"../../style-resolver.js":34,"./breakpoint-parser.js":28}],30:[function(require,module,exports){
+},{"../../../package.json":17,"../../element-utils.js":21,"../../style-resolver.js":33,"./breakpoint-parser.js":27}],29:[function(require,module,exports){
 "use strict";
 
 var forEach = require("../../utils").forEach;
@@ -2639,7 +2721,7 @@ module.exports = function BreakpointStateApplyer() {
     };
 };
 
-},{"../../utils":35}],31:[function(require,module,exports){
+},{"../../utils":34}],30:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -2669,7 +2751,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":18,"../../style-resolver.js":34,"./breakpoint-state-applyer.js":30}],32:[function(require,module,exports){
+},{"../../../package.json":17,"../../style-resolver.js":33,"./breakpoint-state-applyer.js":29}],31:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
@@ -2745,7 +2827,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":18,"../../element-utils.js":22}],33:[function(require,module,exports){
+},{"../../../package.json":17,"../../element-utils.js":21}],32:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -2781,7 +2863,7 @@ module.exports = function (quiet) {
     return reporter;
 };
 
-},{}],34:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 "use strict";
 
 module.exports = function StyleResolver() {
@@ -2792,7 +2874,7 @@ module.exports = function StyleResolver() {
     };
 };
 
-},{}],35:[function(require,module,exports){
+},{}],34:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -2839,5 +2921,5 @@ utils.unique = function (collection, hashFunction) {
     return output;
 };
 
-},{}]},{},[26])(26)
+},{}]},{},[25])(25)
 });
