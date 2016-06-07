@@ -54,7 +54,7 @@ The main idea is to annotate elements with breakpoints of interest so that child
 
 When ELQ has processed the element, it will always have two classes, one for each breakpoint, that tells if the size of the element is greater or lesser than each breakpoint. For instance, if the element is 400 pixels wide, the element has the two classes `elq-min-width-300px` and `elq-max-width-500px`. Similarly, if the element is 200 pixels wide the element the classes are instead `elq-max-width-300px` and `elq-max-width-500px`. So for each breakpoint only the `min/max` part changes.
 
-It may seem alien that the classes describe that the width of the element is both maximum 300 and 500 pixels. This is because we have taken a user-centric approach, so that when using the classes in CSS the API is similar to element queries. However, developers are free to change this API at will as `elq` is plugin-based.
+It may seem alien that the classes describe that the width of the element is both maximum 300 and 500 pixels. This is because we have taken a user-centric approach, so that when using the classes in CSS the API is similar to media queries. However, developers are free to change this API at will as `elq` is plugin-based.
 
 Now that we have defined the breakpoints of the element, we can conditionally style it by using the classes:
 
