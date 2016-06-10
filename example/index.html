@@ -72,33 +72,61 @@
         </div>
     </div>
 
-    <script src="../node_modules/jquery/dist/jquery.min.js"></script>
-    <script src="../build/elq.js"></script>
+    <script src="../dist/elq.js"></script>
     <script>
-        $(function() {
-            function updateElement(element) {
-                updateDimensions(element);
-            }
 
-            function updateDimensions(element) {
-                var width = $(element).width();
-                var height = $(element).height();
-                $("#dim-x").html(width);
-                $("#dim-y").html(height);
-            }
+        var updateElement = function(element) {
+            updateDimensions(element);
+        };
 
-            var container = $("#container");
+        var updateDimensions = function(element) {
+            var width = element.offsetWidth;
+            var height = element.offsetHeight;
+
+            console.log(element);
+
+            document.querySelector("#dim-x").innerHTML = width;
+            document.querySelector("#dim-y").innerHTML = height;
+        };
+
+        document.addEventListener("DOMContentLoaded", function(event) {
+
+            // Seting up Elq
+            // ------------------------------
+
+            // 1. Get Elq instance
 
             var elq = new Elq({
-                defaultUnit: "em"
+                defaultUnit: "em" //Let's use ems
             });
 
-            elq.activate($("[elq]"));
+            // 2. Activate elq on all dom-elements which has the elq attribute
+            elq.activate(document.querySelectorAll("[elq]"));
 
+            // 3. DONE! Give your self a high five. :)
+            // ------------------------------
+
+
+            // Leveraging Elq's resize detector
+            // ------------------------------
+
+            // What follows is just an example of how you can take use of Elq's aweomse resize-detector
+            // Let us try it out on the container
+
+            // Get the container
+            var container = document.querySelector("#container");
+
+            // Listen to resize events on the container
             elq.listenTo(container, "resize", updateElement);
+
+            // First update (initial state)
             updateElement(container);
 
-            container.click(function() {
+            // ------------------------------
+
+
+            // Give the container a random size on click
+            container.addEventListener('click', function(event) {
                 function rand(min, max) {
                     return Math.floor(Math.random() * (max - min + 1)) + min;
                 }
@@ -106,10 +134,8 @@
                 var width = rand(30, 90);
                 var height = rand(30, 90);
 
-                $(this).css({
-                    width: width + "%",
-                    height: height + "%"
-                });
+                event.target.style.width = width + "%";
+                event.target.style.height = height + "%";
             });
         });
     </script>
