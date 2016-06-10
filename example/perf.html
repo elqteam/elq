@@ -46,8 +46,7 @@
     <div id="aligner">
     </div>
 
-    <script src="../node_modules/jquery/dist/jquery.min.js"></script>
-    <script src="../build/elq.js"></script>
+    <script src="../dist/elq.js"></script>
     <script>
         var alignerWidth = 100;
 
@@ -58,7 +57,7 @@
                 alignerWidth = 100;
             }
 
-            $("#aligner").width(alignerWidth + "%");
+            document.querySelector("#aligner").style.width = alignerWidth + "%";
 
             console.time("breakpoints updated");
         }
@@ -85,7 +84,7 @@
 
         loopCreateAndAppend(num, createDiv.bind(null, 20), document.getElementById("aligner"));
 
-        $(function onDomReady() {
+        document.addEventListener("DOMContentLoaded", function(event) {
             var elq = Elq();
             var first = true;
             var cnt = 0;
@@ -103,7 +102,8 @@
                     }
                 }
             });
-            elq.activate($("[elq]"));
+            
+            elq.activate(document.querySelectorAll("[elq]"));
         });
     </script>
 </body>
