@@ -6,7 +6,7 @@
     "type": "git",
     "url": "git://github.com/elqteam/elq.git"
   },
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": false,
   "license": "MIT",
   "main": "src/index.js",
