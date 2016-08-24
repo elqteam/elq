@@ -197,6 +197,45 @@ module.exports = function Elq(options) {
         manualBatchProcessor.force();
     }
 
+    function deactivate(elements) {
+        if (!elements) {
+            return;
+        }
+
+        if (isElement(elements)) {
+            // A single element has been passed in.
+            elements = [elements];
+        } else if (isCollection(elements)) {
+            // Convert collection to array for plugins.
+            elements = toArray(elements);
+        } else {
+            return reporter.error("Invalid arguments. Must be a DOM element or a collection of DOM elements.");
+        }
+
+        // Only keep elq elements.
+        elements = elements.filter(function (element) {
+            return element.elq;
+        });
+
+        // Filter out possible duplicates.
+        elements = unique(elements, function (element) {
+            return element.elq.id;
+        });
+
+        forEach(elements, function (element) {
+            // Let plugins deactivate themselves.
+            pluginHandler.callMethods("deactivate", [element]);
+
+            // Uninstall the resize event listener if any.
+            if (element.elq.resizeDetection) {
+                elementResizeDetector.uninstall(element);
+            }
+
+            // Delete the elq data of the element.
+            delete element.elq;
+        });
+    }
+
     function listenTo(element, event, callback) {
         function attachListener(listeners) {
             if (!listeners[event]) {
@@ -244,6 +283,7 @@ module.exports = function Elq(options) {
     elq.use                 = pluginHandler.register.bind(null, elq);
     elq.using               = pluginHandler.isRegistered;
     elq.activate            = activate;
+    elq.deactivate          = deactivate;
     elq.listenTo            = listenTo;
 
     //Create an object copy of the currently attached API methods, that will be exposed as the public API.

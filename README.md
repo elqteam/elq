@@ -126,6 +126,9 @@ Elements may be activated multiple times.
 
 Parameter can be any collection of elements, and also accepts a single element. The are assumed to be ELQ-elements and it is not recommended to activate non-ELQ elements.
 
+### elq.deactivate(elements)
+Deactivates the given collection of elements. This stops all ELQ and plugin systems started by activation.
+
 ### elq.listenTo([element], event, callback)
 Registers a callback to be called for an event of an element. The element parameter is option, and if omitted the callback will be called when the event is emitted for any element.
 
