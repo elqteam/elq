@@ -1618,219 +1618,6 @@ module.exports = {
 };
 
 },{}],14:[function(require,module,exports){
-/**
- * lodash 3.0.8 (Custom Build) <https://lodash.com/>
- * Build: `lodash modularize exports="npm" -o ./`
- * Copyright 2012-2016 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2016 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/** `Object#toString` result references. */
-var funcTag = '[object Function]',
-    genTag = '[object GeneratorFunction]';
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/**
- * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
- * of values.
- */
-var objectToString = objectProto.toString;
-
-/**
- * Checks if `value` is classified as a `Function` object.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
- * @example
- *
- * _.isFunction(_);
- * // => true
- *
- * _.isFunction(/abc/);
- * // => false
- */
-function isFunction(value) {
-  // The use of `Object#toString` avoids issues with the `typeof` operator
-  // in Safari 8 which returns 'object' for typed array constructors, and
-  // PhantomJS 1.9 which returns 'function' for `NodeList` instances.
-  var tag = isObject(value) ? objectToString.call(value) : '';
-  return tag == funcTag || tag == genTag;
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(_.noop);
- * // => true
- *
- * _.isObject(null);
- * // => false
- */
-function isObject(value) {
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-module.exports = isFunction;
-
-},{}],15:[function(require,module,exports){
-/**
- * lodash 3.0.2 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-module.exports = isObject;
-
-},{}],16:[function(require,module,exports){
-/**
- * lodash 4.0.1 (Custom Build) <https://lodash.com/>
- * Build: `lodash modularize exports="npm" -o ./`
- * Copyright 2012-2016 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2016 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/** `Object#toString` result references. */
-var stringTag = '[object String]';
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/**
- * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
- * of values.
- */
-var objectToString = objectProto.toString;
-
-/**
- * Checks if `value` is classified as an `Array` object.
- *
- * @static
- * @memberOf _
- * @type Function
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
- * @example
- *
- * _.isArray([1, 2, 3]);
- * // => true
- *
- * _.isArray(document.body.children);
- * // => false
- *
- * _.isArray('abc');
- * // => false
- *
- * _.isArray(_.noop);
- * // => false
- */
-var isArray = Array.isArray;
-
-/**
- * Checks if `value` is object-like. A value is object-like if it's not `null`
- * and has a `typeof` result of "object".
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
- * @example
- *
- * _.isObjectLike({});
- * // => true
- *
- * _.isObjectLike([1, 2, 3]);
- * // => true
- *
- * _.isObjectLike(_.noop);
- * // => false
- *
- * _.isObjectLike(null);
- * // => false
- */
-function isObjectLike(value) {
-  return !!value && typeof value == 'object';
-}
-
-/**
- * Checks if `value` is classified as a `String` primitive or object.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
- * @example
- *
- * _.isString('abc');
- * // => true
- *
- * _.isString(1);
- * // => false
- */
-function isString(value) {
-  return typeof value == 'string' ||
-    (!isArray(value) && isObjectLike(value) && objectToString.call(value) == stringTag);
-}
-
-module.exports = isString;
-
-},{}],17:[function(require,module,exports){
 module.exports={
   "name": "elq",
   "description": "Element queries library. Solution to modular responsive components.",
@@ -1867,10 +1654,7 @@ module.exports={
   },
   "dependencies": {
     "element-resize-detector": "^1.1.7",
-    "batch-processor": "^1.0.0",
-    "lodash.isfunction": "^3.0.0",
-    "lodash.isobject": "^3.0.0",
-    "lodash.isstring": "^4.0.0"
+    "batch-processor": "^1.0.0"
   },
   "scripts": {
     "build": "grunt build",
@@ -1879,7 +1663,7 @@ module.exports={
   }
 }
 
-},{}],18:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 "use strict";
 
 var forEach = require("./utils").forEach;
@@ -2011,7 +1795,7 @@ module.exports = function BreakpointStateCalculator(options) {
     };
 };
 
-},{"./utils":34}],19:[function(require,module,exports){
+},{"./utils":31}],16:[function(require,module,exports){
 "use strict";
 
 var Elq = require("../elq");
@@ -2039,7 +1823,7 @@ module.exports = function DefaultElq(options) {
     return elq;
 };
 
-},{"../elq":22,"../plugin/elq-breakpoints/elq-breakpoints.js":28,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":30,"../plugin/elq-mirror/elq-mirror.js":31}],20:[function(require,module,exports){
+},{"../elq":19,"../plugin/elq-breakpoints/elq-breakpoints.js":25,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":27,"../plugin/elq-mirror/elq-mirror.js":28}],17:[function(require,module,exports){
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
@@ -2101,7 +1885,7 @@ module.exports = function CycleDetector(idHandler, options) {
     };
 };
 
-},{}],21:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -2118,7 +1902,7 @@ utils.hasAttribute = function (element, attr) {
     return utils.getAttribute(element, attr) !== null;
 };
 
-},{}],22:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 "use strict";
 
 var packageJson                 = require("../package.json");
@@ -2459,7 +2243,7 @@ function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     return createBatchProcessorOptionsProxy;
 }
 
-},{"../package.json":17,"./breakpoint-state-calculator":18,"./cycle-detector":20,"./id-generator":23,"./id-handler":24,"./plugin-handler":26,"./reporter":32,"./style-resolver":33,"./utils":34,"batch-processor":1,"element-resize-detector":7}],23:[function(require,module,exports){
+},{"../package.json":14,"./breakpoint-state-calculator":15,"./cycle-detector":17,"./id-generator":20,"./id-handler":21,"./plugin-handler":23,"./reporter":29,"./style-resolver":30,"./utils":31,"batch-processor":1,"element-resize-detector":7}],20:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -2479,7 +2263,7 @@ module.exports = function () {
     };
 };
 
-},{}],24:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 "use strict";
 
 module.exports = function (idGenerator) {
@@ -2519,21 +2303,16 @@ module.exports = function (idGenerator) {
     };
 };
 
-},{}],25:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 "use strict";
 
 var Elq = require("./bundle/default");
 
 module.exports = Elq;
 
-},{"./bundle/default":19}],26:[function(require,module,exports){
+},{"./bundle/default":16}],23:[function(require,module,exports){
 "use strict";
 
-var _ = {};
-
-_.isFunction    = require("lodash.isfunction");
-_.isObject      = require("lodash.isobject");
-_.isString      = require("lodash.isstring");
 var forEach     = require("./utils").forEach;
 
 /**
@@ -2561,13 +2340,13 @@ module.exports = function PluginHandler(reporter) {
         options = options || {};
 
         function checkPluginMethod(method) {
-            if (!_.isFunction(plugin[method])) {
+            if (!(plugin[method] && plugin[method].call)) {
                 reporter.error("Plugin must provide the " + method + " method. Plugin: ", plugin);
                 throw new Error("Invalid plugin: missing method");
             }
         }
 
-        if (!_.isObject(plugin)) {
+        if (!plugin) {
             reporter.error("Plugin must be an object. Plugin: ", plugin);
             throw new Error("Invalid plugin: not an object");
         }
@@ -2600,9 +2379,9 @@ module.exports = function PluginHandler(reporter) {
      * @returns {boolean} True if the plugin has been registered.
      */
     function isRegistered(plugin) {
-        var name = _.isObject(plugin) ? plugin.getName() : plugin;
+        var name = plugin.getName ? plugin.getName() : plugin;
 
-        if (!_.isString(name)) {
+        if (!name) {
             return false;
         }
 
@@ -2615,7 +2394,7 @@ module.exports = function PluginHandler(reporter) {
      * @returns The plugin object with the given name. Returns null if it doesn't exist.
      */
     function get(plugin) {
-        var name = _.isObject(plugin) ? plugin.getName() : plugin;
+        var name = plugin.getName ? plugin.getName() : plugin;
 
         return plugins[name] || null;
     }
@@ -2628,7 +2407,7 @@ module.exports = function PluginHandler(reporter) {
      */
     function getMethods(method) {
         function filterer(plugin) {
-            return _.isFunction(plugin[method]);
+            return plugin[method];
         }
 
         function mapper(plugin) {
@@ -2668,7 +2447,7 @@ module.exports = function PluginHandler(reporter) {
     };
 };
 
-},{"./utils":34,"lodash.isfunction":14,"lodash.isobject":15,"lodash.isstring":16}],27:[function(require,module,exports){
+},{"./utils":31}],24:[function(require,module,exports){
 "use strict";
 
 var BP_UNITS = {};
@@ -2745,7 +2524,7 @@ module.exports = function BreakpointParser(options) {
     };
 };
 
-},{}],28:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -2807,7 +2586,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":17,"../../element-utils.js":21,"../../style-resolver.js":33,"./breakpoint-parser.js":27}],29:[function(require,module,exports){
+},{"../../../package.json":14,"../../element-utils.js":18,"../../style-resolver.js":30,"./breakpoint-parser.js":24}],26:[function(require,module,exports){
 "use strict";
 
 var forEach = require("../../utils").forEach;
@@ -2880,7 +2659,7 @@ module.exports = function BreakpointStateApplyer() {
     };
 };
 
-},{"../../utils":34}],30:[function(require,module,exports){
+},{"../../utils":31}],27:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -2910,7 +2689,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":17,"../../style-resolver.js":33,"./breakpoint-state-applyer.js":29}],31:[function(require,module,exports){
+},{"../../../package.json":14,"../../style-resolver.js":30,"./breakpoint-state-applyer.js":26}],28:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
@@ -2986,7 +2765,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":17,"../../element-utils.js":21}],32:[function(require,module,exports){
+},{"../../../package.json":14,"../../element-utils.js":18}],29:[function(require,module,exports){
 "use strict";
 
 /* global console: false */
@@ -3022,7 +2801,7 @@ module.exports = function (quiet) {
     return reporter;
 };
 
-},{}],33:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 "use strict";
 
 module.exports = function StyleResolver() {
@@ -3033,7 +2812,7 @@ module.exports = function StyleResolver() {
     };
 };
 
-},{}],34:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};
@@ -3080,5 +2859,5 @@ utils.unique = function (collection, hashFunction) {
     return output;
 };
 
-},{}]},{},[25])(25)
+},{}]},{},[22])(22)
 });

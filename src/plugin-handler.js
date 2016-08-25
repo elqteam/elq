@@ -1,10 +1,5 @@
 "use strict";
 
-var _ = {};
-
-_.isFunction    = require("lodash.isfunction");
-_.isObject      = require("lodash.isobject");
-_.isString      = require("lodash.isstring");
 var forEach     = require("./utils").forEach;
 
 /**
@@ -32,13 +27,13 @@ module.exports = function PluginHandler(reporter) {
         options = options || {};
 
         function checkPluginMethod(method) {
-            if (!_.isFunction(plugin[method])) {
+            if (!(plugin[method] && plugin[method].call)) {
                 reporter.error("Plugin must provide the " + method + " method. Plugin: ", plugin);
                 throw new Error("Invalid plugin: missing method");
             }
         }
 
-        if (!_.isObject(plugin)) {
+        if (!plugin) {
             reporter.error("Plugin must be an object. Plugin: ", plugin);
             throw new Error("Invalid plugin: not an object");
         }
@@ -71,9 +66,9 @@ module.exports = function PluginHandler(reporter) {
      * @returns {boolean} True if the plugin has been registered.
      */
     function isRegistered(plugin) {
-        var name = _.isObject(plugin) ? plugin.getName() : plugin;
+        var name = plugin.getName ? plugin.getName() : plugin;
 
-        if (!_.isString(name)) {
+        if (!name) {
             return false;
         }
 
@@ -86,7 +81,7 @@ module.exports = function PluginHandler(reporter) {
      * @returns The plugin object with the given name. Returns null if it doesn't exist.
      */
     function get(plugin) {
-        var name = _.isObject(plugin) ? plugin.getName() : plugin;
+        var name = plugin.getName ? plugin.getName() : plugin;
 
         return plugins[name] || null;
     }
@@ -99,7 +94,7 @@ module.exports = function PluginHandler(reporter) {
      */
     function getMethods(method) {
         function filterer(plugin) {
-            return _.isFunction(plugin[method]);
+            return plugin[method];
         }
 
         function mapper(plugin) {
