@@ -1626,7 +1626,7 @@ module.exports={
     "type": "git",
     "url": "git://github.com/elqteam/elq.git"
   },
-  "version": "0.4.5",
+  "version": "0.4.6",
   "private": false,
   "license": "MIT",
   "main": "src/index.js",
