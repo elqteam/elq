@@ -1,5 +1,7 @@
 <img alt="ELQ logo" src="http://gergeo.se/images/elq-logo-v1-github.png" width="230">
+
 # ELQ
+
 Element queries for modular responsive components.
 
 File size is a bit big at the moment (237 KB, 16 KB minified + gzip). In the future, we will remove the lodash dependency, reducing the size to something like (70 KB, 6 KB minified + gzip).
