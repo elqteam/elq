@@ -2,9 +2,9 @@
 # ELQ
 Element queries for modular responsive components.
 
-**ELQ is currently in beta.** Therefore, API changes may occur frequently. We really appreciate feedback such as GitHub issues and pull requests.
-
 File size is a bit big at the moment (237 KB, 16 KB minified + gzip). In the future, we will remove the lodash dependency, reducing the size to something like (70 KB, 6 KB minified + gzip).
+
+Big thanks to [Evry](http://evry.com/) sponsoring the project.
 
 ## Why Element Queries?
 
@@ -17,7 +17,7 @@ Otherwise, move on and come back another time :)
 Since element queries have not been standardized (and not implemented in browsers), developers need to resort to JavaScript to provide element queries.
 There are numerous libraries that enable element queries in different ways, but here are the main selling points to why we believe ELQ is the best solution:
 
-- Super-fast element resize detection
+- Optimized element resize detection
 - Extensibility through plugins
 - batch processed updates of elements breakpoint states (to avoid layout thrashing).
 - Compatibility with browsers (IE8+, Opera 12+, etc).
