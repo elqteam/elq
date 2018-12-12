@@ -706,9 +706,15 @@ module.exports = function(options) {
                 addAnimationClass(container);
                 element.appendChild(container);
 
-                addEvent(container, "animationstart", function onAnimationStart () {
+                var onAnimationStart = function () {
                     getState(element).onRendered && getState(element).onRendered();
-                });
+                };
+
+                addEvent(container, "animationstart", onAnimationStart);
+
+                // Store the event handler here so that they may be removed when uninstall is called.
+                // See uninstall function for an explanation why it is needed.
+                getState(element).onAnimationStart = onAnimationStart;
             }
 
             return container;
@@ -823,7 +829,7 @@ module.exports = function(options) {
             addEvent(shrink, "scroll", onShrinkScroll);
 
             // Store the event handlers here so that they may be removed when uninstall is called.
-            // Se uninstall function for an explanation why it is needed.
+            // See uninstall function for an explanation why it is needed.
             getState(element).onExpandScroll = onExpandScroll;
             getState(element).onShrinkScroll = onShrinkScroll;
         }
@@ -1028,18 +1034,18 @@ module.exports = function(options) {
             return;
         }
 
-        if (state.busy) {
-            // Uninstall has been called while the element is being prepared.
-            // Right between the sync code and async batch.
-            // So no elements have been injected, and no event handlers have been registered.
-            return;
-        }
+        // Uninstall may have been called in the following scenarios:
+        // (1) Right between the sync code and async batch (here state.busy = true, but nothing have been registered or injected).
+        // (2) In the ready callback of the last level of the batch by another element (here, state.busy = true, but all the stuff has been injected).
+        // (3) After the installation process (here, state.busy = false and all the stuff has been injected).
+        // So to be on the safe side, let's check for each thing before removing.
 
         // We need to remove the event listeners, because otherwise the event might fire on an uninstall element which results in an error when trying to get the state of the element.
-        removeEvent(getExpandElement(element), "scroll", state.onExpandScroll);
-        removeEvent(getShrinkElement(element), "scroll", state.onShrinkScroll);
+        state.onExpandScroll && removeEvent(getExpandElement(element), "scroll", state.onExpandScroll);
+        state.onShrinkScroll && removeEvent(getShrinkElement(element), "scroll", state.onShrinkScroll);
+        state.onAnimationStart && removeEvent(state.container, "animationstart", state.onAnimationStart);
 
-        element.removeChild(state.container);
+        state.container && element.removeChild(state.container);
     }
 
     return {
@@ -1122,7 +1128,7 @@ module.exports = function(options) {
         // To maintain compatability with idHandler.get(element, readonly), make sure to wrap the given idHandler
         // so that readonly flag always is true when it's used here. This may be removed next major version bump.
         idHandler = {
-            get: function (element) { options.idHandler.get(element, true); },
+            get: function (element) { return options.idHandler.get(element, true); },
             set: options.idHandler.set
         };
     } else {
@@ -1184,7 +1190,7 @@ module.exports = function(options) {
         throw new Error("Invalid strategy name: " + desiredStrategy);
     }
 
-    //Calls can be made to listenTo with elements that are still are being installed.
+    //Calls can be made to listenTo with elements that are still being installed.
     //Also, same elements can occur in the elements list in the listenTo function.
     //With this map, the ready callbacks can be synchronized between the calls
     //so that the ready callback can always be called when an element is ready - even if
@@ -1290,10 +1296,12 @@ module.exports = function(options) {
                         // Since the element size might have changed since the call to "listenTo", we need to check for this change,
                         // so that a resize event may be emitted.
                         // Having the startSize object is optional (since it does not make sense in some cases such as unrendered elements), so check for its existance before.
-                        if (stateHandler.getState(element).startSize) {
+                        // Also, check the state existance before since the element may have been uninstalled in the installation process.
+                        var state = stateHandler.getState(element);
+                        if (state && state.startSize) {
                             var width = element.offsetWidth;
                             var height = element.offsetHeight;
-                            if (stateHandler.getState(element).startSize.width !== width || stateHandler.getState(element).startSize.height !== height) {
+                            if (state.startSize.width !== width || state.startSize.height !== height) {
                                 onResizeCallback(element);
                             }
                         }
@@ -1506,7 +1514,13 @@ module.exports = function(idHandler) {
      * @returns All listeners for the given element.
      */
     function getListeners(element) {
-        return eventListeners[idHandler.get(element)] || [];
+        var id = idHandler.get(element);
+
+        if (id === undefined) {
+            return [];
+        }
+
+        return eventListeners[id] || [];
     }
 
     /**
@@ -1536,7 +1550,7 @@ module.exports = function(idHandler) {
     }
 
     function removeAllListeners(element) {
-      var listeners = eventListeners[idHandler.get(element)];
+      var listeners = getListeners(element);
       if (!listeners) { return; }
       listeners.length = 0;
     }

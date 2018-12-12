@@ -706,9 +706,15 @@ module.exports = function(options) {
                 addAnimationClass(container);
                 element.appendChild(container);
 
-                addEvent(container, "animationstart", function onAnimationStart () {
+                var onAnimationStart = function () {
                     getState(element).onRendered && getState(element).onRendered();
-                });
+                };
+
+                addEvent(container, "animationstart", onAnimationStart);
+
+                // Store the event handler here so that they may be removed when uninstall is called.
+                // See uninstall function for an explanation why it is needed.
+                getState(element).onAnimationStart = onAnimationStart;
             }
 
             return container;
@@ -823,7 +829,7 @@ module.exports = function(options) {
             addEvent(shrink, "scroll", onShrinkScroll);
 
             // Store the event handlers here so that they may be removed when uninstall is called.
-            // Se uninstall function for an explanation why it is needed.
+            // See uninstall function for an explanation why it is needed.
             getState(element).onExpandScroll = onExpandScroll;
             getState(element).onShrinkScroll = onShrinkScroll;
         }
@@ -1028,18 +1034,18 @@ module.exports = function(options) {
             return;
         }
 
-        if (state.busy) {
-            // Uninstall has been called while the element is being prepared.
-            // Right between the sync code and async batch.
-            // So no elements have been injected, and no event handlers have been registered.
-            return;
-        }
+        // Uninstall may have been called in the following scenarios:
+        // (1) Right between the sync code and async batch (here state.busy = true, but nothing have been registered or injected).
+        // (2) In the ready callback of the last level of the batch by another element (here, state.busy = true, but all the stuff has been injected).
+        // (3) After the installation process (here, state.busy = false and all the stuff has been injected).
+        // So to be on the safe side, let's check for each thing before removing.
 
         // We need to remove the event listeners, because otherwise the event might fire on an uninstall element which results in an error when trying to get the state of the element.
-        removeEvent(getExpandElement(element), "scroll", state.onExpandScroll);
-        removeEvent(getShrinkElement(element), "scroll", state.onShrinkScroll);
+        state.onExpandScroll && removeEvent(getExpandElement(element), "scroll", state.onExpandScroll);
+        state.onShrinkScroll && removeEvent(getShrinkElement(element), "scroll", state.onShrinkScroll);
+        state.onAnimationStart && removeEvent(state.container, "animationstart", state.onAnimationStart);
 
-        element.removeChild(state.container);
+        state.container && element.removeChild(state.container);
     }
 
     return {
@@ -1122,7 +1128,7 @@ module.exports = function(options) {
         // To maintain compatability with idHandler.get(element, readonly), make sure to wrap the given idHandler
         // so that readonly flag always is true when it's used here. This may be removed next major version bump.
         idHandler = {
-            get: function (element) { options.idHandler.get(element, true); },
+            get: function (element) { return options.idHandler.get(element, true); },
             set: options.idHandler.set
         };
     } else {
@@ -1184,7 +1190,7 @@ module.exports = function(options) {
         throw new Error("Invalid strategy name: " + desiredStrategy);
     }
 
-    //Calls can be made to listenTo with elements that are still are being installed.
+    //Calls can be made to listenTo with elements that are still being installed.
     //Also, same elements can occur in the elements list in the listenTo function.
     //With this map, the ready callbacks can be synchronized between the calls
     //so that the ready callback can always be called when an element is ready - even if
@@ -1290,10 +1296,12 @@ module.exports = function(options) {
                         // Since the element size might have changed since the call to "listenTo", we need to check for this change,
                         // so that a resize event may be emitted.
                         // Having the startSize object is optional (since it does not make sense in some cases such as unrendered elements), so check for its existance before.
-                        if (stateHandler.getState(element).startSize) {
+                        // Also, check the state existance before since the element may have been uninstalled in the installation process.
+                        var state = stateHandler.getState(element);
+                        if (state && state.startSize) {
                             var width = element.offsetWidth;
                             var height = element.offsetHeight;
-                            if (stateHandler.getState(element).startSize.width !== width || stateHandler.getState(element).startSize.height !== height) {
+                            if (state.startSize.width !== width || state.startSize.height !== height) {
                                 onResizeCallback(element);
                             }
                         }
@@ -1506,7 +1514,13 @@ module.exports = function(idHandler) {
      * @returns All listeners for the given element.
      */
     function getListeners(element) {
-        return eventListeners[idHandler.get(element)] || [];
+        var id = idHandler.get(element);
+
+        if (id === undefined) {
+            return [];
+        }
+
+        return eventListeners[id] || [];
     }
 
     /**
@@ -1536,7 +1550,7 @@ module.exports = function(idHandler) {
     }
 
     function removeAllListeners(element) {
-      var listeners = eventListeners[idHandler.get(element)];
+      var listeners = getListeners(element);
       if (!listeners) { return; }
       listeners.length = 0;
     }
@@ -1795,7 +1809,7 @@ module.exports = function BreakpointStateCalculator(options) {
     };
 };
 
-},{"./utils":31}],16:[function(require,module,exports){
+},{"./utils":32}],16:[function(require,module,exports){
 "use strict";
 
 var Elq = require("../elq");
@@ -1804,6 +1818,7 @@ var Elq = require("../elq");
 var elqBreakpoints    = require("../plugin/elq-breakpoints/elq-breakpoints.js");
 var elqMinMaxApplyer  = require("../plugin/elq-minmax-applyer/elq-minmax-applyer.js");
 var elqMirror         = require("../plugin/elq-mirror/elq-mirror.js");
+var elqResize         = require("../plugin/elq-resize/elq-resize.js");
 
 // Proxy the Constructor so that we can register plugins when an instance is created.
 module.exports = function DefaultElq(options) {
@@ -1819,11 +1834,12 @@ module.exports = function DefaultElq(options) {
 
     elq.use(elqMinMaxApplyer);
     elq.use(elqMirror);
+    elq.use(elqResize);
 
     return elq;
 };
 
-},{"../elq":19,"../plugin/elq-breakpoints/elq-breakpoints.js":25,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":27,"../plugin/elq-mirror/elq-mirror.js":28}],17:[function(require,module,exports){
+},{"../elq":19,"../plugin/elq-breakpoints/elq-breakpoints.js":25,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":27,"../plugin/elq-mirror/elq-mirror.js":28,"../plugin/elq-resize/elq-resize.js":29}],17:[function(require,module,exports){
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
@@ -2243,7 +2259,7 @@ function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     return createBatchProcessorOptionsProxy;
 }
 
-},{"../package.json":14,"./breakpoint-state-calculator":15,"./cycle-detector":17,"./id-generator":20,"./id-handler":21,"./plugin-handler":23,"./reporter":29,"./style-resolver":30,"./utils":31,"batch-processor":1,"element-resize-detector":7}],20:[function(require,module,exports){
+},{"../package.json":14,"./breakpoint-state-calculator":15,"./cycle-detector":17,"./id-generator":20,"./id-handler":21,"./plugin-handler":23,"./reporter":30,"./style-resolver":31,"./utils":32,"batch-processor":1,"element-resize-detector":7}],20:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -2447,7 +2463,7 @@ module.exports = function PluginHandler(reporter) {
     };
 };
 
-},{"./utils":31}],24:[function(require,module,exports){
+},{"./utils":32}],24:[function(require,module,exports){
 "use strict";
 
 var BP_UNITS = {};
@@ -2586,7 +2602,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":14,"../../element-utils.js":18,"../../style-resolver.js":30,"./breakpoint-parser.js":24}],26:[function(require,module,exports){
+},{"../../../package.json":14,"../../element-utils.js":18,"../../style-resolver.js":31,"./breakpoint-parser.js":24}],26:[function(require,module,exports){
 "use strict";
 
 var forEach = require("../../utils").forEach;
@@ -2659,7 +2675,7 @@ module.exports = function BreakpointStateApplyer() {
     };
 };
 
-},{"../../utils":31}],27:[function(require,module,exports){
+},{"../../utils":32}],27:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json");
@@ -2689,7 +2705,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":14,"../../style-resolver.js":30,"./breakpoint-state-applyer.js":26}],28:[function(require,module,exports){
+},{"../../../package.json":14,"../../style-resolver.js":31,"./breakpoint-state-applyer.js":26}],28:[function(require,module,exports){
 "use strict";
 
 var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
@@ -2768,6 +2784,38 @@ module.exports = {
 },{"../../../package.json":14,"../../element-utils.js":18}],29:[function(require,module,exports){
 "use strict";
 
+var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
+var elementUtils = require("../../element-utils.js");
+
+module.exports = {
+    getName: function () {
+        return "elq-resize";
+    },
+    getVersion: function () {
+        return packageJson.version;
+    },
+    isCompatible: function (elq) {
+        return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
+    },
+    make: function (elq) {
+        function activate(element) {
+            if (!elementUtils.hasAttribute(element, "elq-resize")) {
+                return;
+            }
+
+            // This is a very simple plugin indeed, it simply activates the element resize detection.
+            element.elq.resizeDetection = true;
+        }
+
+        return {
+            activate: activate
+        };
+    }
+};
+
+},{"../../../package.json":14,"../../element-utils.js":18}],30:[function(require,module,exports){
+"use strict";
+
 /* global console: false */
 
 /**
@@ -2801,7 +2849,7 @@ module.exports = function (quiet) {
     return reporter;
 };
 
-},{}],30:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
 "use strict";
 
 module.exports = function StyleResolver() {
@@ -2812,7 +2860,7 @@ module.exports = function StyleResolver() {
     };
 };
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 "use strict";
 
 var utils = module.exports = {};

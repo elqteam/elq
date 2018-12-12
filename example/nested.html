@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        html, body {
+            height: 100%;
+        }
+
+        .aligner {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            width: 50%;
+            height: 50%;
+            background: #FF9800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .bg-grey {
+            background-color: grey;
+        }
+
+        .dimensions {
+            font-size: 3em;
+            color: #FFF;
+            text-align: center;
+        }
+
+        .dim-x, .dim-y {
+            color: #263248;
+        }
+
+        .classes div {
+            display: inline-block;
+            margin: 5px;
+        }
+
+        .classes div span {
+            display: block;
+            font-family: monospace;
+        }
+
+        .mirror.elq-min-width-19rem { /* 19rem = 300px */
+            color: blue;
+        }
+
+        .mirror.elq-min-width-25em { /* 25em = 400px */
+            color: green;
+        }
+
+        .mirror.elq-min-width-500px {
+            color: yellow;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="aligner">
+        <div id="c1" class="container" elq elq-breakpoints="notcyclic" elq-breakpoints-widths="500px  19rem   25">
+            <div class="test">
+                <div class="dimensions">
+                    <span class="dim-x"></span>x<span class="dim-y"></span>
+                </div>
+                <div id="m1" class="mirror" elq elq-mirror elq-breakpoints elq-breakpoints-widths="10em">
+                    I'm an ELQ element.
+                    <div elq elq-mirror></div>
+                </div>
+            </div>
+            <div id="c2" class="container bg-grey" elq elq-breakpoints="notcyclic" elq-breakpoints-widths="500px  19rem   25">
+                <div class="test">
+                    <div class="dimensions">
+                        <span class="dim-x"></span>x<span class="dim-y"></span>
+                    </div>
+                    <div id="m2" class="mirror" elq elq-mirror elq-breakpoints elq-breakpoints-widths="10em">
+                        I'm an ELQ element.
+                        <div elq elq-mirror></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../node_modules/jquery/dist/jquery.min.js"></script>
+    <script src="../build/elq.js"></script>
+    <script>
+        $(function() {
+            function updateElement(element) {
+                updateDimensions(element);
+            }
+
+            function updateDimensions(element) {
+                var width = $(element).width();
+                var height = $(element).height();
+                $(element).find("> .test > .dimensions > .dim-x").html(width);
+                $(element).find("> .test > .dimensions > .dim-y").html(height);
+            }
+
+            var c1 = $("#c1");
+            var c2 = $("#c2");
+
+            var elq = new Elq({
+                defaultUnit: "em"
+            });
+
+            var first = true;
+
+            elq.listenTo(c1[0], "resize", updateElement);
+            elq.listenTo(c2[0], "resize", updateElement);
+            elq.listenTo("resize", function () {
+                if (first) {
+                    first = false;
+                    elq.activate($("#c2"));
+                }
+            });
+            elq.activate($("#c1"));
+        });
+    </script>
+</body>
+</html>

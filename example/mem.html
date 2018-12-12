@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script>
+        console.time("load->updated");
+    </script>
+    <style>
+        html, body {
+            height: 100%;
+        }
+
+        #aligner {
+            height: 100%;
+        }
+
+        .container {
+            width: 50%;
+            background: #FF9800;
+            cursor: pointer;
+            position: relative;
+            border: 1px solid black;
+            height: 20px;
+        }
+
+        .container.elq-max-width-200px {
+            background-color: red;
+        }
+
+        .container.elq-min-width-200px {
+            background-color: blue;
+        }
+
+        #dimensions {
+            font-size: 3em;
+            color: #FFF;
+        }
+
+        #dim-x, #dim-y {
+            color: #263248;
+        }
+
+    </style>
+</head>
+<body>
+    <button onclick="resize()">Resize</button>
+    <button onclick="add()">Add</button>
+    <button onclick="remove()">Remove</button>
+    <div id="aligner">
+    </div>
+
+    <script src="../dist/elq.js"></script>
+    <script>
+        var elq = Elq();
+
+        var alignerWidth = 100;
+
+        function createDiv(width) {
+            var d = document.createElement("div");
+            d.setAttribute("elq", "");
+            d.setAttribute("elq-breakpoints", "");
+            d.setAttribute("elq-breakpoints-widths", "50 100 150 200 250 300");
+            d.className = "container";
+            return d;
+        }
+
+        function loopCreateAndAppend(numNested, create, target) {
+            for(var i = 0; i < numNested; i++) {
+                var d = create();
+                target.appendChild(d);
+            }
+
+            return target;
+        }
+
+        function resize() {
+            if(alignerWidth === 100) {
+                alignerWidth = 50;
+            } else {
+                alignerWidth = 100;
+            }
+
+            document.querySelector("#aligner").style.width = alignerWidth + "%";
+
+            console.time("breakpoints updated");
+        }
+
+        function add() {
+            var num = 50;
+
+            loopCreateAndAppend(num, createDiv.bind(null, 20), document.getElementById("aligner"));
+
+            var first = true;
+            var cnt = 0;
+            console.time("breakpoints updated");
+            elq.listenTo("breakpointStatesChanged", function () {
+                cnt++;
+
+                if (cnt === num) {
+                    console.timeEnd("breakpoints updated");
+                    cnt = 0;
+
+                    if (first) {
+                        console.timeEnd("load->updated");
+                        first = false;
+                    }
+                }
+            });
+
+            elq.activate(document.querySelectorAll("[elq]"));
+        }
+
+        function remove() {
+            elq.deactivate(document.querySelectorAll("[elq]"));
+            document.getElementById("aligner").innerHTML = "";
+        }
+
+        document.addEventListener("DOMContentLoaded", function(event) {
+
+        });
+    </script>
+</body>
+</html>
