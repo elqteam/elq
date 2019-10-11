@@ -371,7 +371,9 @@ module.exports = function(options) {
                 //Add an object element as a child to the target element that will be listened to for resize events.
                 var object = document.createElement("object");
                 object.style.cssText = OBJECT_STYLE;
+                object.tabIndex = -1;
                 object.type = "text/html";
+                object.setAttribute("aria-hidden", "true");
                 object.onload = onObjectLoad;
 
                 //Safari: This must occur before adding the object to the DOM.
@@ -599,19 +601,30 @@ module.exports = function(options) {
             function isInDocument(element) {
                 return element === element.ownerDocument.body || element.ownerDocument.body.contains(element);
             }
-            return !isInDocument(element);
+
+            if (!isInDocument(element)) {
+                return true;
+            }
+
+            // FireFox returns null style in hidden iframes. See https://github.com/wnr/element-resize-detector/issues/68 and https://bugzilla.mozilla.org/show_bug.cgi?id=795520
+            if (window.getComputedStyle(element) === null) {
+                return true;
+            }
+
+            return false;
         }
 
         function isUnrendered(element) {
             // Check the absolute positioned container since the top level container is display: inline.
             var container = getState(element).container.childNodes[0];
-            return getComputedStyle(container).width.indexOf("px") === -1; //Can only compute pixel value when rendered.
+            var style = window.getComputedStyle(container);
+            return !style.width || style.width.indexOf("px") === -1; //Can only compute pixel value when rendered.
         }
 
         function getStyle() {
             // Some browsers only force layouts when actually reading the style properties of the style object, so make sure that they are all read here,
             // so that the user of the function can be sure that it will perform the layout here, instead of later (important for batching).
-            var elementStyle            = getComputedStyle(element);
+            var elementStyle            = window.getComputedStyle(element);
             var style                   = {};
             style.position              = elementStyle.position;
             style.width                 = element.offsetWidth;
@@ -706,9 +719,15 @@ module.exports = function(options) {
                 addAnimationClass(container);
                 element.appendChild(container);
 
-                addEvent(container, "animationstart", function onAnimationStart () {
+                var onAnimationStart = function () {
                     getState(element).onRendered && getState(element).onRendered();
-                });
+                };
+
+                addEvent(container, "animationstart", onAnimationStart);
+
+                // Store the event handler here so that they may be removed when uninstall is called.
+                // See uninstall function for an explanation why it is needed.
+                getState(element).onAnimationStart = onAnimationStart;
             }
 
             return container;
@@ -777,10 +796,10 @@ module.exports = function(options) {
 
             var scrollbarWidth          = scrollbarSizes.width;
             var scrollbarHeight         = scrollbarSizes.height;
-            var containerContainerStyle = "position: absolute; overflow: hidden; z-index: -1; visibility: hidden; width: 100%; height: 100%; left: 0px; top: 0px;";
-            var containerStyle          = "position: absolute; overflow: hidden; z-index: -1; visibility: hidden; " + getLeftTopBottomRightCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth);
-            var expandStyle             = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
-            var shrinkStyle             = "position: absolute; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
+            var containerContainerStyle = "position: absolute; flex: none; overflow: hidden; z-index: -1; visibility: hidden; width: 100%; height: 100%; left: 0px; top: 0px;";
+            var containerStyle          = "position: absolute; flex: none; overflow: hidden; z-index: -1; visibility: hidden; " + getLeftTopBottomRightCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth);
+            var expandStyle             = "position: absolute; flex: none; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
+            var shrinkStyle             = "position: absolute; flex: none; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
             var expandChildStyle        = "position: absolute; left: 0; top: 0;";
             var shrinkChildStyle        = "position: absolute; width: 200%; height: 200%;";
 
@@ -823,7 +842,7 @@ module.exports = function(options) {
             addEvent(shrink, "scroll", onShrinkScroll);
 
             // Store the event handlers here so that they may be removed when uninstall is called.
-            // Se uninstall function for an explanation why it is needed.
+            // See uninstall function for an explanation why it is needed.
             getState(element).onExpandScroll = onExpandScroll;
             getState(element).onShrinkScroll = onShrinkScroll;
         }
@@ -856,6 +875,11 @@ module.exports = function(options) {
                         return;
                     }
 
+                    if (!areElementsInjected()) {
+                        debug("Aborting because element container has not been initialized");
+                        return;
+                    }
+
                     if (options.debug) {
                         var w = element.offsetWidth;
                         var h = element.offsetHeight;
@@ -874,6 +898,11 @@ module.exports = function(options) {
                         return;
                     }
 
+                    if (!areElementsInjected()) {
+                        debug("Aborting because element container has not been initialized");
+                        return;
+                    }
+
                     positionScrollbars(element, width, height);
                 });
 
@@ -882,6 +911,11 @@ module.exports = function(options) {
                         if (!getState(element)) {
                             debug("Aborting because element has been uninstalled");
                             return;
+                        }
+
+                        if (!areElementsInjected()) {
+                          debug("Aborting because element container has not been initialized");
+                          return;
                         }
 
                         done();
@@ -950,7 +984,7 @@ module.exports = function(options) {
                 var width = element.offsetWidth;
                 var height = element.offsetHeight;
 
-                if (width !== element.lastWidth || height !== element.lastHeight) {
+                if (width !== getState(element).lastWidth || height !== getState(element).lastHeight) {
                     debug("Element size changed.");
                     updateDetectorElements(notifyListenersIfNeeded);
                 } else {
@@ -1028,18 +1062,18 @@ module.exports = function(options) {
             return;
         }
 
-        if (state.busy) {
-            // Uninstall has been called while the element is being prepared.
-            // Right between the sync code and async batch.
-            // So no elements have been injected, and no event handlers have been registered.
-            return;
-        }
+        // Uninstall may have been called in the following scenarios:
+        // (1) Right between the sync code and async batch (here state.busy = true, but nothing have been registered or injected).
+        // (2) In the ready callback of the last level of the batch by another element (here, state.busy = true, but all the stuff has been injected).
+        // (3) After the installation process (here, state.busy = false and all the stuff has been injected).
+        // So to be on the safe side, let's check for each thing before removing.
 
         // We need to remove the event listeners, because otherwise the event might fire on an uninstall element which results in an error when trying to get the state of the element.
-        removeEvent(getExpandElement(element), "scroll", state.onExpandScroll);
-        removeEvent(getShrinkElement(element), "scroll", state.onShrinkScroll);
+        state.onExpandScroll && removeEvent(getExpandElement(element), "scroll", state.onExpandScroll);
+        state.onShrinkScroll && removeEvent(getShrinkElement(element), "scroll", state.onShrinkScroll);
+        state.onAnimationStart && removeEvent(state.container, "animationstart", state.onAnimationStart);
 
-        element.removeChild(state.container);
+        state.container && element.removeChild(state.container);
     }
 
     return {
@@ -1122,7 +1156,7 @@ module.exports = function(options) {
         // To maintain compatability with idHandler.get(element, readonly), make sure to wrap the given idHandler
         // so that readonly flag always is true when it's used here. This may be removed next major version bump.
         idHandler = {
-            get: function (element) { options.idHandler.get(element, true); },
+            get: function (element) { return options.idHandler.get(element, true); },
             set: options.idHandler.set
         };
     } else {
@@ -1184,7 +1218,7 @@ module.exports = function(options) {
         throw new Error("Invalid strategy name: " + desiredStrategy);
     }
 
-    //Calls can be made to listenTo with elements that are still are being installed.
+    //Calls can be made to listenTo with elements that are still being installed.
     //Also, same elements can occur in the elements list in the listenTo function.
     //With this map, the ready callbacks can be synchronized between the calls
     //so that the ready callback can always be called when an element is ready - even if
@@ -1290,10 +1324,12 @@ module.exports = function(options) {
                         // Since the element size might have changed since the call to "listenTo", we need to check for this change,
                         // so that a resize event may be emitted.
                         // Having the startSize object is optional (since it does not make sense in some cases such as unrendered elements), so check for its existance before.
-                        if (stateHandler.getState(element).startSize) {
+                        // Also, check the state existance before since the element may have been uninstalled in the installation process.
+                        var state = stateHandler.getState(element);
+                        if (state && state.startSize) {
                             var width = element.offsetWidth;
                             var height = element.offsetHeight;
-                            if (stateHandler.getState(element).startSize.width !== width || stateHandler.getState(element).startSize.height !== height) {
+                            if (state.startSize.width !== width || state.startSize.height !== height) {
                                 onResizeCallback(element);
                             }
                         }
@@ -1506,7 +1542,13 @@ module.exports = function(idHandler) {
      * @returns All listeners for the given element.
      */
     function getListeners(element) {
-        return eventListeners[idHandler.get(element)] || [];
+        var id = idHandler.get(element);
+
+        if (id === undefined) {
+            return [];
+        }
+
+        return eventListeners[id] || [];
     }
 
     /**
@@ -1536,7 +1578,7 @@ module.exports = function(idHandler) {
     }
 
     function removeAllListeners(element) {
-      var listeners = eventListeners[idHandler.get(element)];
+      var listeners = getListeners(element);
       if (!listeners) { return; }
       listeners.length = 0;
     }
@@ -1626,7 +1668,7 @@ module.exports={
     "type": "git",
     "url": "git://github.com/elqteam/elq.git"
   },
-  "version": "0.4.6",
+  "version": "1.0.0",
   "private": false,
   "license": "MIT",
   "main": "src/index.js",
