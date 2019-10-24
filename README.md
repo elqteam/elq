@@ -4,6 +4,8 @@
 
 Element queries for modular responsive components.
 
+If you want to use ELQ in a React project. Try the React wrapper called [react-responsive-block](https://github.com/elqteam/react-responsive-block).
+
 File size is a bit big at the moment (237 KB, 16 KB minified + gzip). In the future, we will remove the lodash dependency, reducing the size to something like (70 KB, 6 KB minified + gzip).
 
 Big thanks to [Evry](http://evry.com/) sponsoring the project.
@@ -19,12 +21,12 @@ Otherwise, move on and come back another time :)
 Since element queries have not been standardized (and not implemented in browsers), developers need to resort to JavaScript to provide element queries.
 There are numerous libraries that enable element queries in different ways, but here are the main selling points to why we believe ELQ is the best solution:
 
-- Optimized element resize detection
-- Extensibility through plugins
+- Optimized element resize detection using [element-resize-detector](https://github.com/wnr/element-resize-detector).
+- Extensibility through plugins.
 - batch processed updates of elements breakpoint states (to avoid layout thrashing).
 - Compatibility with browsers (IE8+, Opera 12+, etc).
 - Compatibility with existing code (conforms to HTML, JS and CSS specs).
-- A runtime cycle detection system
+- A runtime cycle detection system.
 - Allowing style encapsulation of responsive elements (for nested responsive modules).
 
 For a very detailed description of ELQ and element queries, read the [Master's Thesis](http://kth.diva-portal.org/smash/get/diva2:850230/FULLTEXT01.pdf). The API and architecture is somewhat outdated, but the Thesis is still relevant for understanding ELQ.
