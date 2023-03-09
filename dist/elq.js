@@ -244,10 +244,6 @@ module.exports = function(options) {
      * @param {function} listener The listener callback to be called for each resize event of the element. The element will be given as a parameter to the listener callback.
      */
     function addListener(element, listener) {
-        if(!getObject(element)) {
-            throw new Error("Element is not detectable by this strategy.");
-        }
-
         function listenerProxy() {
             listener(element);
         }
@@ -260,8 +256,19 @@ module.exports = function(options) {
             element.attachEvent("onresize", listenerProxy);
         } else {
             var object = getObject(element);
+
+            if(!object) {
+                throw new Error("Element is not detectable by this strategy.");
+            }
+
             object.contentDocument.defaultView.addEventListener("resize", listenerProxy);
         }
+    }
+
+    function buildCssTextString(rules) {
+        var seperator = options.important ? " !important; " : "; ";
+
+        return (rules.join(seperator) + seperator).trim();
     }
 
     /**
@@ -282,7 +289,7 @@ module.exports = function(options) {
         var debug = options.debug;
 
         function injectObject(element, callback) {
-            var OBJECT_STYLE = "display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; padding: 0; margin: 0; opacity: 0; z-index: -1000; pointer-events: none;";
+            var OBJECT_STYLE = buildCssTextString(["display: block", "position: absolute", "top: 0", "left: 0", "width: 100%", "height: 100%", "border: none", "padding: 0", "margin: 0", "opacity: 0", "z-index: -1000", "pointer-events: none"]);
 
             //The target element needs to be positioned (everything except static) so the absolute positioned object will be positioned relative to the target element.
 
@@ -303,7 +310,7 @@ module.exports = function(options) {
             function mutateDom() {
                 function alterPositionStyles() {
                     if(style.position === "static") {
-                        element.style.position = "relative";
+                        element.style.setProperty("position", "relative", options.important ? "important" : "");
 
                         var removeRelativeStyles = function(reporter, element, style, property) {
                             function getNumericalValue(value) {
@@ -314,7 +321,7 @@ module.exports = function(options) {
 
                             if(value !== "auto" && getNumericalValue(value) !== "0") {
                                 reporter.warn("An element that is positioned static has style." + property + "=" + value + " which is ignored due to the static positioning. The element will need to be positioned relative, so the style." + property + " will be set to 0. Element: ", element);
-                                element.style[property] = 0;
+                                element.style.setProperty(property, "0", options.important ? "important" : "");
                             }
                         };
 
@@ -340,7 +347,12 @@ module.exports = function(options) {
                         //So if it is not present, poll it with an timeout until it is present.
                         //TODO: Could maybe be handled better with object.onreadystatechange or similar.
                         if(!element.contentDocument) {
-                            setTimeout(function checkForObjectDocument() {
+                            var state = getState(element);
+                            if (state.checkForObjectDocumentTimeoutId) {
+                                window.clearTimeout(state.checkForObjectDocumentTimeoutId);
+                            }
+                            state.checkForObjectDocumentTimeoutId = setTimeout(function checkForObjectDocument() {
+                                state.checkForObjectDocumentTimeoutId = 0;
                                 getDocument(element, callback);
                             }, 100);
 
@@ -382,6 +394,11 @@ module.exports = function(options) {
                     object.data = "about:blank";
                 }
 
+                if (!getState(element)) {
+                    // The element has been uninstalled before the actual loading happened.
+                    return;
+                }
+
                 element.appendChild(object);
                 getState(element).object = object;
 
@@ -419,11 +436,26 @@ module.exports = function(options) {
     }
 
     function uninstall(element) {
-        if(browserDetector.isIE(8)) {
-            element.detachEvent("onresize", getState(element).object.proxy);
-        } else {
-            element.removeChild(getObject(element));
+        if (!getState(element)) {
+            return;
         }
+
+        var object = getObject(element);
+
+        if (!object) {
+            return;
+        }
+
+        if (browserDetector.isIE(8)) {
+            element.detachEvent("onresize", object.proxy);
+        } else {
+            element.removeChild(object);
+        }
+
+        if (getState(element).checkForObjectDocumentTimeoutId) {
+            window.clearTimeout(getState(element).checkForObjectDocumentTimeoutId);
+        }
+
         delete getState(element).object;
     }
 
@@ -463,21 +495,32 @@ module.exports = function(options) {
     //TODO: Could this perhaps be done at installation time?
     var scrollbarSizes = getScrollbarSizes();
 
-    // Inject the scrollbar styling that prevents them from appearing sometimes in Chrome.
-    // The injected container needs to have a class, so that it may be styled with CSS (pseudo elements).
     var styleId = "erd_scroll_detection_scrollbar_style";
     var detectionContainerClass = "erd_scroll_detection_container";
-    injectScrollStyle(styleId, detectionContainerClass);
+
+    function initDocument(targetDocument) {
+        // Inject the scrollbar styling that prevents them from appearing sometimes in Chrome.
+        // The injected container needs to have a class, so that it may be styled with CSS (pseudo elements).
+        injectScrollStyle(targetDocument, styleId, detectionContainerClass);
+    }
+
+    initDocument(window.document);
+
+    function buildCssTextString(rules) {
+        var seperator = options.important ? " !important; " : "; ";
+
+        return (rules.join(seperator) + seperator).trim();
+    }
 
     function getScrollbarSizes() {
         var width = 500;
         var height = 500;
 
         var child = document.createElement("div");
-        child.style.cssText = "position: absolute; width: " + width*2 + "px; height: " + height*2 + "px; visibility: hidden; margin: 0; padding: 0;";
+        child.style.cssText = buildCssTextString(["position: absolute", "width: " + width*2 + "px", "height: " + height*2 + "px", "visibility: hidden", "margin: 0", "padding: 0"]);
 
         var container = document.createElement("div");
-        container.style.cssText = "position: absolute; width: " + width + "px; height: " + height + "px; overflow: scroll; visibility: none; top: " + -width*3 + "px; left: " + -height*3 + "px; visibility: hidden; margin: 0; padding: 0;";
+        container.style.cssText = buildCssTextString(["position: absolute", "width: " + width + "px", "height: " + height + "px", "overflow: scroll", "visibility: none", "top: " + -width*3 + "px", "left: " + -height*3 + "px", "visibility: hidden", "margin: 0", "padding: 0"]);
 
         container.appendChild(child);
 
@@ -494,25 +537,25 @@ module.exports = function(options) {
         };
     }
 
-    function injectScrollStyle(styleId, containerClass) {
+    function injectScrollStyle(targetDocument, styleId, containerClass) {
         function injectStyle(style, method) {
             method = method || function (element) {
-                document.head.appendChild(element);
+                targetDocument.head.appendChild(element);
             };
 
-            var styleElement = document.createElement("style");
+            var styleElement = targetDocument.createElement("style");
             styleElement.innerHTML = style;
             styleElement.id = styleId;
             method(styleElement);
             return styleElement;
         }
 
-        if (!document.getElementById(styleId)) {
+        if (!targetDocument.getElementById(styleId)) {
             var containerAnimationClass = containerClass + "_animation";
             var containerAnimationActiveClass = containerClass + "_animation_active";
             var style = "/* Created by the element-resize-detector library. */\n";
-            style += "." + containerClass + " > div::-webkit-scrollbar { display: none; }\n\n";
-            style += "." + containerAnimationActiveClass + " { -webkit-animation-duration: 0.1s; animation-duration: 0.1s; -webkit-animation-name: " + containerAnimationClass + "; animation-name: " + containerAnimationClass + "; }\n";
+            style += "." + containerClass + " > div::-webkit-scrollbar { " + buildCssTextString(["display: none"]) + " }\n\n";
+            style += "." + containerAnimationActiveClass + " { " + buildCssTextString(["-webkit-animation-duration: 0.1s", "animation-duration: 0.1s", "-webkit-animation-name: " + containerAnimationClass, "animation-name: " + containerAnimationClass]) + " }\n";
             style += "@-webkit-keyframes " + containerAnimationClass +  " { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }\n";
             style += "@keyframes " + containerAnimationClass +          " { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }";
             injectStyle(style);
@@ -599,7 +642,8 @@ module.exports = function(options) {
 
         function isDetached(element) {
             function isInDocument(element) {
-                return element === element.ownerDocument.body || element.ownerDocument.body.contains(element);
+                var isInShadowRoot = element.getRootNode && element.getRootNode().contains(element);
+                return element === element.ownerDocument.body || element.ownerDocument.body.contains(element) || isInShadowRoot;
             }
 
             if (!isInDocument(element)) {
@@ -714,7 +758,7 @@ module.exports = function(options) {
             if (!container) {
                 container                   = document.createElement("div");
                 container.className         = detectionContainerClass;
-                container.style.cssText     = "visibility: hidden; display: inline; width: 0px; height: 0px; z-index: -1; overflow: hidden; margin: 0; padding: 0;";
+                container.style.cssText     = buildCssTextString(["visibility: hidden", "display: inline", "width: 0px", "height: 0px", "z-index: -1", "overflow: hidden", "margin: 0", "padding: 0"]);
                 getState(element).container = container;
                 addAnimationClass(container);
                 element.appendChild(container);
@@ -738,7 +782,7 @@ module.exports = function(options) {
                 var style = getState(element).style;
 
                 if(style.position === "static") {
-                    element.style.position = "relative";
+                    element.style.setProperty("position", "relative",options.important ? "important" : "");
 
                     var removeRelativeStyles = function(reporter, element, style, property) {
                         function getNumericalValue(value) {
@@ -768,7 +812,7 @@ module.exports = function(options) {
                 bottom = (!bottom ? "0" : (bottom + "px"));
                 right = (!right ? "0" : (right + "px"));
 
-                return "left: " + left + "; top: " + top + "; right: " + right + "; bottom: " + bottom + ";";
+                return ["left: " + left, "top: " + top, "right: " + right, "bottom: " + bottom];
             }
 
             debug("Injecting elements");
@@ -796,12 +840,12 @@ module.exports = function(options) {
 
             var scrollbarWidth          = scrollbarSizes.width;
             var scrollbarHeight         = scrollbarSizes.height;
-            var containerContainerStyle = "position: absolute; flex: none; overflow: hidden; z-index: -1; visibility: hidden; width: 100%; height: 100%; left: 0px; top: 0px;";
-            var containerStyle          = "position: absolute; flex: none; overflow: hidden; z-index: -1; visibility: hidden; " + getLeftTopBottomRightCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth);
-            var expandStyle             = "position: absolute; flex: none; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
-            var shrinkStyle             = "position: absolute; flex: none; overflow: scroll; z-index: -1; visibility: hidden; width: 100%; height: 100%;";
-            var expandChildStyle        = "position: absolute; left: 0; top: 0;";
-            var shrinkChildStyle        = "position: absolute; width: 200%; height: 200%;";
+            var containerContainerStyle = buildCssTextString(["position: absolute", "flex: none", "overflow: hidden", "z-index: -1", "visibility: hidden", "width: 100%", "height: 100%", "left: 0px", "top: 0px"]);
+            var containerStyle          = buildCssTextString(["position: absolute", "flex: none", "overflow: hidden", "z-index: -1", "visibility: hidden"].concat(getLeftTopBottomRightCssText(-(1 + scrollbarWidth), -(1 + scrollbarHeight), -scrollbarHeight, -scrollbarWidth)));
+            var expandStyle             = buildCssTextString(["position: absolute", "flex: none", "overflow: scroll", "z-index: -1", "visibility: hidden", "width: 100%", "height: 100%"]);
+            var shrinkStyle             = buildCssTextString(["position: absolute", "flex: none", "overflow: scroll", "z-index: -1", "visibility: hidden", "width: 100%", "height: 100%"]);
+            var expandChildStyle        = buildCssTextString(["position: absolute", "left: 0", "top: 0"]);
+            var shrinkChildStyle        = buildCssTextString(["position: absolute", "width: 200%", "height: 200%"]);
 
             var containerContainer      = document.createElement("div");
             var container               = document.createElement("div");
@@ -831,11 +875,21 @@ module.exports = function(options) {
             rootContainer.appendChild(containerContainer);
 
             function onExpandScroll() {
-                getState(element).onExpand && getState(element).onExpand();
+                var state = getState(element);
+                if (state && state.onExpand) {
+                    state.onExpand();
+                } else {
+                    debug("Aborting expand scroll handler: element has been uninstalled");
+                }
             }
 
             function onShrinkScroll() {
-                getState(element).onShrink && getState(element).onShrink();
+                var state = getState(element);
+                if (state && state.onShrink) {
+                    state.onShrink();
+                } else {
+                    debug("Aborting shrink scroll handler: element has been uninstalled");
+                }
             }
 
             addEvent(expand, "scroll", onExpandScroll);
@@ -852,13 +906,16 @@ module.exports = function(options) {
                 var expandChild             = getExpandChildElement(element);
                 var expandWidth             = getExpandWidth(width);
                 var expandHeight            = getExpandHeight(height);
-                expandChild.style.width     = expandWidth + "px";
-                expandChild.style.height    = expandHeight + "px";
+                expandChild.style.setProperty("width", expandWidth + "px", options.important ? "important" : "");
+                expandChild.style.setProperty("height", expandHeight + "px", options.important ? "important" : "");
             }
 
             function updateDetectorElements(done) {
                 var width           = element.offsetWidth;
                 var height          = element.offsetHeight;
+
+                // Check whether the size has actually changed since last time the algorithm ran. If not, some steps may be skipped.
+                var sizeChanged = width !== getState(element).lastWidth || height !== getState(element).lastHeight;
 
                 debug("Storing current size", width, height);
 
@@ -870,6 +927,10 @@ module.exports = function(options) {
                 // Since there is no way to cancel the fn executions, we need to add an uninstall guard to all fns of the batch.
 
                 batchProcessor.add(0, function performUpdateChildSizes() {
+                    if (!sizeChanged) {
+                        return;
+                    }
+
                     if (!getState(element)) {
                         debug("Aborting because element has been uninstalled");
                         return;
@@ -893,6 +954,9 @@ module.exports = function(options) {
                 });
 
                 batchProcessor.add(1, function updateScrollbars() {
+                    // This function needs to be invoked event though the size is unchanged. The element could have been resized very quickly and then
+                    // been restored to the original size, which will have changed the scrollbar positions.
+
                     if (!getState(element)) {
                         debug("Aborting because element has been uninstalled");
                         return;
@@ -906,7 +970,7 @@ module.exports = function(options) {
                     positionScrollbars(element, width, height);
                 });
 
-                if (done) {
+                if (sizeChanged && done) {
                     batchProcessor.add(2, function () {
                         if (!getState(element)) {
                             debug("Aborting because element has been uninstalled");
@@ -936,7 +1000,7 @@ module.exports = function(options) {
 
                 var state = getState(element);
 
-                // Don't notify the if the current size is the start size, and this is the first notification.
+                // Don't notify if the current size is the start size, and this is the first notification.
                 if (isFirstNotify() && state.lastWidth === state.startSize.width && state.lastHeight === state.startSize.height) {
                     return debug("Not notifying: Size is the same as the start size, and there has been no notification yet.");
                 }
@@ -981,15 +1045,7 @@ module.exports = function(options) {
                     return;
                 }
 
-                var width = element.offsetWidth;
-                var height = element.offsetHeight;
-
-                if (width !== getState(element).lastWidth || height !== getState(element).lastHeight) {
-                    debug("Element size changed.");
-                    updateDetectorElements(notifyListenersIfNeeded);
-                } else {
-                    debug("Element size has not changed (" + width + "x" + height + ").");
-                }
+                updateDetectorElements(notifyListenersIfNeeded);
             }
 
             debug("registerListenersAndPositionElements invoked.");
@@ -1079,7 +1135,8 @@ module.exports = function(options) {
     return {
         makeDetectable: makeDetectable,
         addListener: addListener,
-        uninstall: uninstall
+        uninstall: uninstall,
+        initDocument: initDocument
     };
 };
 
@@ -1193,11 +1250,13 @@ module.exports = function(options) {
     //The detection strategy to be used.
     var detectionStrategy;
     var desiredStrategy = getOption(options, "strategy", "object");
+    var importantCssRules = getOption(options, "important", false);
     var strategyOptions = {
         reporter: reporter,
         batchProcessor: batchProcessor,
         stateHandler: stateHandler,
-        idHandler: idHandler
+        idHandler: idHandler,
+        important: importantCssRules
     };
 
     if(desiredStrategy === "scroll") {
@@ -1312,7 +1371,7 @@ module.exports = function(options) {
                 debug && reporter.log(id, "Making detectable...");
                 //The element is not prepared to be detectable, so do prepare it and add a listener to it.
                 elementUtils.markBusy(element, true);
-                return detectionStrategy.makeDetectable({ debug: debug }, element, function onElementDetectable(element) {
+                return detectionStrategy.makeDetectable({ debug: debug, important: importantCssRules }, element, function onElementDetectable(element) {
                     debug && reporter.log(id, "onElementDetectable");
 
                     if (stateHandler.getState(element)) {
@@ -1388,11 +1447,16 @@ module.exports = function(options) {
         });
     }
 
+    function initDocument(targetDocument) {
+        detectionStrategy.initDocument && detectionStrategy.initDocument(targetDocument);
+    }
+
     return {
         listenTo: listenTo,
         removeListener: eventListenerHandler.removeListener,
         removeAllListeners: eventListenerHandler.removeAllListeners,
-        uninstall: uninstall
+        uninstall: uninstall,
+        initDocument: initDocument
     };
 };
 
@@ -1660,52 +1724,6 @@ module.exports = {
 };
 
 },{}],14:[function(require,module,exports){
-module.exports={
-  "name": "elq",
-  "description": "Element queries library. Solution to modular responsive components.",
-  "homepage": "https://github.com/elqteam/elq",
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/elqteam/elq.git"
-  },
-  "version": "1.0.0",
-  "private": false,
-  "license": "MIT",
-  "main": "src/index.js",
-  "devDependencies": {
-    "grunt": "^0.4.5",
-    "grunt-banner": "^0.3.1",
-    "grunt-browserify": "^3.3.0",
-    "grunt-contrib-jshint": "^0.11.0",
-    "grunt-contrib-uglify": "^0.11.0",
-    "grunt-contrib-watch": "^0.6.1",
-    "grunt-jscs": "^1.2.0",
-    "grunt-karma": "^0.10.1",
-    "jasmine-core": "^2.2.0",
-    "jasmine-expect": "^2.0.0-beta1",
-    "jasmine-jquery": "^2.0.6",
-    "jquery": "^1.11.2",
-    "karma": "^0.12.31",
-    "karma-chrome-launcher": "^0.1.7",
-    "karma-firefox-launcher": "^0.1.4",
-    "karma-jasmine": "^0.3.5",
-    "karma-safari-launcher": "^0.1.1",
-    "karma-sauce-launcher": "^0.2.10",
-    "load-grunt-tasks": "^3.0.0",
-    "lodash": "^3.3.1"
-  },
-  "dependencies": {
-    "element-resize-detector": "^1.1.7",
-    "batch-processor": "^1.0.0"
-  },
-  "scripts": {
-    "build": "grunt build",
-    "dist": "grunt dist",
-    "test": "grunt test"
-  }
-}
-
-},{}],15:[function(require,module,exports){
 "use strict";
 
 var forEach = require("./utils").forEach;
@@ -1837,7 +1855,7 @@ module.exports = function BreakpointStateCalculator(options) {
     };
 };
 
-},{"./utils":31}],16:[function(require,module,exports){
+},{"./utils":31}],15:[function(require,module,exports){
 "use strict";
 
 var Elq = require("../elq");
@@ -1865,7 +1883,12 @@ module.exports = function DefaultElq(options) {
     return elq;
 };
 
-},{"../elq":19,"../plugin/elq-breakpoints/elq-breakpoints.js":25,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":27,"../plugin/elq-mirror/elq-mirror.js":28}],17:[function(require,module,exports){
+},{"../elq":19,"../plugin/elq-breakpoints/elq-breakpoints.js":25,"../plugin/elq-minmax-applyer/elq-minmax-applyer.js":27,"../plugin/elq-mirror/elq-mirror.js":28}],16:[function(require,module,exports){
+module.exports = {
+  version: "1.0.1",
+};
+
+},{}],17:[function(require,module,exports){
 "use strict";
 
 module.exports = function CycleDetector(idHandler, options) {
@@ -1947,7 +1970,7 @@ utils.hasAttribute = function (element, attr) {
 },{}],19:[function(require,module,exports){
 "use strict";
 
-var packageJson                 = require("../package.json");
+var constants                   = require("./constants");
 var BatchProcessor              = require("batch-processor");
 var forEach                     = require("./utils").forEach;
 var unique                      = require("./utils").unique;
@@ -2248,11 +2271,11 @@ module.exports = function Elq(options) {
 };
 
 function getVersion() {
-    return packageJson.version;
+    return constants.version;
 }
 
 function getName() {
-    return packageJson.name;
+    return "elq";
 }
 
 function copy(o) {
@@ -2285,7 +2308,7 @@ function createBatchProcessorConstructorWithDefaultOptions(globalOptions) {
     return createBatchProcessorOptionsProxy;
 }
 
-},{"../package.json":14,"./breakpoint-state-calculator":15,"./cycle-detector":17,"./id-generator":20,"./id-handler":21,"./plugin-handler":23,"./reporter":29,"./style-resolver":30,"./utils":31,"batch-processor":1,"element-resize-detector":7}],20:[function(require,module,exports){
+},{"./breakpoint-state-calculator":14,"./constants":16,"./cycle-detector":17,"./id-generator":20,"./id-handler":21,"./plugin-handler":23,"./reporter":29,"./style-resolver":30,"./utils":31,"batch-processor":1,"element-resize-detector":7}],20:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -2352,7 +2375,7 @@ var Elq = require("./bundle/default");
 
 module.exports = Elq;
 
-},{"./bundle/default":16}],23:[function(require,module,exports){
+},{"./bundle/default":15}],23:[function(require,module,exports){
 "use strict";
 
 var forEach     = require("./utils").forEach;
@@ -2569,7 +2592,7 @@ module.exports = function BreakpointParser(options) {
 },{}],25:[function(require,module,exports){
 "use strict";
 
-var packageJson = require("../../../package.json");
+var constants = require("../../constants");
 var BreakpointsParser = require("./breakpoint-parser.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
 var elementUtils = require("../../element-utils.js");
@@ -2579,7 +2602,7 @@ module.exports = {
         return "elq-breakpoints";
     },
     getVersion: function () {
-        return packageJson.version;
+        return constants.version;
     },
     isCompatible: function (elq) {
         return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
@@ -2628,7 +2651,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":14,"../../element-utils.js":18,"../../style-resolver.js":30,"./breakpoint-parser.js":24}],26:[function(require,module,exports){
+},{"../../constants":16,"../../element-utils.js":18,"../../style-resolver.js":30,"./breakpoint-parser.js":24}],26:[function(require,module,exports){
 "use strict";
 
 var forEach = require("../../utils").forEach;
@@ -2704,7 +2727,7 @@ module.exports = function BreakpointStateApplyer() {
 },{"../../utils":31}],27:[function(require,module,exports){
 "use strict";
 
-var packageJson = require("../../../package.json");
+var constants = require("../../constants");
 var BreakpointStateApplyer = require("./breakpoint-state-applyer.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
 
@@ -2713,7 +2736,7 @@ module.exports = {
         return "elq-minmax-classes";
     },
     getVersion: function () {
-        return packageJson.version;
+        return constants.version;
     },
     isCompatible: function (elq) {
         return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.
@@ -2731,10 +2754,10 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":14,"../../style-resolver.js":30,"./breakpoint-state-applyer.js":26}],28:[function(require,module,exports){
+},{"../../constants":16,"../../style-resolver.js":30,"./breakpoint-state-applyer.js":26}],28:[function(require,module,exports){
 "use strict";
 
-var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
+var constants = require("../../constants");
 var elementUtils = require("../../element-utils.js");
 
 module.exports = {
@@ -2742,7 +2765,7 @@ module.exports = {
         return "elq-mirror";
     },
     getVersion: function () {
-        return packageJson.version;
+        return constants.version;
     },
 
     isCompatible: function (elq) {
@@ -2807,7 +2830,7 @@ module.exports = {
     }
 };
 
-},{"../../../package.json":14,"../../element-utils.js":18}],29:[function(require,module,exports){
+},{"../../constants":16,"../../element-utils.js":18}],29:[function(require,module,exports){
 "use strict";
 
 /* global console: false */

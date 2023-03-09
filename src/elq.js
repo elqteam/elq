@@ -1,6 +1,6 @@
 "use strict";
 
-var packageJson                 = require("../package.json");
+var constants                   = require("./constants");
 var BatchProcessor              = require("batch-processor");
 var forEach                     = require("./utils").forEach;
 var unique                      = require("./utils").unique;
@@ -301,11 +301,11 @@ module.exports = function Elq(options) {
 };
 
 function getVersion() {
-    return packageJson.version;
+    return constants.version;
 }
 
 function getName() {
-    return packageJson.name;
+    return "elq";
 }
 
 function copy(o) {

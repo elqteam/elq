@@ -1,6 +1,6 @@
 "use strict";
 
-var packageJson = require("../../../package.json");
+var constants = require("../../constants");
 var BreakpointStateApplyer = require("./breakpoint-state-applyer.js");
 var StyleResolver = require("../../style-resolver.js"); // TODO: Not nice that this is fetching out of own structure like this.
 
@@ -9,7 +9,7 @@ module.exports = {
         return "elq-minmax-classes";
     },
     getVersion: function () {
-        return packageJson.version;
+        return constants.version;
     },
     isCompatible: function (elq) {
         return true; // Since this plugin lives in the elq repo, it is assumed to always be compatible.

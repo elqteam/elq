@@ -1,6 +1,6 @@
 "use strict";
 
-var packageJson = require("../../../package.json"); // In the future this plugin might be broken out to an independent repo. For now it has the same version number as elq.
+var constants = require("../../constants");
 var elementUtils = require("../../element-utils.js");
 
 module.exports = {
@@ -8,7 +8,7 @@ module.exports = {
         return "elq-mirror";
     },
     getVersion: function () {
-        return packageJson.version;
+        return constants.version;
     },
 
     isCompatible: function (elq) {
